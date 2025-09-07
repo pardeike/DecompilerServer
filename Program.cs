@@ -1,35 +1,26 @@
 ﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using ModelContextProtocol.Server;
-using System.ComponentModel;
 
-var builder = Host.CreateApplicationBuilder(args);
+namespace DecompilerServer;
 
-// Important: send logs to STDERR so we don't corrupt MCP JSON on STDOUT
-builder.Logging.AddConsole(o =>
+public partial class Program
 {
-	o.LogToStandardErrorThreshold = LogLevel.Trace;
-});
+	public static async Task Main(string[] args)
+	{
+		var builder = Host.CreateApplicationBuilder(args);
+		builder.Logging.ClearProviders();
+		builder.Logging.AddProvider(new StderrLoggerProvider());
+		builder.Logging.SetMinimumLevel(LogLevel.Information);
+		// builder.Logging.AddFilter("Microsoft.Hosting.Lifetime", LogLevel.Warning);
+		// builder.Logging.AddFilter("ModelContextProtocol", LogLevel.Warning);
+		builder.Services.AddHostedService<StartupLogService>();
+		builder.Services
+			.AddMcpServer()             // core MCP server services
+			.WithStdioServerTransport() // Codex talks to STDIO servers
+			.WithToolsFromAssembly();   // auto-discover [McpServerTool]s in this assembly
 
-builder.Services
-	.AddMcpServer()                 // core MCP server services
-	.WithStdioServerTransport()     // Codex talks to STDIO servers
-	.WithToolsFromAssembly();       // auto-discover [McpServerTool]s in this assembly
-
-await builder.Build().RunAsync();
-
-// ---- Tools (functions callable by the client/LLM) ----
-[McpServerToolType]
-public static class HelloTools
-{
-	[McpServerTool, Description("Returns a friendly greeting.")]
-	public static string Hello([Description("Name to greet")] string name = "world")
-		=> $"Hello, {name}!";
-
-	[McpServerTool, Description("Health check that proves we’re alive.")]
-	public static string Ping() => "pong";
-
-	[McpServerTool, Description("Reverse a string, because why not.")]
-	public static string Reverse(string text) => new string((text ?? "").Reverse().ToArray());
+		var app = builder.Build();
+		await app.RunAsync();
+	}
 }
