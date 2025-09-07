@@ -4,6 +4,10 @@ VisualStudioVersion = 17.5.2.0
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DecompilerServer", "DecompilerServer.csproj", "{6034826B-FBCE-7F22-F3DD-ED7552CB97C8}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TestLibrary", "TestLibrary\TestLibrary.csproj", "{C4A58C8D-8D25-4A2A-B2F6-7E5A8C7E9A3B}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DecompilerServer.Tests", "DecompilerServer.Tests\DecompilerServer.Tests.csproj", "{B1E2F3A4-6C8D-4E5F-8A9B-1C2D3E4F5A6B}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -14,6 +18,14 @@ Global
 		{6034826B-FBCE-7F22-F3DD-ED7552CB97C8}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{6034826B-FBCE-7F22-F3DD-ED7552CB97C8}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{6034826B-FBCE-7F22-F3DD-ED7552CB97C8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{C4A58C8D-8D25-4A2A-B2F6-7E5A8C7E9A3B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{C4A58C8D-8D25-4A2A-B2F6-7E5A8C7E9A3B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{C4A58C8D-8D25-4A2A-B2F6-7E5A8C7E9A3B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{C4A58C8D-8D25-4A2A-B2F6-7E5A8C7E9A3B}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B1E2F3A4-6C8D-4E5F-8A9B-1C2D3E4F5A6B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B1E2F3A4-6C8D-4E5F-8A9B-1C2D3E4F5A6B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B1E2F3A4-6C8D-4E5F-8A9B-1C2D3E4F5A6B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B1E2F3A4-6C8D-4E5F-8A9B-1C2D3E4F5A6B}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
