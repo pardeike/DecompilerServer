@@ -110,7 +110,7 @@ public class DecompilerService
 
     private string DecompileEntity(IEntity entity, CSharpDecompiler decompiler, bool includeHeader)
     {
-        return entity switch
+        var code = entity switch
         {
             ITypeDefinition type => decompiler.DecompileTypeAsString(type.FullTypeName),
             IMethod method => DecompileMethod(method, decompiler),
@@ -119,6 +119,48 @@ public class DecompilerService
             IEvent evt => DecompileEvent(evt, decompiler),
             _ => throw new NotSupportedException($"Decompilation not supported for entity type: {entity.GetType()}")
         };
+
+        return includeHeader ? code : StripHeader(code);
+    }
+
+    private static string StripHeader(string code)
+    {
+        var lines = code.Split('\n').ToList();
+        var index = 0;
+
+        while (index < lines.Count && (lines[index].StartsWith("using ") || string.IsNullOrWhiteSpace(lines[index])))
+            index++;
+
+        if (index < lines.Count && lines[index].StartsWith("namespace"))
+        {
+            var nsLine = lines[index];
+            var braceStyle = !nsLine.TrimEnd().EndsWith(";");
+            index++;
+
+            if (braceStyle && index < lines.Count && lines[index].Trim() == "{")
+                index++;
+
+            var end = lines.Count;
+            if (braceStyle)
+            {
+                while (end > index && string.IsNullOrWhiteSpace(lines[end - 1]))
+                    end--;
+                if (end > index && lines[end - 1].Trim() == "}")
+                    end--;
+            }
+
+            lines = lines.GetRange(index, end - index);
+        }
+        else
+        {
+            lines = lines.GetRange(index, lines.Count - index);
+        }
+
+        for (var i = 0; i < lines.Count; i++)
+            if (lines[i].StartsWith("    "))
+                lines[i] = lines[i][4..];
+
+        return string.Join('\n', lines);
     }
 
     private string DecompileMethod(IMethod method, CSharpDecompiler decompiler)
