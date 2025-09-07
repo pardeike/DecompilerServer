@@ -13,4 +13,9 @@
     <PackageReference Include="ICSharpCode.Decompiler" Version="9.1.0.7988" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Compile Remove="DecompilerServer.Tests/**" />
+    <Compile Remove="TestLibrary/**" />
+  </ItemGroup>
+
 </Project>
