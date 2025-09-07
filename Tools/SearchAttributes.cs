@@ -122,13 +122,7 @@ public static class SearchAttributesTool
             var hasMore = matchingMembers.Count >= limit;
             var nextCursor = hasMore ? (startIndex + allTypes.Count()).ToString() : null;
 
-            var result = new SearchResult<MemberSummary>
-            {
-                Items = matchingMembers,
-                HasMore = hasMore,
-                NextCursor = nextCursor,
-                TotalEstimate = matchingMembers.Count
-            };
+            var result = new SearchResult<MemberSummary>(matchingMembers, hasMore, nextCursor, matchingMembers.Count);
 
             return result;
         });

@@ -38,12 +38,7 @@ public static class GenerateHarmonyPatchSkeletonTool
 
             var target = CreateMethodSummary(method);
 
-            var result = new GeneratedCodeResult
-            {
-                Target = target,
-                Code = code,
-                Notes = notes
-            };
+            var result = new GeneratedCodeResult(target, code, notes);
 
             return result;
         });
@@ -86,11 +81,11 @@ public static class GenerateHarmonyPatchSkeletonTool
         code.AppendLine("        [HarmonyTargetMethod]");
         code.AppendLine("        static MethodBase TargetMethod()");
         code.AppendLine("        {");
-        
+
         if (includeReflectionTargeting)
         {
             code.AppendLine("            // Using AccessTools for precise targeting");
-            
+
             if (method.Parameters.Any())
             {
                 code.AppendLine("            var parameterTypes = new Type[]");
@@ -113,7 +108,7 @@ public static class GenerateHarmonyPatchSkeletonTool
             code.AppendLine("            // Alternative: Use type and method name");
             code.AppendLine($"            return typeof({GetTypeDisplayName(declaringType)}).GetMethod(\"{method.Name}\");");
         }
-        
+
         code.AppendLine("        }");
         code.AppendLine();
 
@@ -144,7 +139,7 @@ public static class GenerateHarmonyPatchSkeletonTool
         notes.Add("This Harmony patch skeleton provides template methods for intercepting the target method");
         notes.Add("Uncomment and modify the patch methods you need");
         notes.Add("Remember to apply the patches using Harmony.CreateAndPatchAll() or individual patch methods");
-        
+
         if (includeReflectionTargeting)
         {
             notes.Add("Uses AccessTools for precise method targeting with parameter type arrays");
@@ -172,9 +167,9 @@ public static class GenerateHarmonyPatchSkeletonTool
         code.AppendLine("        // Prefix patch - runs before the original method");
         code.AppendLine("        [HarmonyPrefix]");
         code.Append("        static bool Prefix(");
-        
+
         var parameters = new List<string>();
-        
+
         // Add instance parameter for non-static methods
         if (!method.IsStatic)
         {
@@ -206,9 +201,9 @@ public static class GenerateHarmonyPatchSkeletonTool
         code.AppendLine("        // Postfix patch - runs after the original method");
         code.AppendLine("        [HarmonyPostfix]");
         code.Append("        static void Postfix(");
-        
+
         var parameters = new List<string>();
-        
+
         // Add instance parameter for non-static methods
         if (!method.IsStatic)
         {
@@ -269,9 +264,9 @@ public static class GenerateHarmonyPatchSkeletonTool
         code.AppendLine("        // Finalizer patch - runs after method completion (even on exceptions)");
         code.AppendLine("        [HarmonyFinalizer]");
         code.Append("        static Exception? Finalizer(");
-        
+
         var parameters = new List<string>();
-        
+
         // Add instance parameter for non-static methods
         if (!method.IsStatic)
         {
@@ -343,7 +338,7 @@ public static class GenerateHarmonyPatchSkeletonTool
     private static string SanitizeClassName(string name)
     {
         if (string.IsNullOrEmpty(name)) return "Unknown";
-        
+
         // Remove characters that aren't valid in C# class names
         var result = new StringBuilder();
         for (int i = 0; i < name.Length; i++)
@@ -358,7 +353,7 @@ public static class GenerateHarmonyPatchSkeletonTool
                 result.Append('_');
             }
         }
-        
+
         return result.Length > 0 ? result.ToString() : "Unknown";
     }
 

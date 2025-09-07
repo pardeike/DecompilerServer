@@ -32,13 +32,7 @@ public static class FindUsagesTool
             var hasMore = usageList.Count >= limit;
             var nextCursor = hasMore ? (startIndex + limit).ToString() : null;
 
-            var result = new SearchResult<UsageReference>
-            {
-                Items = usageList,
-                HasMore = hasMore,
-                NextCursor = nextCursor,
-                TotalEstimate = usageList.Count
-            };
+            var result = new SearchResult<UsageReference>(usageList, hasMore, nextCursor, usageList.Count);
 
             return result;
         });

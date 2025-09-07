@@ -162,12 +162,10 @@ public class MemberResolver
     /// </summary>
     public ResolverCacheStats GetCacheStats()
     {
-        return new ResolverCacheStats
-        {
-            CachedResolutions = _resolutionCache.Count,
-            SuccessfulResolutions = _resolutionCache.Count(kv => kv.Value != null),
-            FailedResolutions = _resolutionCache.Count(kv => kv.Value == null)
-        };
+        return new ResolverCacheStats(
+            _resolutionCache.Count,
+            _resolutionCache.Count(kv => kv.Value != null),
+            _resolutionCache.Count(kv => kv.Value == null));
     }
 
     private IEntity? ResolveMemberByFullName(string memberId, ICompilation compilation)
@@ -213,12 +211,16 @@ public class MemberResolver
 
     private IEntity? ResolveMemberByToken(int token, ICompilation compilation)
     {
-        // For now, simplified token resolution - full implementation would use PEFile metadata reader
         try
         {
-            // This is a simplified approach - in practice you'd need to properly parse metadata tokens
-            // using the PEFile and map them to IEntity objects through the TypeSystem
-            return null; // TODO: Implement proper token resolution
+            var peFile = _contextManager.GetPEFile();
+            _ = peFile.Metadata; // ensure metadata is loaded
+
+            if (compilation.MainModule is not ICSharpCode.Decompiler.TypeSystem.MetadataModule module)
+                return null;
+
+            var handle = MetadataTokens.EntityHandle(token);
+            return module.ResolveEntity(handle);
         }
         catch
         {
@@ -314,9 +316,4 @@ public class MemberResolver
 /// <summary>
 /// Resolver cache statistics
 /// </summary>
-public class ResolverCacheStats
-{
-    public int CachedResolutions { get; init; }
-    public int SuccessfulResolutions { get; init; }
-    public int FailedResolutions { get; init; }
-}
+public record ResolverCacheStats(int CachedResolutions, int SuccessfulResolutions, int FailedResolutions);

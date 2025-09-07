@@ -48,13 +48,7 @@ public static class SearchStringLiteralsTool
                 snippet = $"\"{lit.Value}\""
             }).ToList();
 
-            var result = new SearchResult<object>
-            {
-                Items = usageRefs.Cast<object>().ToList(),
-                HasMore = hasMore,
-                NextCursor = nextCursor,
-                TotalEstimate = usageRefs.Count
-            };
+            var result = new SearchResult<object>(usageRefs.Cast<object>().ToList(), hasMore, nextCursor, usageRefs.Count);
 
             return result;
         });

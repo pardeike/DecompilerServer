@@ -232,15 +232,13 @@ public class AssemblyContextManager : IDisposable
     /// </summary>
     public IndexStats GetIndexStats()
     {
-        return new IndexStats
-        {
-            TypeIndexReady = TypeIndexReady,
-            NamespaceIndexReady = NamespaceIndexReady,
-            MemberIndexReady = MemberIndexReady,
-            TypeCount = TypeCount,
-            NamespaceCount = NamespaceCount,
-            IndexedMemberCount = MemberIndexReady ? _memberByIdIndex.Value.Count : 0
-        };
+        return new IndexStats(
+            TypeIndexReady,
+            NamespaceIndexReady,
+            MemberIndexReady,
+            TypeCount,
+            NamespaceCount,
+            MemberIndexReady ? _memberByIdIndex.Value.Count : 0);
     }
 
     /// <summary>
@@ -423,12 +421,5 @@ public class AssemblyContextManager : IDisposable
 /// <summary>
 /// Index statistics
 /// </summary>
-public class IndexStats
-{
-    public bool TypeIndexReady { get; init; }
-    public bool NamespaceIndexReady { get; init; }
-    public bool MemberIndexReady { get; init; }
-    public int TypeCount { get; init; }
-    public int NamespaceCount { get; init; }
-    public int IndexedMemberCount { get; init; }
-}
+public record IndexStats(bool TypeIndexReady, bool NamespaceIndexReady, bool MemberIndexReady, int TypeCount,
+    int NamespaceCount, int IndexedMemberCount);

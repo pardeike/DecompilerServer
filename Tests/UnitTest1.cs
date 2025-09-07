@@ -1,4 +1,6 @@
 using DecompilerServer.Services;
+using ICSharpCode.Decompiler.TypeSystem;
+using System.Reflection.Metadata.Ecma335;
 
 namespace Tests;
 
@@ -31,6 +33,30 @@ public class SimpleServiceTests : ServiceTestBase
         Assert.True(MemberResolver.IsValidMemberId(memberId));
         Assert.False(MemberResolver.IsValidMemberId(""));
         Assert.False(MemberResolver.IsValidMemberId("InvalidFormat"));
+    }
+
+    [Fact]
+    public void MemberResolver_ResolveHexToken_ShouldReturnMember()
+    {
+        var method = (IMethod)MemberResolver.ResolveMember("M:TestLibrary.SimpleClass.SimpleMethod")!;
+        var token = $"0x{MetadataTokens.GetToken(method.MetadataToken):X8}";
+
+        var resolved = MemberResolver.ResolveMember(token);
+
+        Assert.NotNull(resolved);
+        Assert.Equal(method, resolved);
+    }
+
+    [Fact]
+    public void MemberResolver_ResolveDecimalToken_ShouldReturnMember()
+    {
+        var field = (IField)MemberResolver.ResolveMember("F:TestLibrary.SimpleClass.PublicField")!;
+        var token = MetadataTokens.GetToken(field.MetadataToken).ToString();
+
+        var resolved = MemberResolver.ResolveMember(token);
+
+        Assert.NotNull(resolved);
+        Assert.Equal(field, resolved);
     }
 
     [Fact]

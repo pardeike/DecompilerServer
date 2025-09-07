@@ -42,15 +42,7 @@ public class DecompilerService
         var lines = code.Split('\n');
         var hash = ComputeHash(code);
 
-        var document = new SourceDocument
-        {
-            MemberId = memberId,
-            Language = "C#",
-            TotalLines = lines.Length,
-            Hash = hash,
-            Lines = lines,
-            IncludeHeader = includeHeader
-        };
+        var document = new SourceDocument(memberId, "C#", lines.Length, hash, lines, includeHeader);
 
         _sourceCache[cacheKey] = document;
         return document;
@@ -75,16 +67,8 @@ public class DecompilerService
             .Take(endLine.Value - startLine + 1)
             .ToArray();
 
-        return new SourceSlice
-        {
-            MemberId = memberId,
-            Language = document.Language,
-            StartLine = startLine,
-            EndLine = endLine.Value,
-            TotalLines = document.TotalLines,
-            Hash = document.Hash,
-            Code = string.Join('\n', sliceLines)
-        };
+        return new SourceSlice(memberId, document.Language, startLine, endLine.Value, document.TotalLines, document.Hash,
+            string.Join('\n', sliceLines));
     }
 
     /// <summary>
@@ -101,15 +85,8 @@ public class DecompilerService
             catch
             {
                 // Return error document for failed decompilation
-                return new SourceDocument
-                {
-                    MemberId = id,
-                    Language = "C#",
-                    TotalLines = 1,
-                    Hash = "error",
-                    Lines = new[] { $"// Error decompiling {id}" },
-                    IncludeHeader = includeHeader
-                };
+                return new SourceDocument(id, "C#", 1, "error",
+                    new[] { $"// Error decompiling {id}" }, includeHeader);
             }
         });
     }
@@ -127,16 +104,13 @@ public class DecompilerService
     /// </summary>
     public CacheStats GetCacheStats()
     {
-        return new CacheStats
-        {
-            SourceDocuments = _sourceCache.Count,
-            TotalMemoryEstimate = _sourceCache.Values.Sum(d => d.Lines.Sum(l => l.Length * 2)) // rough estimate
-        };
+        return new CacheStats(_sourceCache.Count,
+            _sourceCache.Values.Sum(d => d.Lines.Sum(l => l.Length * 2))); // rough estimate
     }
 
     private string DecompileEntity(IEntity entity, CSharpDecompiler decompiler, bool includeHeader)
     {
-        return entity switch
+        var code = entity switch
         {
             ITypeDefinition type => decompiler.DecompileTypeAsString(type.FullTypeName),
             IMethod method => DecompileMethod(method, decompiler),
@@ -145,6 +119,48 @@ public class DecompilerService
             IEvent evt => DecompileEvent(evt, decompiler),
             _ => throw new NotSupportedException($"Decompilation not supported for entity type: {entity.GetType()}")
         };
+
+        return includeHeader ? code : StripHeader(code);
+    }
+
+    private static string StripHeader(string code)
+    {
+        var lines = code.Split('\n').ToList();
+        var index = 0;
+
+        while (index < lines.Count && (lines[index].StartsWith("using ") || string.IsNullOrWhiteSpace(lines[index])))
+            index++;
+
+        if (index < lines.Count && lines[index].StartsWith("namespace"))
+        {
+            var nsLine = lines[index];
+            var braceStyle = !nsLine.TrimEnd().EndsWith(";");
+            index++;
+
+            if (braceStyle && index < lines.Count && lines[index].Trim() == "{")
+                index++;
+
+            var end = lines.Count;
+            if (braceStyle)
+            {
+                while (end > index && string.IsNullOrWhiteSpace(lines[end - 1]))
+                    end--;
+                if (end > index && lines[end - 1].Trim() == "}")
+                    end--;
+            }
+
+            lines = lines.GetRange(index, end - index);
+        }
+        else
+        {
+            lines = lines.GetRange(index, lines.Count - index);
+        }
+
+        for (var i = 0; i < lines.Count; i++)
+            if (lines[i].StartsWith("    "))
+                lines[i] = lines[i][4..];
+
+        return string.Join('\n', lines);
     }
 
     private string DecompileMethod(IMethod method, CSharpDecompiler decompiler)
@@ -180,35 +196,14 @@ public class DecompilerService
 /// <summary>
 /// Represents a cached source document
 /// </summary>
-public class SourceDocument
-{
-    public required string MemberId { get; init; }
-    public required string Language { get; init; }
-    public required int TotalLines { get; init; }
-    public required string Hash { get; init; }
-    public required string[] Lines { get; init; }
-    public required bool IncludeHeader { get; init; }
-}
+public record SourceDocument(string MemberId, string Language, int TotalLines, string Hash, string[] Lines, bool IncludeHeader);
 
 /// <summary>
 /// Represents a slice of source code
 /// </summary>
-public class SourceSlice
-{
-    public required string MemberId { get; init; }
-    public required string Language { get; init; }
-    public required int StartLine { get; init; }
-    public required int EndLine { get; init; }
-    public required int TotalLines { get; init; }
-    public required string Hash { get; init; }
-    public required string Code { get; init; }
-}
+public record SourceSlice(string MemberId, string Language, int StartLine, int EndLine, int TotalLines, string Hash, string Code);
 
 /// <summary>
 /// Cache statistics
 /// </summary>
-public class CacheStats
-{
-    public int SourceDocuments { get; init; }
-    public long TotalMemoryEstimate { get; init; }
-}
+public record CacheStats(int SourceDocuments, long TotalMemoryEstimate);

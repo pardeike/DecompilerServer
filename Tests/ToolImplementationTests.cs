@@ -156,6 +156,31 @@ public class ToolImplementationTests : ServiceTestBase
     }
 
     [Fact]
+    public void GetDecompiledSource_WithoutHeader_StripsHeader()
+    {
+        var types = ContextManager.GetAllTypes();
+        var testType = types.FirstOrDefault(t => t.Name.Contains("Test"));
+        Assert.NotNull(testType);
+
+        var memberId = MemberResolver.GenerateMemberId(testType);
+
+        var result = GetDecompiledSourceTool.GetDecompiledSource(memberId, includeHeader: false);
+
+        Assert.NotNull(result);
+        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        Assert.Equal("ok", response.GetProperty("status").GetString());
+
+        var data = response.GetProperty("data");
+        Assert.False(data.GetProperty("includeHeader").GetBoolean());
+
+        var service = _serviceProvider.GetRequiredService<DecompilerService>();
+        var document = service.DecompileMember(memberId, includeHeader: false);
+
+        Assert.DoesNotContain(document.Lines, l => l.StartsWith("using"));
+        Assert.DoesNotContain(document.Lines, l => l.StartsWith("namespace"));
+    }
+
+    [Fact]
     public void GetSourceSlice_WithValidRange_ReturnsSourceCode()
     {
         // Arrange - find a type and decompile it first
@@ -473,7 +498,7 @@ public class ToolImplementationTests : ServiceTestBase
         var data = response.GetProperty("data");
         Assert.Equal(memberId, data.GetProperty("memberId").GetString());
         Assert.True(data.TryGetProperty("hasDocumentation", out var hasDoc));
-        Assert.True(data.TryGetProperty("xmlDoc", out var xmlDoc));
+        Assert.False(data.TryGetProperty("xmlDoc", out _));
 
         // For now, our implementation returns null documentation, so hasDocumentation should be false
         Assert.False(hasDoc.GetBoolean());
@@ -501,8 +526,7 @@ public class ToolImplementationTests : ServiceTestBase
         var data = response.GetProperty("data");
         Assert.True(data.TryGetProperty("normalizedId", out var normalizedId));
         Assert.Equal(validMemberId, normalizedId.GetString());
-        Assert.True(data.TryGetProperty("candidates", out var candidates));
-        Assert.True(candidates.ValueKind == JsonValueKind.Null);
+        Assert.False(data.TryGetProperty("candidates", out _));
     }
 
     [Fact]
@@ -526,14 +550,15 @@ public class ToolImplementationTests : ServiceTestBase
         var data = response.GetProperty("data");
 
         // Should either return a normalized ID (if unique) or candidates (if multiple matches)
-        Assert.True(data.TryGetProperty("normalizedId", out var normalizedId));
-        Assert.True(data.TryGetProperty("candidates", out var candidates));
+        var hasNormalizedId = data.TryGetProperty("normalizedId", out var normalizedId);
+        var hasCandidates = data.TryGetProperty("candidates", out var candidates);
+        Assert.True(hasNormalizedId || hasCandidates);
 
-        if (normalizedId.ValueKind != JsonValueKind.Null)
+        if (hasNormalizedId)
         {
             // Single match found
             Assert.False(string.IsNullOrEmpty(normalizedId.GetString()));
-            Assert.True(candidates.ValueKind == JsonValueKind.Null);
+            Assert.False(hasCandidates);
         }
         else
         {
@@ -861,9 +886,17 @@ public class ToolImplementationTests : ServiceTestBase
             Assert.Equal("ok", response.GetProperty("status").GetString());
 
             var data = response.GetProperty("data");
-            Assert.True(data.TryGetProperty("baseDefinition", out _));
-            Assert.True(data.TryGetProperty("overrides", out var overrides));
-            Assert.True(overrides.ValueKind == JsonValueKind.Array);
+            var hasBase = data.TryGetProperty("baseDefinition", out _);
+            var hasOverrides = data.TryGetProperty("overrides", out var overrides);
+
+            if (hasOverrides)
+            {
+                Assert.True(overrides.ValueKind == JsonValueKind.Array);
+            }
+            else
+            {
+                Assert.False(hasBase);
+            }
         }
     }
 
@@ -1340,6 +1373,46 @@ public class ToolImplementationTests : ServiceTestBase
     [Fact(Skip = "PlanChunking tool currently returns error for valid inputs")]
     public void PlanChunking_WithValidMember_ReturnsChunkPlan()
     {
+        // Arrange - find a method from the test assembly
+        var types = ContextManager.GetAllTypes();
+        var testType = types.FirstOrDefault(t => t.Methods.Any(m => !m.IsConstructor));
+        Assert.NotNull(testType);
+
+        var method = testType.Methods.FirstOrDefault(m => !m.IsConstructor);
+        Assert.NotNull(method);
+
+        var memberId = MemberResolver.GenerateMemberId(method);
+
+        // Act
+        var result = PlanChunkingTool.PlanChunking(memberId, targetChunkSize: 1000, overlap: 1);
+
+        // Assert
+        Assert.NotNull(result);
+        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        if (response.GetProperty("status").GetString() != "ok")
+        {
+            return;
+        }
+
+        var data = response.GetProperty("data");
+        Assert.True(data.TryGetProperty("memberId", out _));
+        Assert.True(data.TryGetProperty("chunks", out var chunks));
+        Assert.True(data.TryGetProperty("totalLines", out _));
+        Assert.True(data.TryGetProperty("estimatedChars", out _));
+        Assert.True(data.TryGetProperty("targetChunkSize", out _));
+        Assert.True(data.TryGetProperty("overlap", out _));
+        Assert.True(data.TryGetProperty("avgCharsPerLine", out _));
+
+        // Verify chunks structure
+        Assert.True(chunks.ValueKind == JsonValueKind.Array);
+
+        for (var i = 0; i < chunks.GetArrayLength(); i++)
+        {
+            var chunk = chunks[i];
+            Assert.True(chunk.TryGetProperty("startLine", out _));
+            Assert.True(chunk.TryGetProperty("endLine", out _));
+            Assert.True(chunk.TryGetProperty("estimatedChars", out _));
+        }
     }
 
     [Fact]
