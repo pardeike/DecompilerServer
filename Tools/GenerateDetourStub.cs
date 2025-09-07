@@ -37,12 +37,7 @@ public static class GenerateDetourStubTool
 
             var target = CreateMethodSummary(method);
 
-            var result = new GeneratedCodeResult
-            {
-                Target = target,
-                Code = code,
-                Notes = notes
-            };
+            var result = new GeneratedCodeResult(target, code, notes);
 
             return result;
         });
@@ -101,9 +96,9 @@ public static class GenerateDetourStubTool
 
         // Parameters
         methodSignature.Append("(");
-        
+
         var parameters = new List<string>();
-        
+
         // Add instance parameter for instance methods
         if (!method.IsStatic)
         {
@@ -127,21 +122,21 @@ public static class GenerateDetourStubTool
         // Generic constraints
         foreach (var typeParam in method.TypeParameters)
         {
-            if (typeParam.HasValueTypeConstraint || typeParam.HasReferenceTypeConstraint || 
+            if (typeParam.HasValueTypeConstraint || typeParam.HasReferenceTypeConstraint ||
                 typeParam.HasDefaultConstructorConstraint || typeParam.DirectBaseTypes.Any())
             {
                 var constraints = new List<string>();
-                
+
                 if (typeParam.HasReferenceTypeConstraint)
                     constraints.Add("class");
                 if (typeParam.HasValueTypeConstraint)
                     constraints.Add("struct");
-                    
+
                 foreach (var baseType in typeParam.DirectBaseTypes)
                 {
                     constraints.Add(GetTypeDisplayName(baseType));
                 }
-                
+
                 if (typeParam.HasDefaultConstructorConstraint)
                     constraints.Add("new()");
 
@@ -164,7 +159,7 @@ public static class GenerateDetourStubTool
         code.AppendLine("            if (_originalMethod == null)");
         code.AppendLine("            {");
         code.AppendLine($"                var type = typeof({GetTypeDisplayName(declaringType)});");
-        
+
         // Build parameter types array
         if (method.Parameters.Any())
         {
@@ -180,17 +175,17 @@ public static class GenerateDetourStubTool
         {
             code.AppendLine($"                _originalMethod = type.GetMethod(\"{method.Name}\", Type.EmptyTypes);");
         }
-        
+
         code.AppendLine("            }");
         code.AppendLine();
 
         // Call original method
         code.AppendLine("            try");
         code.AppendLine("            {");
-        
+
         var returnPrefix = method.ReturnType.Kind != TypeKind.Void ? "var result = " : "";
         var castPrefix = method.ReturnType.Kind != TypeKind.Void ? $"({GetTypeDisplayName(method.ReturnType)})" : "";
-        
+
         // Build parameters array for reflection call
         if (method.Parameters.Any())
         {
@@ -202,7 +197,7 @@ public static class GenerateDetourStubTool
                 code.AppendLine($"                    {paramName},");
             }
             code.AppendLine("                };");
-            
+
             if (method.IsStatic)
             {
                 code.AppendLine($"                {returnPrefix}{castPrefix}_originalMethod.Invoke(null, args);");
@@ -227,7 +222,7 @@ public static class GenerateDetourStubTool
         code.AppendLine();
         code.AppendLine("                // Log method exit");
         code.AppendLine($"                Debug.WriteLine($\"Detour: Exiting {method.Name}\");");
-        
+
         if (method.ReturnType.Kind != TypeKind.Void)
         {
             code.AppendLine("                return result;");
@@ -248,7 +243,7 @@ public static class GenerateDetourStubTool
         notes.Add("This detour stub method provides logging and delegates to the original method via reflection");
         notes.Add("Use this for testing method interception without changing the original behavior");
         notes.Add("The method signature matches the original with optional instance parameter for non-static methods");
-        
+
         if (method.IsStatic)
         {
             notes.Add("Original method is static - no instance parameter needed");

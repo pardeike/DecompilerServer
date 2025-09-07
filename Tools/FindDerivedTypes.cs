@@ -32,13 +32,7 @@ public static class FindDerivedTypesTool
             var hasMore = totalDerived.Count >= limit;
             var nextCursor = hasMore ? (startIndex + limit).ToString() : null;
 
-            var result = new SearchResult<MemberSummary>
-            {
-                Items = totalDerived,
-                HasMore = hasMore,
-                NextCursor = nextCursor,
-                TotalEstimate = totalDerived.Count
-            };
+            var result = new SearchResult<MemberSummary>(totalDerived, hasMore, nextCursor, totalDerived.Count);
 
             return result;
         });

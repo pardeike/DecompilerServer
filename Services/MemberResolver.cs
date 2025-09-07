@@ -148,12 +148,10 @@ public class MemberResolver
     /// </summary>
     public ResolverCacheStats GetCacheStats()
     {
-        return new ResolverCacheStats
-        {
-            CachedResolutions = _resolutionCache.Count,
-            SuccessfulResolutions = _resolutionCache.Count(kv => kv.Value != null),
-            FailedResolutions = _resolutionCache.Count(kv => kv.Value == null)
-        };
+        return new ResolverCacheStats(
+            _resolutionCache.Count,
+            _resolutionCache.Count(kv => kv.Value != null),
+            _resolutionCache.Count(kv => kv.Value == null));
     }
 
     private IEntity? ResolveMemberByFullName(string memberId, ICompilation compilation)
@@ -304,9 +302,4 @@ public class MemberResolver
 /// <summary>
 /// Resolver cache statistics
 /// </summary>
-public class ResolverCacheStats
-{
-    public int CachedResolutions { get; init; }
-    public int SuccessfulResolutions { get; init; }
-    public int FailedResolutions { get; init; }
-}
+public record ResolverCacheStats(int CachedResolutions, int SuccessfulResolutions, int FailedResolutions);

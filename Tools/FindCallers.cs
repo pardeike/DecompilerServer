@@ -40,13 +40,7 @@ public static class FindCallersTool
             var hasMore = callersList.Count >= limit;
             var nextCursor = hasMore ? (startIndex + limit).ToString() : null;
 
-            var result = new SearchResult<UsageReference>
-            {
-                Items = callersList,
-                HasMore = hasMore,
-                NextCursor = nextCursor,
-                TotalEstimate = callersList.Count
-            };
+            var result = new SearchResult<UsageReference>(callersList, hasMore, nextCursor, callersList.Count);
 
             return result;
         });

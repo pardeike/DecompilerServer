@@ -41,24 +41,13 @@ public static class ListNamespacesTool
             var pageItems = sortedNamespaces
                 .Skip(startIndex)
                 .Take(limit)
-                .Select(ns => new MemberHandle
-                {
-                    MemberId = $"N:{ns}",
-                    Name = ns,
-                    Kind = "Namespace"
-                })
+                .Select(ns => new MemberHandle($"N:{ns}", ns, "Namespace"))
                 .ToList();
 
             var hasMore = startIndex + limit < sortedNamespaces.Count;
             var nextCursor = hasMore ? (startIndex + limit).ToString() : null;
 
-            var result = new SearchResult<MemberHandle>
-            {
-                Items = pageItems,
-                HasMore = hasMore,
-                NextCursor = nextCursor,
-                TotalEstimate = sortedNamespaces.Count
-            };
+            var result = new SearchResult<MemberHandle>(pageItems, hasMore, nextCursor, sortedNamespaces.Count);
 
             return result;
         });
@@ -68,9 +57,4 @@ public static class ListNamespacesTool
 /// <summary>
 /// Simple handle for members that don't need full summary information
 /// </summary>
-public class MemberHandle
-{
-    public required string MemberId { get; init; }
-    public required string Name { get; init; }
-    public required string Kind { get; init; }
-}
+public record MemberHandle(string MemberId, string Name, string Kind);

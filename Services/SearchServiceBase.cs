@@ -207,12 +207,10 @@ public abstract class SearchServiceBase
     /// </summary>
     public SearchCacheStats GetSearchCacheStats()
     {
-        return new SearchCacheStats
-        {
-            CachedSearches = _searchCache.Count,
-            TotalResults = _searchCache.Values.Sum(r => r.Items.Count),
-            AverageResultsPerSearch = _searchCache.Any() ? _searchCache.Values.Average(r => r.Items.Count) : 0
-        };
+        return new SearchCacheStats(
+            _searchCache.Count,
+            _searchCache.Values.Sum(r => r.Items.Count),
+            _searchCache.Any() ? _searchCache.Values.Average(r => r.Items.Count) : 0);
     }
 
     /// <summary>
@@ -242,13 +240,7 @@ public abstract class SearchServiceBase
         var hasMore = startIndex + limit < items.Count;
         var nextCursor = hasMore ? (startIndex + limit).ToString() : null;
 
-        return new SearchResult<T>
-        {
-            Items = pageItems,
-            HasMore = hasMore,
-            NextCursor = nextCursor,
-            TotalEstimate = items.Count
-        };
+        return new SearchResult<T>(pageItems, hasMore, nextCursor, items.Count);
     }
 
     protected bool MatchesQuery(string text, string query, bool regex)
@@ -385,28 +377,17 @@ public abstract class SearchServiceBase
 /// <summary>
 /// Search cache statistics
 /// </summary>
-public class SearchCacheStats
-{
-    public int CachedSearches { get; init; }
-    public int TotalResults { get; init; }
-    public double AverageResultsPerSearch { get; init; }
-}
+public record SearchCacheStats(int CachedSearches, int TotalResults, double AverageResultsPerSearch);
 
 /// <summary>
 /// Search result with pagination support
 /// </summary>
-public class SearchResult<T>
-{
-    public required List<T> Items { get; init; }
-    public required bool HasMore { get; init; }
-    public required string? NextCursor { get; init; }
-    public required int TotalEstimate { get; init; }
-}
+public record SearchResult<T>(List<T> Items, bool HasMore, string? NextCursor, int TotalEstimate);
 
 /// <summary>
 /// Summary information about a member
 /// </summary>
-public class MemberSummary
+public record MemberSummary
 {
     public required string MemberId { get; init; }
     public required string Name { get; init; }

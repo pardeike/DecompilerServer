@@ -274,7 +274,7 @@ public class ResponseFormatter
 /// <summary>
 /// Server status information
 /// </summary>
-public class ServerStatus
+public record ServerStatus
 {
     public bool Loaded { get; init; }
     public string? Mvid { get; init; }
@@ -288,7 +288,7 @@ public class ServerStatus
 /// <summary>
 /// Index status information
 /// </summary>
-public class IndexStatus
+public record IndexStatus
 {
     public int Namespaces { get; init; }
     public int Types { get; init; }
@@ -299,7 +299,7 @@ public class IndexStatus
 /// <summary>
 /// Assembly information
 /// </summary>
-public class AssemblyInfo
+public record AssemblyInfo
 {
     public required string Mvid { get; init; }
     public required string AssemblyPath { get; init; }
@@ -312,7 +312,7 @@ public class AssemblyInfo
 /// <summary>
 /// Member details with full metadata
 /// </summary>
-public class MemberDetails
+public record MemberDetails
 {
     public required string MemberId { get; init; }
     public required string Name { get; init; }
@@ -335,7 +335,7 @@ public class MemberDetails
 /// <summary>
 /// Attribute information
 /// </summary>
-public class AttributeInfo
+public record AttributeInfo
 {
     public required string FullName { get; init; }
     public List<object>? ConstructorArgs { get; init; }
@@ -344,9 +344,4 @@ public class AttributeInfo
 /// <summary>
 /// Generated code result
 /// </summary>
-public class GeneratedCodeResult
-{
-    public required MemberSummary Target { get; init; }
-public required string Code { get; init; }
-public List<string>? Notes { get; init; }
-}
+public record GeneratedCodeResult(MemberSummary Target, string Code, List<string>? Notes);
