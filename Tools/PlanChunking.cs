@@ -26,6 +26,16 @@ public static class PlanChunkingTool
                 throw new ArgumentException($"Invalid member ID: {memberId}");
             }
 
+            if (targetChunkSize <= 0)
+            {
+                throw new ArgumentException("targetChunkSize must be positive", nameof(targetChunkSize));
+            }
+
+            if (overlap <= 0)
+            {
+                throw new ArgumentException("overlap must be positive", nameof(overlap));
+            }
+
             // Get the source document to analyze
             var document = decompilerService.DecompileMember(memberId, includeHeader: true);
             var totalLines = document.TotalLines;
@@ -36,7 +46,7 @@ public static class PlanChunkingTool
             {
                 result = new ChunkPlanResult(
                     memberId,
-                    new List<ChunkInfo>(),
+                    Array.Empty<ChunkInfo>(),
                     0,
                     0,
                     targetChunkSize,
@@ -46,15 +56,11 @@ public static class PlanChunkingTool
             else
             {
                 // Estimate average characters per line based on the document
-                var divisor = Math.Min(totalLines, 10);
+                var divisor = Math.Max(1, Math.Min(totalLines, 10));
                 int avgCharsPerLine;
                 try
                 {
                     var sampleSlice = decompilerService.GetSourceSlice(memberId, 1, divisor);
-                    if (divisor == 0)
-                    {
-                        divisor = 1;
-                    }
                     avgCharsPerLine = sampleSlice.Code.Length / divisor;
                 }
                 catch
@@ -70,10 +76,10 @@ public static class PlanChunkingTool
                 // Calculate target lines per chunk
                 var targetLinesPerChunk = Math.Max(1, targetChunkSize / avgCharsPerLine);
 
-                if (overlap >= targetLinesPerChunk || overlap < 0)
+                if (overlap >= targetLinesPerChunk)
                 {
                     throw new ArgumentException(
-                        $"Overlap must be between 0 and {targetLinesPerChunk - 1}",
+                        $"Overlap must be less than {targetLinesPerChunk}",
                         nameof(overlap));
                 }
 
@@ -101,7 +107,7 @@ public static class PlanChunkingTool
 
                 result = new ChunkPlanResult(
                     memberId,
-                    chunks,
+                    chunks.ToArray(),
                     totalLines,
                     totalLines * avgCharsPerLine,
                     targetChunkSize,
@@ -118,7 +124,7 @@ internal record ChunkInfo(int StartLine, int EndLine, int EstimatedChars);
 
 internal record ChunkPlanResult(
     string MemberId,
-    List<ChunkInfo> Chunks,
+    ChunkInfo[] Chunks,
     int TotalLines,
     int EstimatedChars,
     int TargetChunkSize,

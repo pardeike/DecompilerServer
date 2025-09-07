@@ -1375,7 +1375,7 @@ public class ToolImplementationTests : ServiceTestBase
         Assert.Equal("error", response.GetProperty("status").GetString());
     }
 
-    [Fact(Skip = "PlanChunking tool currently returns error for valid inputs")]
+    [Fact]
     public void PlanChunking_WithValidMember_ReturnsChunkPlan()
     {
         // Arrange - find a method from the test assembly
@@ -1536,7 +1536,7 @@ internal record ChunkInfo(int StartLine, int EndLine, int EstimatedChars);
 
 internal record ChunkPlanResult(
     string MemberId,
-    List<ChunkInfo> Chunks,
+    ChunkInfo[] Chunks,
     int TotalLines,
     int EstimatedChars,
     int TargetChunkSize,
