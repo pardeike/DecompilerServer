@@ -44,8 +44,9 @@ DecompilerServer/
 ### Developer Guides
 - **[HELPER_METHODS_GUIDE.md](../HELPER_METHODS_GUIDE.md)** - Comprehensive guide to all service helper methods and implementation patterns for MCP tools. Essential reading for understanding the service architecture and implementing new endpoints.
 - **[TESTING.md](../TESTING.md)** - Complete testing framework documentation covering xUnit setup, test data structure, and testing patterns. Required reading for writing tests and understanding the test infrastructure.
+- **[TODO.md](../TODO.md)** - Comprehensive list of prioritized TODOs and enhancement opportunities based on thorough code review. Organized by priority and complexity for systematic AI-assisted development. Contains detailed context and reasoning for each improvement.
 
-Both guides are actively maintained and provide crucial implementation guidance for developers working on the DecompilerServer.
+All guides are actively maintained and provide crucial implementation guidance for developers working on the DecompilerServer.
 
 ## Core Architecture Principles
 
@@ -236,4 +237,10 @@ public static string ToolName(parameters...)
 - Additional framework-specific guidance would help future development
 - The current instructions have become outdated or incomplete
 
-This ensures knowledge from each development cycle is captured for improved efficiency in future work.
+**When working on improvements, refer to [TODO.md](../TODO.md) for:**
+- Prioritized list of enhancement opportunities  
+- Detailed context and reasoning for each improvement
+- Implementation guidelines and testing requirements
+- Technical debt items and maintenance tasks
+
+This ensures knowledge from each development cycle is captured for improved efficiency in future work, and provides a systematic approach to project enhancement.
