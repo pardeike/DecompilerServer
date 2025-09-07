@@ -1421,6 +1421,46 @@ public class ToolImplementationTests : ServiceTestBase
     }
 
     [Fact]
+    public void PlanChunking_WithNegativeOverlap_ReturnsError()
+    {
+        // Arrange - find a method from the test assembly
+        var types = ContextManager.GetAllTypes();
+        var testType = types.FirstOrDefault(t => t.Methods.Any(m => !m.IsConstructor));
+        Assert.NotNull(testType);
+
+        var method = testType.Methods.First(m => !m.IsConstructor);
+        var memberId = MemberResolver.GenerateMemberId(method);
+
+        // Act
+        var result = PlanChunkingTool.PlanChunking(memberId, targetChunkSize: 1000, overlap: -1);
+
+        // Assert
+        Assert.NotNull(result);
+        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        Assert.Equal("error", response.GetProperty("status").GetString());
+    }
+
+    [Fact]
+    public void PlanChunking_WithOverlapEqualChunkSize_ReturnsError()
+    {
+        // Arrange - find a method from the test assembly
+        var types = ContextManager.GetAllTypes();
+        var testType = types.FirstOrDefault(t => t.Methods.Any(m => !m.IsConstructor));
+        Assert.NotNull(testType);
+
+        var method = testType.Methods.First(m => !m.IsConstructor);
+        var memberId = MemberResolver.GenerateMemberId(method);
+
+        // Act - use very small chunk size to ensure target lines per chunk is 1
+        var result = PlanChunkingTool.PlanChunking(memberId, targetChunkSize: 1, overlap: 1);
+
+        // Assert
+        Assert.NotNull(result);
+        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        Assert.Equal("error", response.GetProperty("status").GetString());
+    }
+
+    [Fact]
     public void GetAstOutline_WithValidMember_ReturnsOutline()
     {
         // Arrange - find a method from the test assembly
