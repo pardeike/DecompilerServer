@@ -156,6 +156,31 @@ public class ToolImplementationTests : ServiceTestBase
     }
 
     [Fact]
+    public void GetDecompiledSource_WithoutHeader_StripsHeader()
+    {
+        var types = ContextManager.GetAllTypes();
+        var testType = types.FirstOrDefault(t => t.Name.Contains("Test"));
+        Assert.NotNull(testType);
+
+        var memberId = MemberResolver.GenerateMemberId(testType);
+
+        var result = GetDecompiledSourceTool.GetDecompiledSource(memberId, includeHeader: false);
+
+        Assert.NotNull(result);
+        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        Assert.Equal("ok", response.GetProperty("status").GetString());
+
+        var data = response.GetProperty("data");
+        Assert.False(data.GetProperty("includeHeader").GetBoolean());
+
+        var service = _serviceProvider.GetRequiredService<DecompilerService>();
+        var document = service.DecompileMember(memberId, includeHeader: false);
+
+        Assert.DoesNotContain(document.Lines, l => l.StartsWith("using"));
+        Assert.DoesNotContain(document.Lines, l => l.StartsWith("namespace"));
+    }
+
+    [Fact]
     public void GetSourceSlice_WithValidRange_ReturnsSourceCode()
     {
         // Arrange - find a type and decompile it first
