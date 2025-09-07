@@ -169,6 +169,22 @@ public class ServiceIntegrationTests : ServiceTestBase
         Assert.True(hasSimpleClass, "Should find SimpleClass in search results");
     }
 
+    [Fact]
+    public void UsageAnalyzer_FindCallees_ShouldDetectBaseMethodCall()
+    {
+        var analyzer = new UsageAnalyzer(ContextManager, MemberResolver);
+        var callees = analyzer.FindCallees("M:TestLibrary.DerivedClass.VirtualMethod").ToList();
+        Assert.Contains(callees, c => c.InMember == "M:TestLibrary.BaseClass.VirtualMethod");
+    }
+
+    [Fact]
+    public void UsageAnalyzer_FindStringLiterals_ShouldFindLiteral()
+    {
+        var analyzer = new UsageAnalyzer(ContextManager, MemberResolver);
+        var literals = analyzer.FindStringLiterals("Simple method called").ToList();
+        Assert.Contains(literals, l => l.Value == "Simple method called");
+    }
+
     private class TestSearchService : SearchServiceBase
     {
         public TestSearchService(AssemblyContextManager contextManager, MemberResolver memberResolver)
