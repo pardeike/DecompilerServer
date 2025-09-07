@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using ModelContextProtocol.Server;
+using DecompilerServer.Services;
 
 namespace DecompilerServer;
 
@@ -8,19 +9,74 @@ public static class GetTypesInNamespaceTool
     [McpServerTool, Description("Get all types inside a namespace. Optional deep traversal for child namespaces.")]
     public static string GetTypesInNamespace(string ns, bool deep = false, int limit = 100, string? cursor = null)
     {
-        /*
-		Behavior:
-		- Enumerate types whose Namespace equals ns (or startsWith(ns + ".") if deep).
-		- Return SearchResult<MemberSummary> for types.
+        return ResponseFormatter.TryExecute(() =>
+        {
+            var contextManager = ServiceLocator.ContextManager;
+            var memberResolver = ServiceLocator.MemberResolver;
 
-		Helper methods to use:
-		- AssemblyContextManager.IsLoaded to check if assembly is loaded
-		- AssemblyContextManager.GetAllTypes() to get all types
-		- SearchServiceBase.ApplyPagination() for cursor-based pagination
-		- Filter types by namespace (exact match or prefix match if deep=true)
-		- ResponseFormatter.TryExecute() for error handling
-		- ResponseFormatter.SearchResult() for paginated response formatting
-		*/
-        return "TODO";
+            if (!contextManager.IsLoaded)
+            {
+                throw new InvalidOperationException("No assembly loaded");
+            }
+
+            // Get all types
+            var allTypes = contextManager.GetAllTypes();
+
+            // Filter by namespace
+            IEnumerable<ICSharpCode.Decompiler.TypeSystem.ITypeDefinition> filteredTypes;
+            if (deep)
+            {
+                // Include types in the namespace or any child namespace
+                filteredTypes = allTypes.Where(type =>
+                    type.Namespace == ns ||
+                    type.Namespace.StartsWith(ns + ".", StringComparison.Ordinal));
+            }
+            else
+            {
+                // Exact namespace match only
+                filteredTypes = allTypes.Where(type => type.Namespace == ns);
+            }
+
+            // Sort for consistent ordering
+            var sortedTypes = filteredTypes.OrderBy(type => type.FullName).ToList();
+
+            // Apply pagination
+            var startIndex = 0;
+            if (!string.IsNullOrEmpty(cursor) && int.TryParse(cursor, out var cursorIndex))
+            {
+                startIndex = cursorIndex;
+            }
+
+            var pageItems = sortedTypes
+                .Skip(startIndex)
+                .Take(limit)
+                .Select(type => new MemberSummary
+                {
+                    MemberId = memberResolver.GenerateMemberId(type),
+                    Name = type.Name,
+                    FullName = type.FullName,
+                    Kind = "Type",
+                    DeclaringType = type.DeclaringType?.FullName,
+                    Namespace = type.Namespace,
+                    Signature = memberResolver.GetMemberSignature(type),
+                    Accessibility = type.Accessibility.ToString(),
+                    IsStatic = type.IsStatic,
+                    IsAbstract = type.IsAbstract
+                })
+                .ToList();
+
+            var hasMore = startIndex + limit < sortedTypes.Count;
+            var nextCursor = hasMore ? (startIndex + limit).ToString() : null;
+
+            var result = new SearchResult<MemberSummary>
+            {
+                Items = pageItems,
+                HasMore = hasMore,
+                NextCursor = nextCursor,
+                TotalEstimate = sortedTypes.Count
+            };
+
+            return result;
+        });
     }
 }
