@@ -44,7 +44,7 @@ public static class BatchGetDecompiledSourceTool
                 try
                 {
                     var document = decompilerService.DecompileMember(memberId, includeHeader: true);
-                    
+
                     // Create first slice (typically the whole document or a reasonable portion)
                     var firstSlice = decompilerService.GetSourceSlice(memberId, 1, Math.Min(document.TotalLines, 50));
                     var sliceLength = firstSlice.Code.Length;

@@ -27,7 +27,7 @@ public static class WarmIndexTool
             {
                 // Implement deep indexing for string literals and attributes
                 var usageAnalyzer = ServiceLocator.UsageAnalyzer;
-                
+
                 // Pre-warm string literal searches by running a quick search
                 try
                 {
@@ -46,7 +46,7 @@ public static class WarmIndexTool
                     foreach (var type in types)
                     {
                         if (stopwatch.Elapsed.TotalSeconds >= maxSeconds) break;
-                        
+
                         var memberId = ServiceLocator.MemberResolver.GenerateMemberId(type);
                         usageAnalyzer.FindUsages(memberId, limit: 1);
                     }

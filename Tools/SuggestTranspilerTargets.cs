@@ -145,7 +145,7 @@ public static class SuggestTranspilerTargetsTool
     private static string GenerateTranspilerExample(IMethod method)
     {
         var example = new StringBuilder();
-        
+
         example.AppendLine("// Example transpiler method for " + method.Name);
         example.AppendLine("[HarmonyTranspiler]");
         example.AppendLine("static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)");

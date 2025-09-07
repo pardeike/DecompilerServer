@@ -71,7 +71,7 @@ public static class GetAstOutlineTool
             else if (member is IProperty property)
             {
                 var children = new List<object>();
-                
+
                 if (property.Getter != null)
                 {
                     children.Add(new
@@ -81,12 +81,12 @@ public static class GetAstOutlineTool
                         accessibility = property.Getter.Accessibility.ToString()
                     });
                 }
-                
+
                 if (property.Setter != null)
                 {
                     children.Add(new
                     {
-                        kind = "Setter", 
+                        kind = "Setter",
                         name = "set",
                         accessibility = property.Setter.Accessibility.ToString()
                     });
