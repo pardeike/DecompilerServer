@@ -1,16 +1,18 @@
 using ICSharpCode.Decompiler.TypeSystem;
 using System.Reflection.Metadata;
 using System.Text.RegularExpressions;
+using System.Collections.Concurrent;
 
 namespace DecompilerServer.Services;
 
 /// <summary>
 /// Resolves member IDs to IEntity objects and handles member ID normalization.
-/// Supports various member ID formats and provides consistent resolution.
+/// Supports various member ID formats and provides consistent resolution with caching.
 /// </summary>
 public class MemberResolver
 {
     private readonly AssemblyContextManager _contextManager;
+    private readonly ConcurrentDictionary<string, IEntity?> _resolutionCache = new();
 
     public MemberResolver(AssemblyContextManager contextManager)
     {
@@ -18,19 +20,29 @@ public class MemberResolver
     }
 
     /// <summary>
-    /// Resolve a member ID to an IEntity (type, method, field, property, event)
+    /// Resolve a member ID to an IEntity (type, method, field, property, event) with caching
     /// </summary>
     public IEntity? ResolveMember(string memberId)
     {
         if (string.IsNullOrWhiteSpace(memberId))
             return null;
 
+        // Check cache first
+        if (_resolutionCache.TryGetValue(memberId, out var cached))
+            return cached;
+
         var compilation = _contextManager.GetCompilation();
 
-        // Try different resolution strategies
-        return ResolveMemberByFullName(memberId, compilation) ??
-               ResolveMemberByTokenId(memberId, compilation) ??
-               ResolveMemberByMetadataToken(memberId, compilation);
+        // Try fast path with indexed members first
+        var entity = _contextManager.FindMemberById(memberId) ??
+                     ResolveMemberByFullName(memberId, compilation) ??
+                     ResolveMemberByTokenId(memberId, compilation) ??
+                     ResolveMemberByMetadataToken(memberId, compilation);
+
+        // Cache the result (including null results to avoid repeated failed lookups)
+        _resolutionCache.TryAdd(memberId, entity);
+
+        return entity;
     }
 
     /// <summary>
@@ -122,6 +134,27 @@ public class MemberResolver
         return Regex.IsMatch(memberId, @"^([TMFPE]:.*|0x[0-9A-Fa-f]+|\d+)$");
     }
 
+    /// <summary>
+    /// Clear the resolution cache
+    /// </summary>
+    public void ClearCache()
+    {
+        _resolutionCache.Clear();
+    }
+
+    /// <summary>
+    /// Get cache statistics
+    /// </summary>
+    public ResolverCacheStats GetCacheStats()
+    {
+        return new ResolverCacheStats
+        {
+            CachedResolutions = _resolutionCache.Count,
+            SuccessfulResolutions = _resolutionCache.Count(kv => kv.Value != null),
+            FailedResolutions = _resolutionCache.Count(kv => kv.Value == null)
+        };
+    }
+
     private IEntity? ResolveMemberByFullName(string memberId, ICompilation compilation)
     {
         // Handle XML documentation style IDs (T:, M:, F:, P:, E:)
@@ -188,7 +221,9 @@ public class MemberResolver
         var typeName = fullName.Substring(0, lastDot);
         var methodName = fullName.Substring(lastDot + 1);
 
-        var type = compilation.FindType(new ICSharpCode.Decompiler.TypeSystem.FullTypeName(typeName)).GetDefinition();
+        // Use cached type lookup if available
+        var type = _contextManager.FindTypeByName(typeName) ??
+                   compilation.FindType(new ICSharpCode.Decompiler.TypeSystem.FullTypeName(typeName)).GetDefinition();
         return type?.Methods.FirstOrDefault(m => m.Name == methodName);
     }
 
@@ -200,7 +235,9 @@ public class MemberResolver
         var typeName = fullName.Substring(0, lastDot);
         var fieldName = fullName.Substring(lastDot + 1);
 
-        var type = compilation.FindType(new ICSharpCode.Decompiler.TypeSystem.FullTypeName(typeName)).GetDefinition();
+        // Use cached type lookup if available
+        var type = _contextManager.FindTypeByName(typeName) ??
+                   compilation.FindType(new ICSharpCode.Decompiler.TypeSystem.FullTypeName(typeName)).GetDefinition();
         return type?.Fields.FirstOrDefault(f => f.Name == fieldName);
     }
 
@@ -212,7 +249,9 @@ public class MemberResolver
         var typeName = fullName.Substring(0, lastDot);
         var propertyName = fullName.Substring(lastDot + 1);
 
-        var type = compilation.FindType(new ICSharpCode.Decompiler.TypeSystem.FullTypeName(typeName)).GetDefinition();
+        // Use cached type lookup if available
+        var type = _contextManager.FindTypeByName(typeName) ??
+                   compilation.FindType(new ICSharpCode.Decompiler.TypeSystem.FullTypeName(typeName)).GetDefinition();
         return type?.Properties.FirstOrDefault(p => p.Name == propertyName);
     }
 
@@ -224,7 +263,9 @@ public class MemberResolver
         var typeName = fullName.Substring(0, lastDot);
         var eventName = fullName.Substring(lastDot + 1);
 
-        var type = compilation.FindType(new ICSharpCode.Decompiler.TypeSystem.FullTypeName(typeName)).GetDefinition();
+        // Use cached type lookup if available
+        var type = _contextManager.FindTypeByName(typeName) ??
+                   compilation.FindType(new ICSharpCode.Decompiler.TypeSystem.FullTypeName(typeName)).GetDefinition();
         return type?.Events.FirstOrDefault(e => e.Name == eventName);
     }
 
@@ -253,4 +294,14 @@ public class MemberResolver
     {
         return type.FullName;
     }
+}
+
+/// <summary>
+/// Resolver cache statistics
+/// </summary>
+public class ResolverCacheStats
+{
+    public int CachedResolutions { get; init; }
+    public int SuccessfulResolutions { get; init; }
+    public int FailedResolutions { get; init; }
 }
