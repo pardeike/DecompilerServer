@@ -919,4 +919,204 @@ public class ToolImplementationTests : ServiceTestBase
     }
 
     #endregion
+
+    #region New Implemented Tools Tests
+
+    [Fact]
+    public void Unload_WithLoadedAssembly_ClearsContextAndCaches()
+    {
+        // Verify assembly is loaded before unload
+        Assert.True(ContextManager.IsLoaded);
+
+        // Act
+        var result = UnloadTool.Unload();
+
+        // Assert
+        Assert.NotNull(result);
+        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        Assert.Equal("ok", response.GetProperty("status").GetString());
+
+        var data = response.GetProperty("data");
+        Assert.Equal("ok", data.GetProperty("status").GetString());
+
+        // Note: In our test, the context manager is disposed but our test base class
+        // maintains its own reference, so we can't test IsLoaded directly here
+    }
+
+    [Fact]
+    public void FindCallers_WithValidMethod_ReturnsCallerResults()
+    {
+        // Arrange - find a method from the test assembly
+        var types = ContextManager.GetAllTypes();
+        var testType = types.FirstOrDefault(t => t.Methods.Any());
+        Assert.NotNull(testType);
+
+        var method = testType.Methods.FirstOrDefault(m => !m.IsConstructor);
+        if (method != null)
+        {
+            var memberId = MemberResolver.GenerateMemberId(method);
+
+            // Act
+            var result = FindCallersTool.FindCallers(memberId, limit: 10);
+
+            // Assert
+            Assert.NotNull(result);
+            var response = JsonSerializer.Deserialize<JsonElement>(result);
+            Assert.Equal("ok", response.GetProperty("status").GetString());
+
+            var data = response.GetProperty("data");
+            Assert.True(data.TryGetProperty("items", out _));
+            Assert.True(data.TryGetProperty("hasMore", out _));
+            Assert.True(data.TryGetProperty("totalEstimate", out _));
+        }
+    }
+
+    [Fact]
+    public void FindCallers_WithInvalidMethodId_ReturnsError()
+    {
+        // Act
+        var result = FindCallersTool.FindCallers("invalid-method-id");
+
+        // Assert
+        Assert.NotNull(result);
+        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        Assert.Equal("error", response.GetProperty("status").GetString());
+    }
+
+    [Fact]
+    public void GetImplementations_WithValidInterface_ReturnsImplementors()
+    {
+        // Arrange - find an interface type if available
+        var types = ContextManager.GetAllTypes();
+        var interfaceType = types.FirstOrDefault(t => t.Kind == ICSharpCode.Decompiler.TypeSystem.TypeKind.Interface);
+        
+        if (interfaceType != null)
+        {
+            var memberId = MemberResolver.GenerateMemberId(interfaceType);
+
+            // Act
+            var result = GetImplementationsTool.GetImplementations(memberId, limit: 10);
+
+            // Assert
+            Assert.NotNull(result);
+            var response = JsonSerializer.Deserialize<JsonElement>(result);
+            Assert.Equal("ok", response.GetProperty("status").GetString());
+
+            var data = response.GetProperty("data");
+            Assert.True(data.TryGetProperty("items", out _));
+            Assert.True(data.TryGetProperty("hasMore", out _));
+            Assert.True(data.TryGetProperty("totalEstimate", out _));
+        }
+    }
+
+    [Fact]
+    public void GetImplementations_WithInvalidMemberId_ReturnsError()
+    {
+        // Act
+        var result = GetImplementationsTool.GetImplementations("invalid-member-id");
+
+        // Assert
+        Assert.NotNull(result);
+        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        Assert.Equal("error", response.GetProperty("status").GetString());
+    }
+
+    [Fact]
+    public void BatchGetDecompiledSource_WithValidMemberIds_ReturnsDocumentsAndSlices()
+    {
+        // Arrange - find a few members from the test assembly
+        var types = ContextManager.GetAllTypes();
+        var testType = types.FirstOrDefault(t => t.Methods.Any());
+        Assert.NotNull(testType);
+
+        var methods = testType.Methods.Take(2).ToArray();
+        var memberIds = methods.Select(m => MemberResolver.GenerateMemberId(m)).ToArray();
+
+        // Act
+        var result = BatchGetDecompiledSourceTool.BatchGetDecompiledSource(memberIds, maxTotalChars: 50000);
+
+        // Assert
+        Assert.NotNull(result);
+        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        Assert.Equal("ok", response.GetProperty("status").GetString());
+
+        var data = response.GetProperty("data");
+        Assert.True(data.TryGetProperty("items", out var items));
+        Assert.True(data.TryGetProperty("totalCharacters", out _));
+        Assert.True(data.TryGetProperty("truncated", out _));
+        Assert.True(data.TryGetProperty("processed", out _));
+        Assert.True(data.TryGetProperty("requested", out _));
+
+        // Verify structure of returned items
+        for (int i = 0; i < items.GetArrayLength(); i++)
+        {
+            var item = items[i];
+            Assert.True(item.TryGetProperty("doc", out var doc));
+            Assert.True(item.TryGetProperty("firstSlice", out var slice));
+
+            // Verify doc structure
+            Assert.True(doc.TryGetProperty("memberId", out _));
+            Assert.True(doc.TryGetProperty("language", out _));
+            Assert.True(doc.TryGetProperty("totalLines", out _));
+
+            // Verify slice structure
+            Assert.True(slice.TryGetProperty("code", out _));
+            Assert.True(slice.TryGetProperty("startLine", out _));
+            Assert.True(slice.TryGetProperty("endLine", out _));
+        }
+    }
+
+    [Fact]
+    public void BatchGetDecompiledSource_WithEmptyArray_ReturnsError()
+    {
+        // Act
+        var result = BatchGetDecompiledSourceTool.BatchGetDecompiledSource(new string[0]);
+
+        // Assert
+        Assert.NotNull(result);
+        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        Assert.Equal("error", response.GetProperty("status").GetString());
+    }
+
+    [Fact]
+    public void SearchStringLiterals_WithPattern_ReturnsStringLiteralReferences()
+    {
+        // Act - search for any string literal pattern
+        var result = SearchStringLiteralsTool.SearchStringLiterals("test", regex: false, limit: 10);
+
+        // Assert
+        Assert.NotNull(result);
+        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        Assert.Equal("ok", response.GetProperty("status").GetString());
+
+        var data = response.GetProperty("data");
+        Assert.True(data.TryGetProperty("items", out var items));
+        Assert.True(data.TryGetProperty("hasMore", out _));
+        Assert.True(data.TryGetProperty("totalEstimate", out _));
+
+        // Verify structure of returned items
+        for (int i = 0; i < items.GetArrayLength(); i++)
+        {
+            var item = items[i];
+            Assert.True(item.TryGetProperty("value", out _));
+            Assert.True(item.TryGetProperty("inMember", out _));
+            Assert.True(item.TryGetProperty("inType", out _));
+            Assert.True(item.TryGetProperty("kind", out _));
+            Assert.Equal("StringLiteral", item.GetProperty("kind").GetString());
+        }
+    }
+
+    [Fact]
+    public void SearchStringLiterals_WithEmptyPattern_ReturnsError()
+    {
+        // Act
+        var result = SearchStringLiteralsTool.SearchStringLiterals("");
+
+        // Assert
+        Assert.NotNull(result);
+        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        Assert.Equal("error", response.GetProperty("status").GetString());
+    }
+
+    #endregion
 }
