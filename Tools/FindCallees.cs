@@ -32,13 +32,7 @@ public static class FindCalleesTool
             var hasMore = calleeList.Count >= limit;
             var nextCursor = hasMore ? (startIndex + limit).ToString() : null;
 
-            var result = new SearchResult<UsageReference>
-            {
-                Items = calleeList,
-                HasMore = hasMore,
-                NextCursor = nextCursor,
-                TotalEstimate = calleeList.Count
-            };
+            var result = new SearchResult<UsageReference>(calleeList, hasMore, nextCursor, calleeList.Count);
 
             return result;
         });

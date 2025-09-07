@@ -38,7 +38,7 @@ public static class GetImplementationsTool
             {
                 // It's a method - find concrete implementations
                 var overrides = inheritanceAnalyzer.GetOverrides(interfaceTypeOrMethodId);
-                
+
                 // Apply pagination manually for method overrides
                 var methodStartIndex = 0;
                 if (!string.IsNullOrEmpty(cursor) && int.TryParse(cursor, out var methodCursorIndex))
@@ -65,13 +65,8 @@ public static class GetImplementationsTool
             var hasMore = implementationsList.Count >= limit;
             var nextCursor = hasMore ? (startIndex + limit).ToString() : null;
 
-            var result = new SearchResult<MemberSummary>
-            {
-                Items = implementationsList,
-                HasMore = hasMore,
-                NextCursor = nextCursor,
-                TotalEstimate = implementationsList.Count
-            };
+            var result = new SearchResult<MemberSummary>(implementationsList, hasMore, nextCursor,
+                implementationsList.Count);
 
             return result;
         });

@@ -157,13 +157,11 @@ public class UsageAnalyzer
 
                     if (MatchesStringQuery(literal, query, regex))
                     {
-                        results.Add(new StringLiteralReference
-                        {
-                            Value = literal,
-                            ContainingMember = _memberResolver.GenerateMemberId(method),
-                            ContainingType = method.DeclaringType?.FullName ?? "",
-                            Line = null // Would need source mapping for line numbers
-                        });
+                        results.Add(new StringLiteralReference(
+                            literal,
+                            _memberResolver.GenerateMemberId(method),
+                            method.DeclaringType?.FullName ?? "",
+                            null)); // Would need source mapping for line numbers
                         foundCount++;
                     }
                 }
@@ -190,13 +188,11 @@ public class UsageAnalyzer
     /// </summary>
     public UsageAnalyzerCacheStats GetCacheStats()
     {
-        return new UsageAnalyzerCacheStats
-        {
-            CachedUsageQueries = _usageCache.Count,
-            CachedStringLiteralQueries = _stringLiteralCache.Count,
-            TotalUsageResults = _usageCache.Values.Sum(list => list.Count),
-            TotalStringLiteralResults = _stringLiteralCache.Values.Sum(list => list.Count)
-        };
+        return new UsageAnalyzerCacheStats(
+            _usageCache.Count,
+            _stringLiteralCache.Count,
+            _usageCache.Values.Sum(list => list.Count),
+            _stringLiteralCache.Values.Sum(list => list.Count));
     }
 
     private IEnumerable<UsageReference> FindUsagesInMethod(IMethod method, IEntity targetMember)
@@ -239,7 +235,7 @@ public class UsageAnalyzer
 /// <summary>
 /// Represents a usage of a member
 /// </summary>
-public class UsageReference
+public record UsageReference
 {
     public required string InMember { get; init; }
     public required string InType { get; init; }
@@ -265,21 +261,10 @@ public enum UsageKind
 /// <summary>
 /// Represents a string literal reference
 /// </summary>
-public class StringLiteralReference
-{
-    public required string Value { get; init; }
-    public required string ContainingMember { get; init; }
-    public required string ContainingType { get; init; }
-    public int? Line { get; init; }
-}
+public record StringLiteralReference(string Value, string ContainingMember, string ContainingType, int? Line);
 
 /// <summary>
 /// Usage analyzer cache statistics
 /// </summary>
-public class UsageAnalyzerCacheStats
-{
-    public int CachedUsageQueries { get; init; }
-    public int CachedStringLiteralQueries { get; init; }
-    public int TotalUsageResults { get; init; }
-    public int TotalStringLiteralResults { get; init; }
-}
+public record UsageAnalyzerCacheStats(int CachedUsageQueries, int CachedStringLiteralQueries, int TotalUsageResults,
+    int TotalStringLiteralResults);

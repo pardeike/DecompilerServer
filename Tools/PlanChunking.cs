@@ -29,9 +29,9 @@ public static class PlanChunkingTool
             // Get the source document to analyze
             var document = decompilerService.DecompileMember(memberId, includeHeader: true);
             var totalLines = document.TotalLines;
-            
+
             object result;
-            
+
             if (totalLines == 0)
             {
                 result = new
@@ -45,10 +45,22 @@ public static class PlanChunkingTool
             else
             {
                 // Estimate average characters per line based on the document
-                var sampleSlice = decompilerService.GetSourceSlice(memberId, 1, Math.Min(totalLines, 10));
-                var avgCharsPerLine = sampleSlice.Code.Length / Math.Min(totalLines, 10);
-                
-                // If we can't get a good estimate, use a reasonable default
+                var divisor = Math.Min(totalLines, 10);
+                int avgCharsPerLine;
+                try
+                {
+                    var sampleSlice = decompilerService.GetSourceSlice(memberId, 1, divisor);
+                    if (divisor == 0)
+                    {
+                        divisor = 1;
+                    }
+                    avgCharsPerLine = sampleSlice.Code.Length / divisor;
+                }
+                catch
+                {
+                    avgCharsPerLine = 0;
+                }
+
                 if (avgCharsPerLine == 0)
                 {
                     avgCharsPerLine = 80; // Default assumption for code
@@ -56,14 +68,14 @@ public static class PlanChunkingTool
 
                 // Calculate target lines per chunk
                 var targetLinesPerChunk = Math.Max(1, targetChunkSize / avgCharsPerLine);
-                
+
                 var chunks = new List<object>();
                 var currentStart = 1;
 
                 while (currentStart <= totalLines)
                 {
                     var currentEnd = Math.Min(currentStart + targetLinesPerChunk - 1, totalLines);
-                    
+
                     chunks.Add(new
                     {
                         startLine = currentStart,
@@ -73,7 +85,7 @@ public static class PlanChunkingTool
 
                     // Move to next chunk with overlap consideration
                     currentStart = currentEnd + 1 - overlap;
-                    
+
                     // Prevent infinite loop if overlap is too large
                     if (currentStart <= currentEnd - targetLinesPerChunk + overlap)
                     {

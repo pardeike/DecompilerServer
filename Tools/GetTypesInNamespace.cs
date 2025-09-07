@@ -68,13 +68,7 @@ public static class GetTypesInNamespaceTool
             var hasMore = startIndex + limit < sortedTypes.Count;
             var nextCursor = hasMore ? (startIndex + limit).ToString() : null;
 
-            var result = new SearchResult<MemberSummary>
-            {
-                Items = pageItems,
-                HasMore = hasMore,
-                NextCursor = nextCursor,
-                TotalEstimate = sortedTypes.Count
-            };
+            var result = new SearchResult<MemberSummary>(pageItems, hasMore, nextCursor, sortedTypes.Count);
 
             return result;
         });
