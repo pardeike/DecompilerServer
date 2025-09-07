@@ -48,6 +48,8 @@ public static class GenerateHarmonyPatchSkeletonTool
     {
         var code = new StringBuilder();
         var declaringType = method.DeclaringType;
+        if (declaringType == null)
+            throw new ArgumentException("Method has no declaring type");
 
         // Add header comment
         code.AppendLine("// Generated Harmony patch skeleton");
@@ -61,7 +63,7 @@ public static class GenerateHarmonyPatchSkeletonTool
         code.AppendLine("using System.Reflection;");
         code.AppendLine("using System.Reflection.Emit;");
         code.AppendLine("using HarmonyLib;");
-        if (declaringType?.Namespace != null && declaringType.Namespace != "System")
+        if (declaringType.Namespace != null && declaringType.Namespace != "System")
         {
             code.AppendLine($"using {declaringType.Namespace};");
         }
@@ -73,7 +75,7 @@ public static class GenerateHarmonyPatchSkeletonTool
 
         // Generate HarmonyPatch attribute
         code.AppendLine("    [HarmonyPatch]");
-        code.AppendLine($"    public class {SanitizeClassName(method.DeclaringType?.Name ?? "Unknown")}_{method.Name}Patch");
+        code.AppendLine($"    public class {SanitizeClassName(declaringType.Name ?? "Unknown")}_{method.Name}Patch");
         code.AppendLine("    {");
 
         // Add target method specification
@@ -236,6 +238,8 @@ public static class GenerateHarmonyPatchSkeletonTool
 
     private static void GenerateTranspilerPatch(StringBuilder code, IMethod method)
     {
+        // TODO is method used?
+
         code.AppendLine("        // Transpiler patch - modifies IL instructions");
         code.AppendLine("        [HarmonyTranspiler]");
         code.AppendLine("        static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)");
@@ -297,23 +301,36 @@ public static class GenerateHarmonyPatchSkeletonTool
 
     private static string GetTypeDisplayName(IType type)
     {
-        if (type == null) return "object";
+        if (type == null)
+            return "object";
 
         // Handle special built-in types
         switch (type.FullName)
         {
-            case "System.String": return "string";
-            case "System.Int32": return "int";
-            case "System.Int64": return "long";
-            case "System.Boolean": return "bool";
-            case "System.Void": return "void";
-            case "System.Object": return "object";
-            case "System.Double": return "double";
-            case "System.Single": return "float";
-            case "System.Byte": return "byte";
-            case "System.Int16": return "short";
-            case "System.Char": return "char";
-            case "System.Decimal": return "decimal";
+            case "System.String":
+                return "string";
+            case "System.Int32":
+                return "int";
+            case "System.Int64":
+                return "long";
+            case "System.Boolean":
+                return "bool";
+            case "System.Void":
+                return "void";
+            case "System.Object":
+                return "object";
+            case "System.Double":
+                return "double";
+            case "System.Single":
+                return "float";
+            case "System.Byte":
+                return "byte";
+            case "System.Int16":
+                return "short";
+            case "System.Char":
+                return "char";
+            case "System.Decimal":
+                return "decimal";
         }
 
         // Handle generic types
@@ -337,7 +354,8 @@ public static class GenerateHarmonyPatchSkeletonTool
 
     private static string SanitizeClassName(string name)
     {
-        if (string.IsNullOrEmpty(name)) return "Unknown";
+        if (string.IsNullOrEmpty(name))
+            return "Unknown";
 
         // Remove characters that aren't valid in C# class names
         var result = new StringBuilder();

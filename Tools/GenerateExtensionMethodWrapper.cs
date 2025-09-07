@@ -52,6 +52,8 @@ public static class GenerateExtensionMethodWrapperTool
     {
         var code = new StringBuilder();
         var declaringType = method.DeclaringType;
+        if (declaringType == null)
+            throw new ArgumentException("Method must have a declaring type");
 
         // Add header comment
         code.AppendLine("// Generated extension method wrapper");
@@ -60,7 +62,7 @@ public static class GenerateExtensionMethodWrapperTool
 
         // Add using statements
         code.AppendLine("using System;");
-        if (declaringType?.Namespace != null && declaringType.Namespace != "System")
+        if (declaringType.Namespace != null && declaringType.Namespace != "System")
         {
             code.AppendLine($"using {declaringType.Namespace};");
         }
@@ -117,7 +119,7 @@ public static class GenerateExtensionMethodWrapperTool
         foreach (var typeParam in method.TypeParameters)
         {
             if (typeParam.HasValueTypeConstraint || typeParam.HasReferenceTypeConstraint ||
-                typeParam.HasDefaultConstructorConstraint || typeParam.DirectBaseTypes.Any())
+                 typeParam.HasDefaultConstructorConstraint || typeParam.DirectBaseTypes.Any())
             {
                 var constraints = new List<string>();
 
@@ -177,23 +179,36 @@ public static class GenerateExtensionMethodWrapperTool
 
     private static string GetTypeDisplayName(IType type)
     {
-        if (type == null) return "object";
+        if (type == null)
+            return "object";
 
         // Handle special built-in types
         switch (type.FullName)
         {
-            case "System.String": return "string";
-            case "System.Int32": return "int";
-            case "System.Int64": return "long";
-            case "System.Boolean": return "bool";
-            case "System.Void": return "void";
-            case "System.Object": return "object";
-            case "System.Double": return "double";
-            case "System.Single": return "float";
-            case "System.Byte": return "byte";
-            case "System.Int16": return "short";
-            case "System.Char": return "char";
-            case "System.Decimal": return "decimal";
+            case "System.String":
+                return "string";
+            case "System.Int32":
+                return "int";
+            case "System.Int64":
+                return "long";
+            case "System.Boolean":
+                return "bool";
+            case "System.Void":
+                return "void";
+            case "System.Object":
+                return "object";
+            case "System.Double":
+                return "double";
+            case "System.Single":
+                return "float";
+            case "System.Byte":
+                return "byte";
+            case "System.Int16":
+                return "short";
+            case "System.Char":
+                return "char";
+            case "System.Decimal":
+                return "decimal";
         }
 
         // Handle generic types

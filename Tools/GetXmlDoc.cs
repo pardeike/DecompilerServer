@@ -42,6 +42,8 @@ public static class GetXmlDocTool
 
     private static string? ExtractXmlDocumentation(IEntity entity)
     {
+        // TODO: Implement XML documentation extraction
+        //
         // Basic XML documentation extraction
         // The decompiler system has XML documentation support but accessing it requires
         // more complex setup with XML documentation providers. For now, we return null

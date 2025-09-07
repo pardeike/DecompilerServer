@@ -72,18 +72,22 @@ public class UsageAnalyzer
 
         foreach (var type in allTypes)
         {
-            if (foundCount >= limit) break;
+            if (foundCount >= limit)
+                break;
 
             foreach (var method in type.Methods)
             {
                 processedCount++;
-                if (processedCount <= startIndex) continue;
-                if (foundCount >= limit) break;
+                if (processedCount <= startIndex)
+                    continue;
+                if (foundCount >= limit)
+                    break;
 
                 var methodUsages = FindUsagesInMethod(method, targetMember);
                 foreach (var usage in methodUsages)
                 {
-                    if (foundCount >= limit) break;
+                    if (foundCount >= limit)
+                        break;
                     usages.Add(usage);
                     foundCount++;
                 }
@@ -126,8 +130,10 @@ public class UsageAnalyzer
             return Enumerable.Empty<UsageReference>();
         var body = peFile.Reader.GetMethodBody(methodDef.RelativeVirtualAddress);
         var il = body.GetILBytes();
-
         var results = new List<UsageReference>();
+        if (il == null || il.Length == 0)
+            return results;
+
         var startIndex = 0;
         if (!string.IsNullOrEmpty(cursor) && int.TryParse(cursor, out var cursorIndex))
             startIndex = cursorIndex;
@@ -140,7 +146,8 @@ public class UsageAnalyzer
 
             if (opCode == OpCodes.Call || opCode == OpCodes.Callvirt || opCode == OpCodes.Newobj)
             {
-                if (index++ < startIndex) continue;
+                if (index++ < startIndex)
+                    continue;
                 var resolved = ResolveMethodId(metadata, operand);
                 if (resolved != null)
                 {
@@ -154,13 +161,14 @@ public class UsageAnalyzer
             }
             else if (opCode == OpCodes.Ldfld || opCode == OpCodes.Ldsfld || opCode == OpCodes.Stfld || opCode == OpCodes.Stsfld)
             {
-                if (index++ < startIndex) continue;
+                if (index++ < startIndex)
+                    continue;
                 var field = ResolveFieldId(metadata, operand);
                 if (field != null)
                 {
                     var kind = opCode == OpCodes.Ldfld || opCode == OpCodes.Ldsfld
-                        ? UsageKind.FieldRead
-                        : UsageKind.FieldWrite;
+                          ? UsageKind.FieldRead
+                          : UsageKind.FieldWrite;
                     results.Add(new UsageReference
                     {
                         InMember = field.Value.memberId,
@@ -191,9 +199,12 @@ public class UsageAnalyzer
         if (methodDef.RelativeVirtualAddress == 0)
             return Enumerable.Empty<string>();
         var body = peFile.Reader.GetMethodBody(methodDef.RelativeVirtualAddress);
-        var il = body.GetILBytes();
 
         var literals = new List<string>();
+        var il = body.GetILBytes();
+        if (il == null || il.Length == 0)
+            return literals;
+
         foreach (var (opCode, operand) in ReadInstructions(il))
         {
             if (opCode == OpCodes.Ldstr)
@@ -235,26 +246,30 @@ public class UsageAnalyzer
 
         foreach (var type in allTypes)
         {
-            if (foundCount >= limit) break;
+            if (foundCount >= limit)
+                break;
 
             foreach (var method in type.Methods)
             {
                 processedCount++;
-                if (processedCount <= startIndex) continue;
-                if (foundCount >= limit) break;
+                if (processedCount <= startIndex)
+                    continue;
+                if (foundCount >= limit)
+                    break;
 
                 var literals = FindStringLiteralsInMethod(method);
                 foreach (var literal in literals)
                 {
-                    if (foundCount >= limit) break;
+                    if (foundCount >= limit)
+                        break;
 
                     if (MatchesStringQuery(literal, query, regex))
                     {
                         results.Add(new StringLiteralReference(
-                            literal,
-                            _memberResolver.GenerateMemberId(method),
-                            method.DeclaringType?.FullName ?? "",
-                            null)); // Would need source mapping for line numbers
+                              literal,
+                              _memberResolver.GenerateMemberId(method),
+                              method.DeclaringType?.FullName ?? "",
+                              null)); // Would need source mapping for line numbers
                         foundCount++;
                     }
                 }
@@ -282,10 +297,10 @@ public class UsageAnalyzer
     public UsageAnalyzerCacheStats GetCacheStats()
     {
         return new UsageAnalyzerCacheStats(
-            _usageCache.Count,
-            _stringLiteralCache.Count,
-            _usageCache.Values.Sum(list => list.Count),
-            _stringLiteralCache.Values.Sum(list => list.Count));
+              _usageCache.Count,
+              _stringLiteralCache.Count,
+              _usageCache.Values.Sum(list => list.Count),
+              _stringLiteralCache.Values.Sum(list => list.Count));
     }
 
     private IEnumerable<UsageReference> FindUsagesInMethod(IMethod method, IEntity targetMember)
@@ -302,21 +317,24 @@ public class UsageAnalyzer
         if (methodDef.RelativeVirtualAddress == 0)
             return Enumerable.Empty<UsageReference>();
         var body = peFile.Reader.GetMethodBody(methodDef.RelativeVirtualAddress);
-        var il = body.GetILBytes();
 
         var usages = new List<UsageReference>();
+        var il = body.GetILBytes();
+        if (il == null || il.Length == 0)
+            return usages;
+
         var targetToken = MetadataTokens.GetToken(targetMember.MetadataToken);
 
         foreach (var (opCode, operand) in ReadInstructions(il))
         {
             if (opCode == OpCodes.Call || opCode == OpCodes.Callvirt || opCode == OpCodes.Newobj ||
-                opCode == OpCodes.Ldfld || opCode == OpCodes.Ldsfld || opCode == OpCodes.Stfld || opCode == OpCodes.Stsfld)
+                  opCode == OpCodes.Ldfld || opCode == OpCodes.Ldsfld || opCode == OpCodes.Stfld || opCode == OpCodes.Stsfld)
             {
                 if (operand == targetToken)
                 {
                     var kind = opCode == OpCodes.Newobj ? UsageKind.NewObject :
-                        (opCode == OpCodes.Ldfld || opCode == OpCodes.Ldsfld ? UsageKind.FieldRead :
-                         (opCode == OpCodes.Stfld || opCode == OpCodes.Stsfld ? UsageKind.FieldWrite : UsageKind.Call));
+                          (opCode == OpCodes.Ldfld || opCode == OpCodes.Ldsfld ? UsageKind.FieldRead :
+                            (opCode == OpCodes.Stfld || opCode == OpCodes.Stsfld ? UsageKind.FieldWrite : UsageKind.Call));
                     usages.Add(new UsageReference
                     {
                         InMember = _memberResolver.GenerateMemberId(method),
@@ -339,11 +357,16 @@ public class UsageAnalyzer
                 var md = metadata.GetMethodDefinition((MethodDefinitionHandle)handle);
                 var typeName = GetFullTypeName(metadata, md.GetDeclaringType());
                 var name = metadata.GetString(md.Name);
-                return ($"M:{typeName}.{name}", typeName);
+                if (typeName == null)
+                    typeName = "";
+                else
+                    typeName += ".";
+                return ($"M:{typeName}{name}", typeName);
             case HandleKind.MemberReference:
                 var mr = metadata.GetMemberReference((MemberReferenceHandle)handle);
                 var parentName = GetFullTypeName(metadata, mr.Parent);
-                if (parentName == null) return null;
+                if (parentName == null)
+                    return null;
                 var methodName = metadata.GetString(mr.Name);
                 return ($"M:{parentName}.{methodName}", parentName);
             default:
@@ -360,11 +383,16 @@ public class UsageAnalyzer
                 var fd = metadata.GetFieldDefinition((FieldDefinitionHandle)handle);
                 var typeName = GetFullTypeName(metadata, fd.GetDeclaringType());
                 var name = metadata.GetString(fd.Name);
-                return ($"F:{typeName}.{name}", typeName);
+                if (typeName == null)
+                    typeName = "";
+                else
+                    typeName += ".";
+                return ($"F:{typeName}{name}", typeName);
             case HandleKind.MemberReference:
                 var mr = metadata.GetMemberReference((MemberReferenceHandle)handle);
                 var parentName = GetFullTypeName(metadata, mr.Parent);
-                if (parentName == null) return null;
+                if (parentName == null)
+                    return null;
                 var fieldName = metadata.GetString(mr.Name);
                 return ($"F:{parentName}.{fieldName}", parentName);
             default:
@@ -461,8 +489,8 @@ public class UsageAnalyzer
             try
             {
                 return System.Text.RegularExpressions.Regex.IsMatch(text, query,
-                    System.Text.RegularExpressions.RegexOptions.IgnoreCase,
-                    TimeSpan.FromSeconds(1));
+                      System.Text.RegularExpressions.RegexOptions.IgnoreCase,
+                      TimeSpan.FromSeconds(1));
             }
             catch
             {
@@ -509,4 +537,4 @@ public record StringLiteralReference(string Value, string ContainingMember, stri
 /// Usage analyzer cache statistics
 /// </summary>
 public record UsageAnalyzerCacheStats(int CachedUsageQueries, int CachedStringLiteralQueries, int TotalUsageResults,
-    int TotalStringLiteralResults);
+      int TotalStringLiteralResults);

@@ -105,16 +105,16 @@ public static class NormalizeMemberIdTool
         // Find types that match the type part
         var allTypes = contextManager.GetAllTypes();
         var matchingTypes = allTypes.Where(t =>
-            t.Name.Equals(typePart, StringComparison.OrdinalIgnoreCase) ||
-            t.FullName.Equals(typePart, StringComparison.OrdinalIgnoreCase) ||
-            t.FullName.EndsWith("." + typePart, StringComparison.OrdinalIgnoreCase));
+             t.Name.Equals(typePart, StringComparison.OrdinalIgnoreCase) ||
+             t.FullName.Equals(typePart, StringComparison.OrdinalIgnoreCase) ||
+             t.FullName.EndsWith("." + typePart, StringComparison.OrdinalIgnoreCase));
 
         foreach (var type in matchingTypes)
         {
             // Find members with matching names
             var members = GetAllMembers(type);
             var matchingMembers = members.Where(m =>
-                m.Name.Equals(memberPart, StringComparison.OrdinalIgnoreCase));
+                 m.Name.Equals(memberPart, StringComparison.OrdinalIgnoreCase));
 
             foreach (var member in matchingMembers)
             {
@@ -129,6 +129,8 @@ public static class NormalizeMemberIdTool
     {
         var candidates = new List<MemberSummary>();
 
+        // TODO: Implement token-based member resolution
+        //
         // This is a simplified token search - in a full implementation,
         // you would use the metadata token to directly resolve the member
         // For now, we'll skip this complex approach
@@ -142,7 +144,7 @@ public static class NormalizeMemberIdTool
         // Search types by name
         var allTypes = contextManager.GetAllTypes();
         var matchingTypes = allTypes.Where(t =>
-            t.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+             t.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
 
         foreach (var type in matchingTypes.Take(5)) // Limit to avoid too many results
         {
@@ -154,14 +156,15 @@ public static class NormalizeMemberIdTool
         {
             var members = GetAllMembers(type);
             var matchingMembers = members.Where(m =>
-                m.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
+                 m.Name.Equals(name, StringComparison.OrdinalIgnoreCase));
 
             foreach (var member in matchingMembers.Take(5)) // Limit members per type
             {
                 candidates.Add(CreateMemberSummary(member, memberResolver));
             }
 
-            if (candidates.Count >= 10) break; // Overall limit
+            if (candidates.Count >= 10)
+                break; // Overall limit
         }
 
         return candidates;
@@ -170,9 +173,9 @@ public static class NormalizeMemberIdTool
     private static IEnumerable<IMember> GetAllMembers(ITypeDefinition type)
     {
         return type.Methods.Cast<IMember>()
-            .Concat(type.Fields)
-            .Concat(type.Properties)
-            .Concat(type.Events);
+             .Concat(type.Fields)
+             .Concat(type.Properties)
+             .Concat(type.Events);
     }
 
     private static MemberSummary CreateTypeSummary(ITypeDefinition type, MemberResolver memberResolver)
