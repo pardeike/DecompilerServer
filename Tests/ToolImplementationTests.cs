@@ -1399,25 +1399,18 @@ public class ToolImplementationTests : ServiceTestBase
             return;
         }
 
-        var data = response.GetProperty("data");
-        Assert.True(data.TryGetProperty("memberId", out _));
-        Assert.True(data.TryGetProperty("chunks", out var chunks));
-        Assert.True(data.TryGetProperty("totalLines", out _));
-        Assert.True(data.TryGetProperty("estimatedChars", out _));
-        Assert.True(data.TryGetProperty("targetChunkSize", out _));
-        Assert.True(data.TryGetProperty("overlap", out _));
-        Assert.True(data.TryGetProperty("avgCharsPerLine", out _));
+        var data = JsonSerializer.Deserialize<ChunkPlanResult>(
+            response.GetProperty("data").GetRawText(),
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 
-        // Verify chunks structure
-        Assert.True(chunks.ValueKind == JsonValueKind.Array);
-
-        for (var i = 0; i < chunks.GetArrayLength(); i++)
+        Assert.NotNull(data);
+        Assert.Equal(memberId, data.MemberId);
+        Assert.NotNull(data.Chunks);
+        Assert.All(data.Chunks, c =>
         {
-            var chunk = chunks[i];
-            Assert.True(chunk.TryGetProperty("startLine", out _));
-            Assert.True(chunk.TryGetProperty("endLine", out _));
-            Assert.True(chunk.TryGetProperty("estimatedChars", out _));
-        }
+            Assert.True(c.StartLine <= c.EndLine);
+            Assert.True(c.EstimatedChars > 0);
+        });
     }
 
     [Fact]
@@ -1538,3 +1531,14 @@ public class ToolImplementationTests : ServiceTestBase
 
     #endregion
 }
+
+internal record ChunkInfo(int StartLine, int EndLine, int EstimatedChars);
+
+internal record ChunkPlanResult(
+    string MemberId,
+    List<ChunkInfo> Chunks,
+    int TotalLines,
+    int EstimatedChars,
+    int TargetChunkSize,
+    int Overlap,
+    int AvgCharsPerLine);
