@@ -21,17 +21,6 @@ public static class UnloadTool
             memberResolver.ClearCache();
             usageAnalyzer.ClearCache();
 
-            // Check if we have access to SearchServiceBase-derived services
-            try
-            {
-                var searchService = ServiceLocator.GetRequiredService<SearchServiceBase>();
-                searchService.ClearSearchCache();
-            }
-            catch
-            {
-                // SearchServiceBase might not be registered, that's okay
-            }
-
             // Dispose the assembly context which will:
             // - Dispose PEFile and resolver
             // - Clear all dictionaries and reset stats

@@ -58,3 +58,4 @@ public static class ListNamespacesTool
 /// Simple handle for members that don't need full summary information
 /// </summary>
 public record MemberHandle(string MemberId, string Name, string Kind);
+
