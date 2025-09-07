@@ -1,0 +1,50 @@
+You are implementing an MCP server tool endpoint for a C# project that explores Game's Assembly-CSharp.dll using ICSharpCode.Decompiler.
+
+Core constraints:
+- Keep one in-memory context: PEFile (Assembly-CSharp.dll assembly), UniversalAssemblyResolver (search dirs include Game*_Data/Managed), DecompilerTypeSystem, and a configured CSharpDecompiler.
+- Build stable IDs as "<mvid-32hex>:<token-8hex>:<kind-code>" where kind codes: T=Type, M=Method/Ctor, P=Property, F=Field, E=Event, N=Namespace.
+- Provide thread-safe access with ReaderWriterLockSlim. Fast reads, guarded writes.
+- Use lazy indexes. On first access build minimal name/namespace/type maps. Deep indexes (string literals, attribute hits) behind WarmIndex.
+- Always paginate. Inputs: limit (default 50, max 500), cursor string. Output: { items, nextCursor }.
+- Serialization: System.Text.Json with camelCase, ignore nulls, deterministic ordering for stable diffs.
+- Source cache: per-member decompiled C# string plus line index (offsets). Allow ranged retrieval without re-decompile.
+- IL: produce readable IL using ICSharpCode.Decompiler.Disassembler + MetadataReader. Avoid reflection-only load.
+- Errors: return { error: { code, message, detail? } }. Never throw across MCP boundary.
+
+Recommended types (define in a shared Models.cs):
+- record MemberHandle(string Id, string Kind, string Name, string DeclaringType, string Namespace);
+- enum MemberKind { Namespace, Type, Method, Property, Field, Event, Constructor }
+- record MemberSummary(MemberHandle Handle, string Signature, string Accessibility, bool Static, bool Virtual, bool Abstract, int GenericArity, string? DocSummary);
+- record SearchResult<T>(IReadOnlyList<T> Items, string? NextCursor, int TotalEstimate);
+- record MemberDetails(MemberSummary Summary, IReadOnlyList<string> Attributes, string? XmlDoc, string? BaseDefinitionId, IReadOnlyList<string> OverrideIds, IReadOnlyList<string> ImplementorIds);
+- record SourceDocument(string MemberId, string Language, int TotalLines, string Hash, string? Header, string? Footer);
+- record SourceSlice(string MemberId, int StartLine, int EndLine, bool LineNumbers, string Text);
+- record UsageRef(MemberHandle InMember, string Kind, int? Line, string? Snippet);
+- record GraphResult(IReadOnlyList<MemberHandle> Nodes, IReadOnlyList<(string FromId, string ToId, string Kind)> Edges, string? NextCursor);
+- record Stats(long LoadedAtUnix, string Mvid, int Types, int Methods, int Properties, int Fields, long CacheBytes, double IndexBuildSeconds);
+
+Implementation tips:
+- Resolver: UniversalAssemblyResolver(gameDir, false, null) and add search dirs: gameDir, gameDir/MonoBleedingEdge/lib/mono, Game*_Data/Managed, UnityPlayer dir as needed.
+- Decompiler settings: new CSharpDecompilerSettings { UsingDeclarations = true, ShowXmlDocumentation = true, NamedArguments = true, ... }; tweak via SetDecompileSettings.
+- Token/ID utils: from IEntity.MetadataToken and PEFile.Metadata; include module MVID (Guid.ToString("N")).
+- Searching:
+  * Namespaces: from type system namespaces.
+  * Types/members: case-insensitive substring by default, optional regex, optional "qualified" search (e.g., "Verse.Pawn:Tick" or "Pawn.Tick").
+  * Filters: kind, namespace, declaring type, attribute, return type, parameter types, accessibility, static/virtual/abstract, generic arity.
+- Usages:
+  * For target method token, scan candidate methods' IL or ILAst for call/callvirt/newobj/ldfld/stfld/ldsfld/stsfld matching member tokens.
+  * Paginate; don't fully scan on first page unless WarmIndex was run.
+- Graph:
+  * Callers = reverse edges from usages.
+  * Callees = scan single method body for invocations and field/property accesses.
+  * Overrides/Implementations via DecompilerTypeSystem inheritance APIs.
+- String literal search:
+  * Either pre-index literals (if WarmIndex deep) or lazily scan decompiled text per page.
+- Caching keys:
+  * Member -> decompiled C# hash (e.g., xxHash64 of code) for change detection.
+- Harmony helpers:
+  * Emit minimal compilable stubs for Prefix/Postfix/Transpiler/Finalizer with correct generic constraints captured, method binding via HarmonyMethod or AccessTools.
+- Safety:
+  * Never load untrusted paths. Only within configured game root + allow-list of extra dirs.
+
+Return JSON as the endpoint result. Keep outputs compact and line-range friendly.
