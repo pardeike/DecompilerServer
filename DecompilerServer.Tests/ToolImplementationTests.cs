@@ -553,4 +553,130 @@ public class ToolImplementationTests : ServiceTestBase
         var response = JsonSerializer.Deserialize<JsonElement>(result);
         Assert.Equal("error", response.GetProperty("status").GetString());
     }
+
+    [Fact]
+    public void Ping_WithLoadedAssembly_ReturnsPongWithMvid()
+    {
+        // Act
+        var result = PingTool.Ping();
+
+        // Assert
+        Assert.NotNull(result);
+        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        Assert.Equal("ok", response.GetProperty("status").GetString());
+
+        var data = response.GetProperty("data");
+        Assert.True(data.GetProperty("pong").GetBoolean());
+        Assert.NotNull(data.GetProperty("mvid").GetString());
+        Assert.True(data.GetProperty("timeUnix").GetInt64() > 0);
+    }
+
+    [Fact]
+    public void FindBaseTypes_WithValidType_ReturnsBaseTypes()
+    {
+        // Arrange - find a type that has base types
+        var types = ContextManager.GetAllTypes();
+        var derivedType = types.FirstOrDefault(t =>
+            t.DirectBaseTypes.Any(bt => bt.FullName != "System.Object"));
+
+        if (derivedType != null)
+        {
+            var memberId = MemberResolver.GenerateMemberId(derivedType);
+
+            // Act
+            var result = FindBaseTypesTool.FindBaseTypes(memberId, includeInterfaces: true);
+
+            // Assert
+            Assert.NotNull(result);
+            var response = JsonSerializer.Deserialize<JsonElement>(result);
+            Assert.Equal("ok", response.GetProperty("status").GetString());
+
+            var data = response.GetProperty("data");
+            Assert.True(data.TryGetProperty("bases", out _));
+            Assert.True(data.TryGetProperty("interfaces", out _));
+        }
+    }
+
+    [Fact]
+    public void FindDerivedTypes_WithValidBaseType_ReturnsDerivedTypes()
+    {
+        // Arrange - find System.Object as a common base type
+        var types = ContextManager.GetAllTypes();
+        var objectType = types.FirstOrDefault(t => t.FullName == "System.Object");
+
+        if (objectType != null)
+        {
+            var memberId = MemberResolver.GenerateMemberId(objectType);
+
+            // Act
+            var result = FindDerivedTypesTool.FindDerivedTypes(memberId, transitive: true, limit: 10);
+
+            // Assert
+            Assert.NotNull(result);
+            var response = JsonSerializer.Deserialize<JsonElement>(result);
+            Assert.Equal("ok", response.GetProperty("status").GetString());
+
+            var data = response.GetProperty("data");
+            Assert.True(data.TryGetProperty("items", out var items));
+            Assert.True(data.TryGetProperty("hasMore", out _));
+            Assert.True(data.TryGetProperty("totalEstimate", out _));
+        }
+    }
+
+    [Fact]
+    public void GetIL_WithValidMethod_ReturnsILSummary()
+    {
+        // Arrange - find a method from the test assembly
+        var types = ContextManager.GetAllTypes();
+        var testType = types.FirstOrDefault(t => t.Name.Contains("Test"));
+        Assert.NotNull(testType);
+
+        var method = testType.Methods.FirstOrDefault(m => !m.IsConstructor);
+        if (method != null)
+        {
+            var memberId = MemberResolver.GenerateMemberId(method);
+
+            // Act
+            var result = GetILTool.GetIL(memberId, "IL");
+
+            // Assert
+            Assert.NotNull(result);
+            var response = JsonSerializer.Deserialize<JsonElement>(result);
+            Assert.Equal("ok", response.GetProperty("status").GetString());
+
+            var data = response.GetProperty("data");
+            Assert.Equal(memberId, data.GetProperty("memberId").GetString());
+            Assert.Equal("IL", data.GetProperty("format").GetString());
+            Assert.True(data.GetProperty("totalLines").GetInt32() > 0);
+            Assert.NotNull(data.GetProperty("text").GetString());
+        }
+    }
+
+    [Fact]
+    public void FindUsages_WithValidMember_ReturnsUsageResults()
+    {
+        // Arrange - find a member from the test assembly
+        var types = ContextManager.GetAllTypes();
+        var testType = types.FirstOrDefault(t => t.Name.Contains("Test"));
+        Assert.NotNull(testType);
+
+        var field = testType.Fields.FirstOrDefault();
+        if (field != null)
+        {
+            var memberId = MemberResolver.GenerateMemberId(field);
+
+            // Act
+            var result = FindUsagesTool.FindUsages(memberId, limit: 10);
+
+            // Assert
+            Assert.NotNull(result);
+            var response = JsonSerializer.Deserialize<JsonElement>(result);
+            Assert.Equal("ok", response.GetProperty("status").GetString());
+
+            var data = response.GetProperty("data");
+            Assert.True(data.TryGetProperty("items", out _));
+            Assert.True(data.TryGetProperty("hasMore", out _));
+            Assert.True(data.TryGetProperty("totalEstimate", out _));
+        }
+    }
 }
