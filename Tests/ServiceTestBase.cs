@@ -1,6 +1,6 @@
 using DecompilerServer.Services;
 
-namespace DecompilerServer.Tests;
+namespace Tests;
 
 /// <summary>
 /// Base class for all service tests, provides common setup and teardown for testing with test.dll

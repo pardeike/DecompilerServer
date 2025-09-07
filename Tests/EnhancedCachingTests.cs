@@ -1,7 +1,7 @@
 using DecompilerServer.Services;
 using Xunit;
 
-namespace DecompilerServer.Tests;
+namespace Tests;
 
 public class EnhancedCachingTests : ServiceTestBase
 {

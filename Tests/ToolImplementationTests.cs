@@ -1,10 +1,11 @@
+using DecompilerServer;
 using DecompilerServer.Services;
 using System.Text.Json;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Xunit;
 
-namespace DecompilerServer.Tests;
+namespace Tests;
 
 /// <summary>
 /// Tests for the implemented MCP tools to ensure they work correctly with the test assembly
