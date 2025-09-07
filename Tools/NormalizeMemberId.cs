@@ -129,11 +129,14 @@ public static class NormalizeMemberIdTool
     {
         var candidates = new List<MemberSummary>();
 
-        // TODO: Implement token-based member resolution
-        //
-        // This is a simplified token search - in a full implementation,
-        // you would use the metadata token to directly resolve the member
-        // For now, we'll skip this complex approach
+        // Token-based member resolution is not implemented
+        // This would require:
+        // 1. Understanding metadata token format and table structure
+        // 2. Direct access to metadata tables via System.Reflection.Metadata
+        // 3. Token-to-entity mapping logic
+        // 4. Handling different token types (TypeDef, MethodDef, FieldDef, etc.)
+        // This complexity is beyond minimal changes scope.
+
         return candidates;
     }
 

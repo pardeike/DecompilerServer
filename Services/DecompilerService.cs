@@ -166,22 +166,34 @@ public class DecompilerService
     private string DecompileMethod(IMethod method, CSharpDecompiler decompiler)
     {
         // For members, we decompile the containing type and extract the member
-        return decompiler.DecompileTypeAsString(new ICSharpCode.Decompiler.TypeSystem.FullTypeName(method.DeclaringType!.FullName));
+        if (method.DeclaringType == null)
+            return $"// Error: Method '{method.Name}' has no declaring type and cannot be decompiled";
+
+        return decompiler.DecompileTypeAsString(new ICSharpCode.Decompiler.TypeSystem.FullTypeName(method.DeclaringType.FullName));
     }
 
     private string DecompileField(IField field, CSharpDecompiler decompiler)
     {
-        return decompiler.DecompileTypeAsString(new ICSharpCode.Decompiler.TypeSystem.FullTypeName(field.DeclaringType!.FullName));
+        if (field.DeclaringType == null)
+            return $"// Error: Field '{field.Name}' has no declaring type and cannot be decompiled";
+
+        return decompiler.DecompileTypeAsString(new ICSharpCode.Decompiler.TypeSystem.FullTypeName(field.DeclaringType.FullName));
     }
 
     private string DecompileProperty(IProperty property, CSharpDecompiler decompiler)
     {
-        return decompiler.DecompileTypeAsString(new ICSharpCode.Decompiler.TypeSystem.FullTypeName(property.DeclaringType!.FullName));
+        if (property.DeclaringType == null)
+            return $"// Error: Property '{property.Name}' has no declaring type and cannot be decompiled";
+
+        return decompiler.DecompileTypeAsString(new ICSharpCode.Decompiler.TypeSystem.FullTypeName(property.DeclaringType.FullName));
     }
 
     private string DecompileEvent(IEvent evt, CSharpDecompiler decompiler)
     {
-        return decompiler.DecompileTypeAsString(new ICSharpCode.Decompiler.TypeSystem.FullTypeName(evt.DeclaringType!.FullName));
+        if (evt.DeclaringType == null)
+            return $"// Error: Event '{evt.Name}' has no declaring type and cannot be decompiled";
+
+        return decompiler.DecompileTypeAsString(new ICSharpCode.Decompiler.TypeSystem.FullTypeName(evt.DeclaringType.FullName));
     }
 
     private string ComputeHash(string content)
