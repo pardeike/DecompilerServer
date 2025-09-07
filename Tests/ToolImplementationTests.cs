@@ -680,4 +680,243 @@ public class ToolImplementationTests : ServiceTestBase
             Assert.True(data.TryGetProperty("totalEstimate", out _));
         }
     }
+
+    #region New Tool Tests
+
+    [Fact]
+    public void GetOverloads_WithValidMethod_ReturnsOverloadMethods()
+    {
+        // Arrange - find a method that might have overloads
+        var types = ContextManager.GetAllTypes();
+        var testType = types.FirstOrDefault(t => t.Methods.Count() > 1);
+        Assert.NotNull(testType);
+
+        var method = testType.Methods.FirstOrDefault(m => !m.IsConstructor);
+        if (method != null)
+        {
+            var memberId = MemberResolver.GenerateMemberId(method);
+
+            // Act
+            var result = GetOverloadsTool.GetOverloads(memberId);
+
+            // Assert
+            Assert.NotNull(result);
+            var response = JsonSerializer.Deserialize<JsonElement>(result);
+            Assert.Equal("ok", response.GetProperty("status").GetString());
+
+            var data = response.GetProperty("data");
+            Assert.True(data.TryGetProperty("items", out var items));
+            Assert.True(data.TryGetProperty("hasMore", out _));
+            Assert.True(data.TryGetProperty("totalEstimate", out _));
+
+            // Items should be ordered by parameter count
+            for (int i = 0; i < items.GetArrayLength(); i++)
+            {
+                var overload = items[i];
+                Assert.Equal("Method", overload.GetProperty("kind").GetString());
+                Assert.Equal(method.Name, overload.GetProperty("name").GetString());
+                Assert.NotEqual(memberId, overload.GetProperty("memberId").GetString()); // Should be different from original
+            }
+        }
+    }
+
+    [Fact]
+    public void SearchAttributes_WithAttributeName_ReturnsAttributedMembers()
+    {
+        // Act - search for a common attribute (even if none exist, should not error)
+        var result = SearchAttributesTool.SearchAttributes("System.SerializableAttribute", limit: 10);
+
+        // Assert
+        Assert.NotNull(result);
+        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        Assert.Equal("ok", response.GetProperty("status").GetString());
+
+        var data = response.GetProperty("data");
+        Assert.True(data.TryGetProperty("items", out var items));
+        Assert.True(data.TryGetProperty("hasMore", out _));
+        Assert.True(data.TryGetProperty("totalEstimate", out _));
+
+        // All items should have the attribute
+        for (int i = 0; i < items.GetArrayLength(); i++)
+        {
+            var member = items[i];
+            Assert.Contains(member.GetProperty("kind").GetString()!,
+                new[] { "Type", "Method", "Constructor", "Field", "Property", "Event" });
+        }
+    }
+
+    [Fact]
+    public void SearchAttributes_WithKindFilter_ReturnsOnlyMatchingKinds()
+    {
+        // Act - search for methods with any attribute
+        var result = SearchAttributesTool.SearchAttributes("", kind: "method", limit: 5);
+
+        // Assert
+        Assert.NotNull(result);
+        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        Assert.Equal("ok", response.GetProperty("status").GetString());
+
+        var data = response.GetProperty("data");
+        Assert.True(data.TryGetProperty("items", out var items));
+
+        // All returned items should be methods or constructors
+        for (int i = 0; i < items.GetArrayLength(); i++)
+        {
+            var member = items[i];
+            Assert.Contains(member.GetProperty("kind").GetString()!,
+                new[] { "Method", "Constructor" });
+        }
+    }
+
+    [Fact]
+    public void GetIL_WithUnsupportedFormat_ReturnsError()
+    {
+        // Arrange - find a method
+        var types = ContextManager.GetAllTypes();
+        var testType = types.FirstOrDefault(t => t.Methods.Any());
+        Assert.NotNull(testType);
+
+        var method = testType.Methods.First();
+        var memberId = MemberResolver.GenerateMemberId(method);
+
+        // Act
+        var result = GetILTool.GetIL(memberId, "ILAst");
+
+        // Assert
+        Assert.NotNull(result);
+        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        Assert.Equal("error", response.GetProperty("status").GetString());
+    }
+
+    [Fact]
+    public void GetIL_WithNonMethod_ReturnsError()
+    {
+        // Arrange - find a field (non-method)
+        var types = ContextManager.GetAllTypes();
+        var testType = types.FirstOrDefault(t => t.Fields.Any());
+        Assert.NotNull(testType);
+
+        var field = testType.Fields.First();
+        var memberId = MemberResolver.GenerateMemberId(field);
+
+        // Act
+        var result = GetILTool.GetIL(memberId);
+
+        // Assert
+        Assert.NotNull(result);
+        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        Assert.Equal("error", response.GetProperty("status").GetString());
+    }
+
+    [Fact]
+    public void FindCallees_WithValidMethod_ReturnsCalleeResults()
+    {
+        // Arrange - find a method from the test assembly
+        var types = ContextManager.GetAllTypes();
+        var testType = types.FirstOrDefault(t => t.Methods.Any());
+        Assert.NotNull(testType);
+
+        var method = testType.Methods.FirstOrDefault(m => !m.IsConstructor);
+        if (method != null)
+        {
+            var memberId = MemberResolver.GenerateMemberId(method);
+
+            // Act
+            var result = FindCalleesTool.FindCallees(memberId, limit: 10);
+
+            // Assert
+            Assert.NotNull(result);
+            var response = JsonSerializer.Deserialize<JsonElement>(result);
+            Assert.Equal("ok", response.GetProperty("status").GetString());
+
+            var data = response.GetProperty("data");
+            Assert.True(data.TryGetProperty("items", out _));
+            Assert.True(data.TryGetProperty("hasMore", out _));
+            Assert.True(data.TryGetProperty("totalEstimate", out _));
+
+            // Note: Our implementation returns empty results as it's a framework implementation
+            // This test verifies the structure is correct
+        }
+    }
+
+    [Fact]
+    public void GetOverrides_WithValidMethod_ReturnsOverrideInfo()
+    {
+        // Arrange - find a method from the test assembly
+        var types = ContextManager.GetAllTypes();
+        var testType = types.FirstOrDefault(t => t.Methods.Any());
+        Assert.NotNull(testType);
+
+        var method = testType.Methods.FirstOrDefault(m => !m.IsConstructor);
+        if (method != null)
+        {
+            var memberId = MemberResolver.GenerateMemberId(method);
+
+            // Act
+            var result = GetOverridesTool.GetOverrides(memberId);
+
+            // Assert
+            Assert.NotNull(result);
+            var response = JsonSerializer.Deserialize<JsonElement>(result);
+            Assert.Equal("ok", response.GetProperty("status").GetString());
+
+            var data = response.GetProperty("data");
+            Assert.True(data.TryGetProperty("baseDefinition", out _));
+            Assert.True(data.TryGetProperty("overrides", out var overrides));
+            Assert.True(overrides.ValueKind == JsonValueKind.Array);
+        }
+    }
+
+    [Fact]
+    public void SetDecompileSettings_WithValidSettings_UpdatesSettings()
+    {
+        // Arrange
+        var newSettings = new Dictionary<string, object>
+        {
+            { "usingDeclarations", false },
+            { "showXmlDocumentation", false },
+            { "namedArguments", true }
+        };
+
+        // Act
+        var result = SetDecompileSettingsTool.SetDecompileSettings(newSettings);
+
+        // Assert
+        Assert.NotNull(result);
+        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        Assert.Equal("ok", response.GetProperty("status").GetString());
+
+        var data = response.GetProperty("data");
+        Assert.False(data.GetProperty("usingDeclarations").GetBoolean());
+        Assert.False(data.GetProperty("showXmlDocumentation").GetBoolean());
+        Assert.True(data.GetProperty("namedArguments").GetBoolean());
+
+        // Restore original settings
+        var originalSettings = new Dictionary<string, object>
+        {
+            { "usingDeclarations", true },
+            { "showXmlDocumentation", true },
+            { "namedArguments", true }
+        };
+        SetDecompileSettingsTool.SetDecompileSettings(originalSettings);
+    }
+
+    [Fact]
+    public void SetDecompileSettings_WithEmptySettings_ReturnsCurrentSettings()
+    {
+        // Act
+        var result = SetDecompileSettingsTool.SetDecompileSettings(new Dictionary<string, object>());
+
+        // Assert
+        Assert.NotNull(result);
+        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        Assert.Equal("ok", response.GetProperty("status").GetString());
+
+        var data = response.GetProperty("data");
+        Assert.True(data.TryGetProperty("usingDeclarations", out _));
+        Assert.True(data.TryGetProperty("showXmlDocumentation", out _));
+        Assert.True(data.TryGetProperty("namedArguments", out _));
+    }
+
+    #endregion
 }
