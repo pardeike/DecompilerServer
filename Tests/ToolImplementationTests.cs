@@ -1223,8 +1223,13 @@ public class ToolImplementationTests : ServiceTestBase
     public void GenerateDetourStub_WithValidMethod_ReturnsDetourMethod()
     {
         // Arrange - find a method from the test assembly
-        var type = ContextManager.FindTypeByName("TestLibrary.SimpleClass")!;
-        var method = type.Methods.First(m => !m.IsConstructor);
+        var types = ContextManager.GetAllTypes();
+        var testType = types.First(t => t.FullName == "TestLibrary.SimpleClass");
+        Assert.NotNull(testType);
+
+        var method = testType.Methods.FirstOrDefault(m => !m.IsConstructor);
+        Assert.NotNull(method);
+
         var memberId = MemberResolver.GenerateMemberId(method);
 
         // Act

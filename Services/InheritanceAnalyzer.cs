@@ -186,25 +186,27 @@ public class InheritanceAnalyzer
 
     private bool IsDirectOrIndirectDerivedFrom(ITypeDefinition type, ITypeDefinition targetBaseType)
     {
-        var currentType = type;
+        var toVisit = new Stack<ITypeDefinition>();
         var visited = new HashSet<ITypeDefinition>();
+        toVisit.Push(type);
 
-        while (currentType != null && !visited.Contains(currentType))
+        while (toVisit.Count > 0)
         {
-            visited.Add(currentType);
+            var current = toVisit.Pop();
+            if (!visited.Add(current))
+                continue;
 
-            foreach (var baseType in currentType.DirectBaseTypes)
+            foreach (var baseType in current.DirectBaseTypes)
             {
                 var baseTypeDef = baseType.GetDefinition();
+                if (baseTypeDef == null)
+                    continue;
+
                 if (baseTypeDef == targetBaseType)
                     return true;
 
-                if (baseTypeDef != null)
-                    currentType = baseTypeDef;
+                toVisit.Push(baseTypeDef);
             }
-
-            // Move to next base type
-            currentType = currentType.DirectBaseTypes.FirstOrDefault()?.GetDefinition();
         }
 
         return false;

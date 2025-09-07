@@ -85,6 +85,32 @@ public class DerivedClass : BaseClass, ITestInterface
 }
 
 /// <summary>
+/// Additional interface for testing multiple interface implementation
+/// </summary>
+public interface IAnotherInterface
+{
+}
+
+/// <summary>
+/// Class implementing multiple interfaces
+/// </summary>
+public class MultiInterfaceClass : BaseClass, ITestInterface, IAnotherInterface
+{
+    public override void AbstractMethod() { }
+
+    public void InterfaceMethod() { }
+
+    public string InterfaceProperty => "multi";
+}
+
+/// <summary>
+/// Class demonstrating multi-level inheritance
+/// </summary>
+public class DeepDerivedClass : DerivedClass
+{
+}
+
+/// <summary>
 /// Generic class for testing generic type resolution
 /// </summary>
 public class GenericClass<T> where T : class
