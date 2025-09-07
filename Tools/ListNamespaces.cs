@@ -15,6 +15,13 @@ public static class ListNamespacesTool
 		- Enumerate distinct namespaces from type system.
 		- Prefix match if provided (case-insensitive).
 		- Return SearchResult<MemberHandle> where Kind="Namespace" and Name="<ns>".
+
+		Helper methods to use:
+		- AssemblyContextManager.IsLoaded to check if assembly is loaded
+		- AssemblyContextManager.GetNamespaces() to get all namespaces
+		- SearchServiceBase.ApplyPagination() for cursor-based pagination
+		- ResponseFormatter.TryExecute() for error handling
+		- ResponseFormatter.SearchResult() for paginated response formatting
 		*/
 		return "TODO";
 	}

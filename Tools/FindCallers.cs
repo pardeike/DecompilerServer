@@ -12,6 +12,12 @@ public static class FindCallersTool
 		Behavior:
 		- Reuse FindUsages specialized for call/callvirt/newobj edges.
 		- Return SearchResult<MemberSummary> of caller members.
+
+		Helper methods to use:
+		- MemberResolver.ResolveMethod() to validate method ID
+		- UsageAnalyzer.FindCallers() for finding call sites
+		- ResponseFormatter.TryExecute() for error handling
+		- ResponseFormatter.SearchResult() for paginated response formatting
 		*/
 		return "TODO";
 	}

@@ -14,6 +14,12 @@ public static class GetSourceSliceTool
 		- Expand start/end by 'context' within bounds.
 		- Return SourceSlice with exact lines and optional prefixed line numbers.
 		- Validate ranges and cap large requests.
+
+		Helper methods to use:
+		- MemberResolver.ResolveMember() to validate member ID
+		- DecompilerService.GetSourceSlice() for line-based slicing with context
+		- ResponseFormatter.TryExecute() for error handling
+		- ResponseFormatter.SourceSlice() for response formatting
 		*/
 		return "TODO";
 	}

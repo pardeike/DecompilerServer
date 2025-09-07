@@ -8,6 +8,13 @@ public partial class Program
 {
 	public static async Task Main(string[] args)
 	{
+		// Check if we should run tests
+		if (args.Contains("--test"))
+		{
+			Tests.HelperServiceTests.RunBasicTests();
+			return;
+		}
+
 		var builder = Host.CreateApplicationBuilder(args);
 		builder.Logging.ClearProviders();
 		builder.Logging.AddProvider(new StderrLoggerProvider());

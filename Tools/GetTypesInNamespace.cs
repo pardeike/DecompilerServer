@@ -12,6 +12,14 @@ public static class GetTypesInNamespaceTool
 		Behavior:
 		- Enumerate types whose Namespace equals ns (or startsWith(ns + ".") if deep).
 		- Return SearchResult<MemberSummary> for types.
+
+		Helper methods to use:
+		- AssemblyContextManager.IsLoaded to check if assembly is loaded
+		- AssemblyContextManager.GetAllTypes() to get all types
+		- SearchServiceBase.ApplyPagination() for cursor-based pagination
+		- Filter types by namespace (exact match or prefix match if deep=true)
+		- ResponseFormatter.TryExecute() for error handling
+		- ResponseFormatter.SearchResult() for paginated response formatting
 		*/
 		return "TODO";
 	}

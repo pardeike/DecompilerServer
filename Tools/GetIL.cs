@@ -13,6 +13,12 @@ public static class GetILTool
 		- Resolve method/ctor. If format=="IL", use Decompiler.Disassembler to dump method body with tokens.
 		- If "ILAst", produce high-level IL (if available in library version) or return error if unsupported.
 		- Output: { memberId, format, text, totalLines } and page with GetSourceSlice-like slicing if too large.
+
+		Helper methods to use:
+		- MemberResolver.ResolveMethod() to validate method/constructor ID
+		- Additional helper needed: ILService for IL disassembly and formatting
+		- ResponseFormatter.TryExecute() for error handling
+		- ResponseFormatter.SourceSlice() or custom IL response formatting
 		*/
 		return "TODO";
 	}
