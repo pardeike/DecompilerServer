@@ -69,6 +69,13 @@ public static class PlanChunkingTool
                 // Calculate target lines per chunk
                 var targetLinesPerChunk = Math.Max(1, targetChunkSize / avgCharsPerLine);
 
+                if (overlap >= targetLinesPerChunk || overlap < 0)
+                {
+                    throw new ArgumentException(
+                        $"Overlap must be between 0 and {targetLinesPerChunk - 1}",
+                        nameof(overlap));
+                }
+
                 var chunks = new List<object>();
                 var currentStart = 1;
 
