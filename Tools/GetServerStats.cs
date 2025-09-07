@@ -14,6 +14,7 @@ public static class GetServerStatsTool
             var contextManager = ServiceLocator.ContextManager;
             var decompilerService = ServiceLocator.DecompilerService;
             var memberResolver = ServiceLocator.MemberResolver;
+            var usageAnalyzer = ServiceLocator.UsageAnalyzer;
 
             var stats = new
             {
@@ -30,7 +31,8 @@ public static class GetServerStatsTool
                 caches = new
                 {
                     decompiler = decompilerService.GetCacheStats(),
-                    memberResolver = memberResolver.GetCacheStats()
+                    memberResolver = memberResolver.GetCacheStats(),
+                    usageAnalyzer = usageAnalyzer.GetCacheStats()
                 },
 
                 // Performance indicators
@@ -39,7 +41,7 @@ public static class GetServerStatsTool
                     typeIndexReady = contextManager.TypeIndexReady,
                     namespaceIndexReady = contextManager.NamespaceIndexReady,
                     memberIndexReady = contextManager.MemberIndexReady,
-                    estimatedMemoryUsage = EstimateMemoryUsage(decompilerService, memberResolver)
+                    estimatedMemoryUsage = EstimateMemoryUsage(decompilerService, memberResolver, usageAnalyzer)
                 }
             };
 
@@ -47,12 +49,16 @@ public static class GetServerStatsTool
         });
     }
 
-    private static long EstimateMemoryUsage(DecompilerService decompilerService, MemberResolver memberResolver)
+    private static long EstimateMemoryUsage(DecompilerService decompilerService, MemberResolver memberResolver, UsageAnalyzer usageAnalyzer)
     {
         var decompilerStats = decompilerService.GetCacheStats();
         var resolverStats = memberResolver.GetCacheStats();
-        
-        // Rough estimate: source cache + resolution cache
-        return decompilerStats.TotalMemoryEstimate + (resolverStats.CachedResolutions * 100); // 100 bytes per resolution estimate
+        var usageStats = usageAnalyzer.GetCacheStats();
+
+        // Rough estimate: source cache + resolution cache + usage cache
+        return decompilerStats.TotalMemoryEstimate +
+               (resolverStats.CachedResolutions * 100) + // 100 bytes per resolution estimate
+               (usageStats.TotalUsageResults * 50) + // 50 bytes per usage result estimate
+               (usageStats.TotalStringLiteralResults * 200); // 200 bytes per string literal estimate
     }
 }

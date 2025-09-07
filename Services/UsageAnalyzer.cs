@@ -1,16 +1,19 @@
 using ICSharpCode.Decompiler.TypeSystem;
 using System.Reflection.Metadata;
+using System.Collections.Concurrent;
 
 namespace DecompilerServer.Services;
 
 /// <summary>
 /// Analyzes IL code to find usage patterns, callers, and callees.
-/// Provides functionality for finding where members are used across the assembly.
+/// Provides functionality for finding where members are used across the assembly with caching.
 /// </summary>
 public class UsageAnalyzer
 {
     private readonly AssemblyContextManager _contextManager;
     private readonly MemberResolver _memberResolver;
+    private readonly ConcurrentDictionary<string, List<UsageReference>> _usageCache = new();
+    private readonly ConcurrentDictionary<string, List<StringLiteralReference>> _stringLiteralCache = new();
 
     public UsageAnalyzer(AssemblyContextManager contextManager, MemberResolver memberResolver)
     {
@@ -19,10 +22,17 @@ public class UsageAnalyzer
     }
 
     /// <summary>
-    /// Find all usages of a member across the assembly
+    /// Find all usages of a member across the assembly (cached)
     /// </summary>
     public IEnumerable<UsageReference> FindUsages(string memberId, int limit = 100, string? cursor = null)
     {
+        // Create cache key
+        var cacheKey = $"{memberId}:{limit}:{cursor}";
+
+        // Check cache first
+        if (_usageCache.TryGetValue(cacheKey, out var cachedUsages))
+            return cachedUsages.Take(limit);
+
         var targetMember = _memberResolver.ResolveMember(memberId);
         if (targetMember == null)
             return Enumerable.Empty<UsageReference>();
@@ -60,6 +70,9 @@ public class UsageAnalyzer
                 }
             }
         }
+
+        // Cache the result
+        _usageCache.TryAdd(cacheKey, usages);
 
         return usages;
     }
@@ -102,10 +115,17 @@ public class UsageAnalyzer
     }
 
     /// <summary>
-    /// Find all string literals in the assembly
+    /// Find all string literals in the assembly (cached)
     /// </summary>
     public IEnumerable<StringLiteralReference> FindStringLiterals(string query, bool regex = false, int limit = 100, string? cursor = null)
     {
+        // Create cache key
+        var cacheKey = $"{query}:{regex}:{limit}:{cursor}";
+
+        // Check cache first
+        if (_stringLiteralCache.TryGetValue(cacheKey, out var cachedLiterals))
+            return cachedLiterals.Take(limit);
+
         var results = new List<StringLiteralReference>();
         var compilation = _contextManager.GetCompilation();
         var allTypes = _contextManager.GetAllTypes();
@@ -150,7 +170,33 @@ public class UsageAnalyzer
             }
         }
 
+        // Cache the result
+        _stringLiteralCache.TryAdd(cacheKey, results);
+
         return results;
+    }
+
+    /// <summary>
+    /// Clear usage analysis caches
+    /// </summary>
+    public void ClearCache()
+    {
+        _usageCache.Clear();
+        _stringLiteralCache.Clear();
+    }
+
+    /// <summary>
+    /// Get usage analysis cache statistics
+    /// </summary>
+    public UsageAnalyzerCacheStats GetCacheStats()
+    {
+        return new UsageAnalyzerCacheStats
+        {
+            CachedUsageQueries = _usageCache.Count,
+            CachedStringLiteralQueries = _stringLiteralCache.Count,
+            TotalUsageResults = _usageCache.Values.Sum(list => list.Count),
+            TotalStringLiteralResults = _stringLiteralCache.Values.Sum(list => list.Count)
+        };
     }
 
     private IEnumerable<UsageReference> FindUsagesInMethod(IMethod method, IEntity targetMember)
@@ -225,4 +271,15 @@ public class StringLiteralReference
     public required string ContainingMember { get; init; }
     public required string ContainingType { get; init; }
     public int? Line { get; init; }
+}
+
+/// <summary>
+/// Usage analyzer cache statistics
+/// </summary>
+public class UsageAnalyzerCacheStats
+{
+    public int CachedUsageQueries { get; init; }
+    public int CachedStringLiteralQueries { get; init; }
+    public int TotalUsageResults { get; init; }
+    public int TotalStringLiteralResults { get; init; }
 }

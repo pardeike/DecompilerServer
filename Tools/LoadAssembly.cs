@@ -16,7 +16,7 @@ public static class LoadAssemblyTool
         return ResponseFormatter.TryExecute(() =>
         {
             var contextManager = ServiceLocator.ContextManager;
-            
+
             // Load the assembly with enhanced auto-detection
             contextManager.LoadAssembly(gameDir, assemblyFile, additionalSearchDirs);
 

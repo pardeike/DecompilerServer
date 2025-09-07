@@ -1,16 +1,18 @@
 using ICSharpCode.Decompiler.TypeSystem;
 using System.Text.RegularExpressions;
+using System.Collections.Concurrent;
 
 namespace DecompilerServer.Services;
 
 /// <summary>
 /// Base class for search services providing common pagination and filtering functionality.
-/// Supports cursor-based pagination and various search modes.
+/// Supports cursor-based pagination, various search modes, and result caching.
 /// </summary>
 public abstract class SearchServiceBase
 {
     protected readonly AssemblyContextManager _contextManager;
     protected readonly MemberResolver _memberResolver;
+    private readonly ConcurrentDictionary<string, SearchResult<MemberSummary>> _searchCache = new();
 
     protected SearchServiceBase(AssemblyContextManager contextManager, MemberResolver memberResolver)
     {
@@ -19,7 +21,7 @@ public abstract class SearchServiceBase
     }
 
     /// <summary>
-    /// Search types with filters and pagination
+    /// Search types with filters and pagination (cached)
     /// </summary>
     public SearchResult<MemberSummary> SearchTypes(
         string query,
@@ -29,16 +31,43 @@ public abstract class SearchServiceBase
         int limit = 50,
         string? cursor = null)
     {
+        // Create cache key from search parameters
+        var cacheKey = $"types:{query}:{regex}:{namespaceFilter}:{includeNested}:{limit}:{cursor}";
+
+        // Check cache first
+        if (_searchCache.TryGetValue(cacheKey, out var cachedResult))
+            return cachedResult;
+
         var compilation = _contextManager.GetCompilation();
         var allTypes = _contextManager.GetAllTypes();
 
-        // Apply filters
-        var filteredTypes = allTypes.Where(type =>
-        {
-            // Namespace filter
-            if (!string.IsNullOrEmpty(namespaceFilter) && type.Namespace != namespaceFilter)
-                return false;
+        // Apply filters using optimized indexes when possible
+        var filteredTypes = FilterTypes(allTypes, query, regex, namespaceFilter, includeNested);
 
+        // Apply pagination
+        var results = ApplyPagination(filteredTypes, limit, cursor, type => CreateTypeSummary(type));
+
+        // Cache the result
+        _searchCache.TryAdd(cacheKey, results);
+
+        return results;
+    }
+
+    private IEnumerable<ITypeDefinition> FilterTypes(
+        IEnumerable<ITypeDefinition> types,
+        string query,
+        bool regex,
+        string? namespaceFilter,
+        bool includeNested)
+    {
+        // Use optimized namespace filtering when possible
+        if (!string.IsNullOrEmpty(namespaceFilter))
+        {
+            types = _contextManager.GetTypesInNamespace(namespaceFilter);
+        }
+
+        return types.Where(type =>
+        {
             // Nested type filter
             if (!includeNested && type.DeclaringType != null)
                 return false;
@@ -46,15 +75,10 @@ public abstract class SearchServiceBase
             // Name filter
             return MatchesQuery(type.Name, query, regex);
         });
-
-        // Apply pagination
-        var results = ApplyPagination(filteredTypes, limit, cursor, type => CreateTypeSummary(type));
-
-        return results;
     }
 
     /// <summary>
-    /// Search members with rich filtering
+    /// Search members with rich filtering (cached)
     /// </summary>
     public SearchResult<MemberSummary> SearchMembers(
         string query,
@@ -73,18 +97,58 @@ public abstract class SearchServiceBase
         int limit = 50,
         string? cursor = null)
     {
-        var compilation = _contextManager.GetCompilation();
-        var allTypes = _contextManager.GetAllTypes();
+        // Create cache key from search parameters
+        var paramTypesKey = paramTypeFilters != null ? string.Join(",", paramTypeFilters) : "";
+        var cacheKey = $"members:{query}:{regex}:{namespaceFilter}:{declaringTypeFilter}:{attributeFilter}:{returnTypeFilter}:{paramTypesKey}:{kind}:{accessibility}:{isStatic}:{isAbstract}:{isVirtual}:{genericArity}:{limit}:{cursor}";
 
-        var members = allTypes.SelectMany(type => GetAllMembers(type));
+        // Check cache first
+        if (_searchCache.TryGetValue(cacheKey, out var cachedResult))
+            return cachedResult;
+
+        var compilation = _contextManager.GetCompilation();
+
+        // Use optimized type filtering when possible
+        IEnumerable<ITypeDefinition> types;
+        if (!string.IsNullOrEmpty(namespaceFilter))
+        {
+            types = _contextManager.GetTypesInNamespace(namespaceFilter);
+        }
+        else
+        {
+            types = _contextManager.GetAllTypes();
+        }
+
+        var members = types.SelectMany(type => GetAllMembers(type));
 
         // Apply filters
-        var filteredMembers = members.Where(member =>
-        {
-            // Namespace filter
-            if (!string.IsNullOrEmpty(namespaceFilter) && member.DeclaringType?.Namespace != namespaceFilter)
-                return false;
+        var filteredMembers = FilterMembers(members, query, regex, declaringTypeFilter, attributeFilter,
+            returnTypeFilter, paramTypeFilters, kind, accessibility, isStatic, isAbstract, isVirtual, genericArity);
 
+        var results = ApplyPagination(filteredMembers, limit, cursor, member => CreateMemberSummary(member));
+
+        // Cache the result
+        _searchCache.TryAdd(cacheKey, results);
+
+        return results;
+    }
+
+    private IEnumerable<IMember> FilterMembers(
+        IEnumerable<IMember> members,
+        string query,
+        bool regex,
+        string? declaringTypeFilter,
+        string? attributeFilter,
+        string? returnTypeFilter,
+        string[]? paramTypeFilters,
+        string? kind,
+        string? accessibility,
+        bool? isStatic,
+        bool? isAbstract,
+        bool? isVirtual,
+        int? genericArity)
+    {
+        return members.Where(member =>
+        {
             // Declaring type filter
             if (!string.IsNullOrEmpty(declaringTypeFilter) && !MatchesQuery(member.DeclaringType?.Name ?? "", declaringTypeFilter, false))
                 return false;
@@ -128,9 +192,27 @@ public abstract class SearchServiceBase
             // Name filter
             return MatchesQuery(member.Name, query, regex);
         });
+    }
 
-        var results = ApplyPagination(filteredMembers, limit, cursor, member => CreateMemberSummary(member));
-        return results;
+    /// <summary>
+    /// Clear the search cache
+    /// </summary>
+    public void ClearSearchCache()
+    {
+        _searchCache.Clear();
+    }
+
+    /// <summary>
+    /// Get search cache statistics
+    /// </summary>
+    public SearchCacheStats GetSearchCacheStats()
+    {
+        return new SearchCacheStats
+        {
+            CachedSearches = _searchCache.Count,
+            TotalResults = _searchCache.Values.Sum(r => r.Items.Count),
+            AverageResultsPerSearch = _searchCache.Any() ? _searchCache.Values.Average(r => r.Items.Count) : 0
+        };
     }
 
     /// <summary>
@@ -298,6 +380,16 @@ public abstract class SearchServiceBase
             _ => "Unknown"
         };
     }
+}
+
+/// <summary>
+/// Search cache statistics
+/// </summary>
+public class SearchCacheStats
+{
+    public int CachedSearches { get; init; }
+    public int TotalResults { get; init; }
+    public double AverageResultsPerSearch { get; init; }
 }
 
 /// <summary>

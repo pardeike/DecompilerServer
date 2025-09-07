@@ -216,7 +216,7 @@ public class AssemblyContextManager : IDisposable
     public void WarmIndexes()
     {
         if (!IsLoaded) return;
-        
+
         // Force creation of all lazy indexes
         _ = _typeByNameIndex.Value;
         _ = _typesByNamespaceIndex.Value;

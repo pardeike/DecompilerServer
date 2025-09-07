@@ -19,7 +19,7 @@ public static class ServiceLocator
     {
         if (_serviceProvider == null)
             throw new InvalidOperationException("Service provider not initialized");
-        
+
         return _serviceProvider.GetRequiredService<T>();
     }
 
