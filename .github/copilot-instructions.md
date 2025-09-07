@@ -7,7 +7,7 @@ This is a **DecompilerServer** project that implements an MCP (Model Context Pro
 ## Key Technologies & Frameworks
 
 - **.NET 8.0** - Target framework
-- **ICSharpCode.Decompiler** - Core decompilation engine 
+- **ICSharpCode.Decompiler** - Core decompilation engine
 - **Microsoft.Extensions.Hosting** - Hosting and dependency injection
 - **ModelContextProtocol** - MCP server implementation
 - **System.Text.Json** - JSON serialization with camelCase naming
@@ -17,26 +17,26 @@ This is a **DecompilerServer** project that implements an MCP (Model Context Pro
 
 ```
 DecompilerServer/
-├── Services/              # Core service implementations
-│   ├── AssemblyContextManager.cs   # Assembly loading and context management
+├── Services/                      # Core service implementations
+│   ├── AssemblyContextManager.cs  # Assembly loading and context management
 │   ├── DecompilerService.cs       # C# decompilation with caching
 │   ├── MemberResolver.cs          # Member ID resolution and normalization
 │   ├── SearchServiceBase.cs       # Base search and pagination functionality
 │   ├── UsageAnalyzer.cs           # Code usage analysis
 │   ├── InheritanceAnalyzer.cs     # Inheritance relationship analysis
 │   └── ResponseFormatter.cs       # JSON response formatting
-├── Tools/                 # MCP tool implementations (static methods)
+├── Tools/                         # MCP tool implementations (static methods)
 │   ├── ResolveMemberId.cs         # Member ID validation
 │   ├── ListNamespaces.cs          # Namespace enumeration
 │   ├── SearchTypes.cs             # Type discovery with search
 │   ├── GetDecompiledSource.cs     # Core decompilation to C#
 │   ├── GetSourceSlice.cs          # Source code range viewing
 │   └── GetMemberDetails.cs        # Rich member metadata
-├── Tests/                          # xUnit test suite
+├── Tests/                         # xUnit test suite
 ├── TestLibrary/                   # Test assembly for validation
 ├── ServiceLocator.cs              # Service locator for MCP tools
 ├── Program.cs                     # Application entry point
-└── *.md                          # Documentation files
+└── *.md                           # Documentation files
 ```
 
 ## Documentation
@@ -175,7 +175,7 @@ When implementing MCP tools (static methods), follow these patterns:
       services.AddSingleton<UsageAnalyzer>();
       services.AddSingleton<InheritanceAnalyzer>();
       services.AddSingleton<ResponseFormatter>();
-      
+
       _serviceProvider = services.BuildServiceProvider();
       ServiceLocator.SetServiceProvider(_serviceProvider);
   }
