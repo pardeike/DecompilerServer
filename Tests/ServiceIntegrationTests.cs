@@ -7,13 +7,12 @@ public class ServiceIntegrationTests : ServiceTestBase
     [Fact]
     public void DecompilerService_BatchDecompile_ShouldReturnMultipleDocuments()
     {
-        // Arrange
         var decompilerService = new DecompilerService(ContextManager, MemberResolver);
         var memberIds = new[]
         {
-            "T:TestLibrary.SimpleClass",
-            "T:TestLibrary.ITestInterface",
-            "T:TestLibrary.DerivedClass"
+            MemberResolver.GenerateMemberId(ContextManager.FindTypeByName("TestLibrary.SimpleClass")!),
+            MemberResolver.GenerateMemberId(ContextManager.FindTypeByName("TestLibrary.ITestInterface")!),
+            MemberResolver.GenerateMemberId(ContextManager.FindTypeByName("TestLibrary.DerivedClass")!)
         };
 
         // Act
@@ -25,9 +24,7 @@ public class ServiceIntegrationTests : ServiceTestBase
         Assert.All(documents, doc => Assert.True(doc.TotalLines > 0));
 
         var memberIdList = documents.Select(d => d.MemberId).ToList();
-        Assert.Contains("T:TestLibrary.SimpleClass", memberIdList);
-        Assert.Contains("T:TestLibrary.ITestInterface", memberIdList);
-        Assert.Contains("T:TestLibrary.DerivedClass", memberIdList);
+        Assert.All(memberIds, id => Assert.Contains(id, memberIdList));
     }
 
     [Fact]
@@ -35,14 +32,13 @@ public class ServiceIntegrationTests : ServiceTestBase
     {
         // Arrange
         var decompilerService = new DecompilerService(ContextManager, MemberResolver);
-        decompilerService.DecompileMember("T:TestLibrary.SimpleClass"); // Ensure cached
+        var memberId = MemberResolver.GenerateMemberId(ContextManager.FindTypeByName("TestLibrary.SimpleClass")!);
+        decompilerService.DecompileMember(memberId); // Ensure cached
 
-        // Act
-        var slice = decompilerService.GetSourceSlice("T:TestLibrary.SimpleClass", 1, 5);
+        var slice = decompilerService.GetSourceSlice(memberId, 1, 5);
 
-        // Assert
         Assert.NotNull(slice);
-        Assert.Equal("T:TestLibrary.SimpleClass", slice.MemberId);
+        Assert.Equal(memberId, slice.MemberId);
         Assert.Equal(1, slice.StartLine);
         Assert.Equal(5, slice.EndLine);
         Assert.NotNull(slice.Code);
@@ -56,8 +52,10 @@ public class ServiceIntegrationTests : ServiceTestBase
         var decompilerService = new DecompilerService(ContextManager, MemberResolver);
 
         // Act - Decompile a few items to populate cache
-        decompilerService.DecompileMember("T:TestLibrary.SimpleClass");
-        decompilerService.DecompileMember("T:TestLibrary.ITestInterface");
+        var simpleId = MemberResolver.GenerateMemberId(ContextManager.FindTypeByName("TestLibrary.SimpleClass")!);
+        var interfaceId = MemberResolver.GenerateMemberId(ContextManager.FindTypeByName("TestLibrary.ITestInterface")!);
+        decompilerService.DecompileMember(simpleId);
+        decompilerService.DecompileMember(interfaceId);
         var stats = decompilerService.GetCacheStats();
 
         // Assert
@@ -70,14 +68,10 @@ public class ServiceIntegrationTests : ServiceTestBase
     public void MemberResolver_NormalizeMemberId_ShouldReturnConsistentFormat()
     {
         // Act
-        var normalized1 = MemberResolver.NormalizeMemberId("T:TestLibrary.SimpleClass");
-        var normalized2 = MemberResolver.NormalizeMemberId("TestLibrary.SimpleClass");
+        var memberId = MemberResolver.GenerateMemberId(ContextManager.FindTypeByName("TestLibrary.SimpleClass")!);
+        var normalized = MemberResolver.NormalizeMemberId(memberId);
 
-        // Assert
-        Assert.NotNull(normalized1);
-        Assert.NotNull(normalized2);
-        // Both should start with the prefix
-        Assert.StartsWith("T:", normalized1);
+        Assert.Equal(memberId, normalized);
     }
 
     [Fact]
@@ -93,8 +87,7 @@ public class ServiceIntegrationTests : ServiceTestBase
 
         // Assert
         Assert.NotNull(memberId);
-        Assert.StartsWith("T:", memberId);
-        Assert.Contains("SimpleClass", memberId);
+        Assert.Matches(@"^[0-9a-f]{32}:[0-9a-f]{8}:T$", memberId);
 
         // Should be able to resolve back
         var resolved = MemberResolver.ResolveMember(memberId);
@@ -128,7 +121,8 @@ public class ServiceIntegrationTests : ServiceTestBase
         var analyzer = new InheritanceAnalyzer(ContextManager, MemberResolver);
 
         // Act
-        var baseTypes = analyzer.FindBaseTypes("T:TestLibrary.DerivedClass", 10).ToList();
+        var memberId = MemberResolver.GenerateMemberId(ContextManager.FindTypeByName("TestLibrary.DerivedClass")!);
+        var baseTypes = analyzer.FindBaseTypes(memberId, 10).ToList();
 
         // Assert
         Assert.NotEmpty(baseTypes);
@@ -145,7 +139,8 @@ public class ServiceIntegrationTests : ServiceTestBase
         var analyzer = new UsageAnalyzer(ContextManager, MemberResolver);
 
         // Act & Assert - Should not throw
-        var usages = analyzer.FindUsages("T:TestLibrary.SimpleClass", 50).ToList();
+        var memberId = MemberResolver.GenerateMemberId(ContextManager.FindTypeByName("TestLibrary.SimpleClass")!);
+        var usages = analyzer.FindUsages(memberId, 50).ToList();
 
         // Note: May be empty if no usages found, but should not throw
         Assert.NotNull(usages);
