@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using ModelContextProtocol.Server;
+using DecompilerServer.Services;
 
 namespace DecompilerServer;
 
@@ -8,13 +9,36 @@ public static class UnloadTool
     [McpServerTool, Description("Unload assembly and free all caches and indexes.")]
     public static string Unload()
     {
-        /*
-		Goal: Dispose the global decompiler context and clear caches.
+        return ResponseFormatter.TryExecute(() =>
+        {
+            var contextManager = ServiceLocator.ContextManager;
+            var decompilerService = ServiceLocator.DecompilerService;
+            var memberResolver = ServiceLocator.MemberResolver;
+            var usageAnalyzer = ServiceLocator.UsageAnalyzer;
 
-		Behavior:
-		- Acquire write lock, dispose PEFile and resolver, clear dictionaries, reset stats.
-		- Return { status: "ok" }.
-		*/
-        return "TODO";
+            // Clear all caches before disposing context
+            decompilerService.ClearCache();
+            memberResolver.ClearCache();
+            usageAnalyzer.ClearCache();
+
+            // Check if we have access to SearchServiceBase-derived services
+            try
+            {
+                var searchService = ServiceLocator.GetRequiredService<SearchServiceBase>();
+                searchService.ClearSearchCache();
+            }
+            catch
+            {
+                // SearchServiceBase might not be registered, that's okay
+            }
+
+            // Dispose the assembly context which will:
+            // - Dispose PEFile and resolver
+            // - Clear all dictionaries and reset stats
+            // - Reset lazy indexes
+            contextManager.Dispose();
+
+            return new { status = "ok" };
+        });
     }
 }
