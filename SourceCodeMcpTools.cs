@@ -14,7 +14,7 @@ public static class SourceCodeMcpTools
 You are implementing an MCP server tool endpoint for a C# project that explores Game’s Assembly-CSharp.dll using ICSharpCode.Decompiler.
 
 Core constraints:
-- Keep one in-memory context: PEFile (game assembly), UniversalAssemblyResolver (search dirs include Game_Data/Managed), DecompilerTypeSystem, and a configured CSharpDecompiler.
+- Keep one in-memory context: PEFile (Assembly-CSharp.dll assembly), UniversalAssemblyResolver (search dirs include Game*_Data/Managed), DecompilerTypeSystem, and a configured CSharpDecompiler.
 - Build stable IDs as "<mvid-32hex>:<token-8hex>:<kind-code>" where kind codes: T=Type, M=Method/Ctor, P=Property, F=Field, E=Event, N=Namespace.
 - Provide thread-safe access with ReaderWriterLockSlim. Fast reads, guarded writes.
 - Use lazy indexes. On first access build minimal name/namespace/type maps. Deep indexes (string literals, attribute hits) behind WarmIndex.
@@ -70,7 +70,7 @@ Return JSON as the endpoint result. Keep outputs compact and line-range friendly
 	// 1) Setup and lifecycle
 	// ----------------------------
 
-	[McpServerTool, Description("Load or reload the Game Assembly-CSharp.dll and build minimal indexes.")]
+	[McpServerTool, Description("Load or reload the Assembly-CSharp.dll and build minimal indexes.")]
 	public static string LoadAssembly(
 		string gameDir,
 		string assemblyFile = "Assembly-CSharp.dll",
@@ -81,7 +81,7 @@ Return JSON as the endpoint result. Keep outputs compact and line-range friendly
 Goal: Initialize or refresh the global decompiler context.
 
 Inputs:
-- gameDir: absolute path to Game install root (contains Game*_Data/Managed).
+- gameDir: absolute path to Game's install root (contains Game*_Data/Managed).
 - assemblyFile: relative or absolute path to Assembly-CSharp.dll.
 - additionalSearchDirs: optional extra directories to add to resolver.
 - rebuildIndex: if true, drop caches and rebuild minimal indexes.
