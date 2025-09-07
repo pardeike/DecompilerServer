@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using ModelContextProtocol.Server;
+using DecompilerServer.Services;
 
 namespace DecompilerServer;
 
@@ -8,20 +9,38 @@ public static class FindUsagesTool
     [McpServerTool, Description("Find usages of a member across the assembly. Time-box and paginate.")]
     public static string FindUsages(string memberId, int limit = 100, string? cursor = null)
     {
-        /*
-		Behavior:
-		- Identify metadata token(s) for the target.
-		- Iterate candidate methods (heuristic order: smaller first; optionally from prebuilt callers map).
-		- Inspect IL for instructions referencing target token (calls, ld/st fld, newobj).
-		- Produce UsageRef { InMember, Kind, Line?, Snippet? }. If line unknown, omit.
-		- Paginate. Respect time budgets per call.
+        return ResponseFormatter.TryExecute(() =>
+        {
+            var contextManager = ServiceLocator.ContextManager;
+            var usageAnalyzer = ServiceLocator.GetRequiredService<UsageAnalyzer>();
 
-		Helper methods to use:
-		- MemberResolver.ResolveMember() to validate and resolve member ID
-		- UsageAnalyzer.FindUsages() for IL-based usage analysis
-		- ResponseFormatter.TryExecute() for error handling
-		- ResponseFormatter.SearchResult() for paginated response formatting
-		*/
-        return "TODO";
+            if (!contextManager.IsLoaded)
+            {
+                throw new InvalidOperationException("No assembly loaded");
+            }
+
+            var usages = usageAnalyzer.FindUsages(memberId, limit, cursor);
+            var usageList = usages.ToList();
+
+            // Calculate pagination info
+            var startIndex = 0;
+            if (!string.IsNullOrEmpty(cursor) && int.TryParse(cursor, out var cursorIndex))
+            {
+                startIndex = cursorIndex;
+            }
+
+            var hasMore = usageList.Count >= limit;
+            var nextCursor = hasMore ? (startIndex + limit).ToString() : null;
+
+            var result = new SearchResult<UsageReference>
+            {
+                Items = usageList,
+                HasMore = hasMore,
+                NextCursor = nextCursor,
+                TotalEstimate = usageList.Count
+            };
+
+            return result;
+        });
     }
 }
