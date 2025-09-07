@@ -238,8 +238,6 @@ public static class GenerateHarmonyPatchSkeletonTool
 
     private static void GenerateTranspilerPatch(StringBuilder code, IMethod method)
     {
-        // TODO is method used?
-
         code.AppendLine("        // Transpiler patch - modifies IL instructions");
         code.AppendLine("        [HarmonyTranspiler]");
         code.AppendLine("        static IEnumerable<CodeInstruction> Transpiler(IEnumerable<CodeInstruction> instructions)");

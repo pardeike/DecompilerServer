@@ -9,8 +9,6 @@ public static class FindDerivedTypesTool
     [McpServerTool, Description("Find derived types of a base class. Optionally include indirect.")]
     public static string FindDerivedTypes(string baseTypeId, bool transitive = true, int limit = 100, string? cursor = null)
     {
-        // TODO use transitive parameter
-
         return ResponseFormatter.TryExecute(() =>
           {
               var contextManager = ServiceLocator.ContextManager;
@@ -21,7 +19,7 @@ public static class FindDerivedTypesTool
                   throw new InvalidOperationException("No assembly loaded");
               }
 
-              var derivedTypes = inheritanceAnalyzer.FindDerivedTypes(baseTypeId, limit, cursor);
+              var derivedTypes = inheritanceAnalyzer.FindDerivedTypes(baseTypeId, limit, cursor, transitive);
 
               // Calculate pagination info
               var totalDerived = derivedTypes.ToList();

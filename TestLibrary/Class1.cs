@@ -165,8 +165,6 @@ public class AttributedClass
     [Test("method-attribute")]
     public void AttributedMethod([Test("parameter-attribute")] string param)
     {
-        // TODO : param is not used?
-        //
         // Method with parameter attribute
     }
 }

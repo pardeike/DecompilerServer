@@ -650,6 +650,42 @@ public class ToolImplementationTests : ServiceTestBase
     }
 
     [Fact]
+    public void FindDerivedTypes_TransitiveParameter_AffectsResults()
+    {
+        // Arrange - find a type that has base types (indicating inheritance hierarchy exists)
+        var types = ContextManager.GetAllTypes();
+        var baseType = types.FirstOrDefault(t => t.DirectBaseTypes.Any(bt => bt.FullName != "System.Object"));
+
+        if (baseType != null)
+        {
+            var memberId = MemberResolver.GenerateMemberId(baseType);
+
+            // Act - Test both transitive modes
+            var transitiveResult = FindDerivedTypesTool.FindDerivedTypes(memberId, transitive: true, limit: 50);
+            var directResult = FindDerivedTypesTool.FindDerivedTypes(memberId, transitive: false, limit: 50);
+
+            // Assert both calls succeed
+            Assert.NotNull(transitiveResult);
+            Assert.NotNull(directResult);
+
+            var transitiveResponse = JsonSerializer.Deserialize<JsonElement>(transitiveResult);
+            var directResponse = JsonSerializer.Deserialize<JsonElement>(directResult);
+
+            Assert.Equal("ok", transitiveResponse.GetProperty("status").GetString());
+            Assert.Equal("ok", directResponse.GetProperty("status").GetString());
+
+            // Both should have valid data structure
+            var transitiveData = transitiveResponse.GetProperty("data");
+            var directData = directResponse.GetProperty("data");
+
+            Assert.True(transitiveData.TryGetProperty("items", out var transitiveItems));
+            Assert.True(directData.TryGetProperty("items", out var directItems));
+            Assert.True(transitiveData.TryGetProperty("hasMore", out _));
+            Assert.True(directData.TryGetProperty("hasMore", out _));
+        }
+    }
+
+    [Fact]
     public void GetIL_WithValidMethod_ReturnsILSummary()
     {
         // Arrange - find a method from the test assembly

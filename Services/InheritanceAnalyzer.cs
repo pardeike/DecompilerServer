@@ -46,7 +46,7 @@ public class InheritanceAnalyzer
     /// <summary>
     /// Find derived types of a given type
     /// </summary>
-    public IEnumerable<MemberSummary> FindDerivedTypes(string typeId, int limit = 100, string? cursor = null)
+    public IEnumerable<MemberSummary> FindDerivedTypes(string typeId, int limit = 100, string? cursor = null, bool transitive = true)
     {
         var targetType = _memberResolver.ResolveType(typeId)?.GetDefinition();
         if (targetType == null)
@@ -56,7 +56,7 @@ public class InheritanceAnalyzer
         var allTypes = _contextManager.GetAllTypes();
 
         var derivedTypes = allTypes.Where(type =>
-            IsDirectOrIndirectDerivedFrom(type, targetType));
+            transitive ? IsDirectOrIndirectDerivedFrom(type, targetType) : IsDirectDerivedFrom(type, targetType));
 
         // Apply pagination
         var startIndex = 0;
@@ -210,6 +210,12 @@ public class InheritanceAnalyzer
         }
 
         return false;
+    }
+
+    private bool IsDirectDerivedFrom(ITypeDefinition type, ITypeDefinition targetBaseType)
+    {
+        // Check only direct base types (no traversal)
+        return type.DirectBaseTypes.Any(baseType => baseType.GetDefinition() == targetBaseType);
     }
 
     private bool ImplementsInterface(ITypeDefinition type, ITypeDefinition targetInterface)
