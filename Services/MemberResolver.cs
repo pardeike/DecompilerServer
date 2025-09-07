@@ -1,5 +1,6 @@
 using ICSharpCode.Decompiler.TypeSystem;
 using System.Reflection.Metadata;
+using System.Reflection.Metadata.Ecma335;
 using System.Text.RegularExpressions;
 using System.Collections.Concurrent;
 
@@ -198,12 +199,16 @@ public class MemberResolver
 
     private IEntity? ResolveMemberByToken(int token, ICompilation compilation)
     {
-        // For now, simplified token resolution - full implementation would use PEFile metadata reader
         try
         {
-            // This is a simplified approach - in practice you'd need to properly parse metadata tokens
-            // using the PEFile and map them to IEntity objects through the TypeSystem
-            return null; // TODO: Implement proper token resolution
+            var peFile = _contextManager.GetPEFile();
+            _ = peFile.Metadata; // ensure metadata is loaded
+
+            if (compilation.MainModule is not ICSharpCode.Decompiler.TypeSystem.MetadataModule module)
+                return null;
+
+            var handle = MetadataTokens.EntityHandle(token);
+            return module.ResolveEntity(handle);
         }
         catch
         {
