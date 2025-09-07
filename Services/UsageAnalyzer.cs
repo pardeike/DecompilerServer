@@ -1,6 +1,9 @@
 using ICSharpCode.Decompiler.TypeSystem;
-using System.Reflection.Metadata;
 using System.Collections.Concurrent;
+using System.Reflection;
+using System.Reflection.Emit;
+using System.Reflection.Metadata;
+using System.Reflection.Metadata.Ecma335;
 
 namespace DecompilerServer.Services;
 
@@ -14,6 +17,22 @@ public class UsageAnalyzer
     private readonly MemberResolver _memberResolver;
     private readonly ConcurrentDictionary<string, List<UsageReference>> _usageCache = new();
     private readonly ConcurrentDictionary<string, List<StringLiteralReference>> _stringLiteralCache = new();
+
+    private static readonly OpCode[] _singleByteOpCodes = new OpCode[0x100];
+    private static readonly OpCode[] _multiByteOpCodes = new OpCode[0x100];
+
+    static UsageAnalyzer()
+    {
+        foreach (var fi in typeof(OpCodes).GetFields(BindingFlags.Public | BindingFlags.Static))
+        {
+            var op = (OpCode)fi.GetValue(null)!;
+            var value = (ushort)op.Value;
+            if (value < 0x100)
+                _singleByteOpCodes[value] = op;
+            else if ((value & 0xff00) == 0xfe00)
+                _multiByteOpCodes[value & 0xff] = op;
+        }
+    }
 
     public UsageAnalyzer(AssemblyContextManager contextManager, MemberResolver memberResolver)
     {
@@ -94,14 +113,65 @@ public class UsageAnalyzer
         var method = _memberResolver.ResolveMethod(methodId);
         if (method == null)
             return Enumerable.Empty<UsageReference>();
+        if (method.MetadataToken.IsNil)
+            return Enumerable.Empty<UsageReference>();
 
-        var callees = new List<UsageReference>();
+        var peFile = _contextManager.GetPEFile();
+        var metadata = peFile.Metadata;
+        if (method.MetadataToken.Kind != HandleKind.MethodDefinition)
+            return Enumerable.Empty<UsageReference>();
 
-        // This is simplified - full implementation would analyze method body IL
-        // to find all call/callvirt/newobj instructions and resolve their targets
+        var methodDef = metadata.GetMethodDefinition((MethodDefinitionHandle)method.MetadataToken);
+        if (methodDef.RelativeVirtualAddress == 0)
+            return Enumerable.Empty<UsageReference>();
+        var body = peFile.Reader.GetMethodBody(methodDef.RelativeVirtualAddress);
+        var il = body.GetILBytes();
 
-        // For now, return empty - full implementation would require IL analysis
-        return callees;
+        var results = new List<UsageReference>();
+        var startIndex = 0;
+        if (!string.IsNullOrEmpty(cursor) && int.TryParse(cursor, out var cursorIndex))
+            startIndex = cursorIndex;
+        var index = 0;
+
+        foreach (var (opCode, operand) in ReadInstructions(il))
+        {
+            if (results.Count >= limit)
+                break;
+
+            if (opCode == OpCodes.Call || opCode == OpCodes.Callvirt || opCode == OpCodes.Newobj)
+            {
+                if (index++ < startIndex) continue;
+                var resolved = ResolveMethodId(metadata, operand);
+                if (resolved != null)
+                {
+                    results.Add(new UsageReference
+                    {
+                        InMember = resolved.Value.memberId,
+                        InType = resolved.Value.typeName,
+                        Kind = opCode == OpCodes.Newobj ? UsageKind.NewObject : UsageKind.Call
+                    });
+                }
+            }
+            else if (opCode == OpCodes.Ldfld || opCode == OpCodes.Ldsfld || opCode == OpCodes.Stfld || opCode == OpCodes.Stsfld)
+            {
+                if (index++ < startIndex) continue;
+                var field = ResolveFieldId(metadata, operand);
+                if (field != null)
+                {
+                    var kind = opCode == OpCodes.Ldfld || opCode == OpCodes.Ldsfld
+                        ? UsageKind.FieldRead
+                        : UsageKind.FieldWrite;
+                    results.Add(new UsageReference
+                    {
+                        InMember = field.Value.memberId,
+                        InType = field.Value.typeName,
+                        Kind = kind
+                    });
+                }
+            }
+        }
+
+        return results;
     }
 
     /// <summary>
@@ -109,9 +179,32 @@ public class UsageAnalyzer
     /// </summary>
     public IEnumerable<string> FindStringLiteralsInMethod(IMethod method)
     {
-        // Simplified implementation - would analyze IL for ldstr instructions
-        // For now return empty - full implementation requires IL analysis
-        return Enumerable.Empty<string>();
+        if (method.MetadataToken.IsNil)
+            return Enumerable.Empty<string>();
+
+        var peFile = _contextManager.GetPEFile();
+        var metadata = peFile.Metadata;
+        if (method.MetadataToken.Kind != HandleKind.MethodDefinition)
+            return Enumerable.Empty<string>();
+
+        var methodDef = metadata.GetMethodDefinition((MethodDefinitionHandle)method.MetadataToken);
+        if (methodDef.RelativeVirtualAddress == 0)
+            return Enumerable.Empty<string>();
+        var body = peFile.Reader.GetMethodBody(methodDef.RelativeVirtualAddress);
+        var il = body.GetILBytes();
+
+        var literals = new List<string>();
+        foreach (var (opCode, operand) in ReadInstructions(il))
+        {
+            if (opCode == OpCodes.Ldstr)
+            {
+                var strHandle = MetadataTokens.UserStringHandle(operand);
+                var value = metadata.GetUserString(strHandle);
+                literals.Add(value);
+            }
+        }
+
+        return literals;
     }
 
     /// <summary>
@@ -201,16 +294,165 @@ public class UsageAnalyzer
 
     private IEnumerable<UsageReference> FindUsagesInMethod(IMethod method, IEntity targetMember)
     {
-        // Simplified implementation - full version would analyze IL instructions
-        // to find references to the target member via metadata tokens
+        if (method.MetadataToken.IsNil)
+            return Enumerable.Empty<UsageReference>();
 
-        // For now, return empty list - full implementation requires:
-        // 1. Getting method body IL
-        // 2. Parsing IL instructions (call, callvirt, ldfld, stfld, newobj, etc.)
-        // 3. Resolving metadata tokens to member references
-        // 4. Comparing with target member
+        var peFile = _contextManager.GetPEFile();
+        var metadata = peFile.Metadata;
+        if (method.MetadataToken.Kind != HandleKind.MethodDefinition)
+            return Enumerable.Empty<UsageReference>();
 
-        return Enumerable.Empty<UsageReference>();
+        var methodDef = metadata.GetMethodDefinition((MethodDefinitionHandle)method.MetadataToken);
+        if (methodDef.RelativeVirtualAddress == 0)
+            return Enumerable.Empty<UsageReference>();
+        var body = peFile.Reader.GetMethodBody(methodDef.RelativeVirtualAddress);
+        var il = body.GetILBytes();
+
+        var usages = new List<UsageReference>();
+        var targetToken = MetadataTokens.GetToken(targetMember.MetadataToken);
+
+        foreach (var (opCode, operand) in ReadInstructions(il))
+        {
+            if (opCode == OpCodes.Call || opCode == OpCodes.Callvirt || opCode == OpCodes.Newobj ||
+                opCode == OpCodes.Ldfld || opCode == OpCodes.Ldsfld || opCode == OpCodes.Stfld || opCode == OpCodes.Stsfld)
+            {
+                if (operand == targetToken)
+                {
+                    var kind = opCode == OpCodes.Newobj ? UsageKind.NewObject :
+                        (opCode == OpCodes.Ldfld || opCode == OpCodes.Ldsfld ? UsageKind.FieldRead :
+                         (opCode == OpCodes.Stfld || opCode == OpCodes.Stsfld ? UsageKind.FieldWrite : UsageKind.Call));
+                    usages.Add(new UsageReference
+                    {
+                        InMember = _memberResolver.GenerateMemberId(method),
+                        InType = method.DeclaringType?.FullName ?? "",
+                        Kind = kind
+                    });
+                }
+            }
+        }
+
+        return usages;
+    }
+
+    private (string memberId, string typeName)? ResolveMethodId(MetadataReader metadata, int token)
+    {
+        var handle = MetadataTokens.EntityHandle(token);
+        switch (handle.Kind)
+        {
+            case HandleKind.MethodDefinition:
+                var md = metadata.GetMethodDefinition((MethodDefinitionHandle)handle);
+                var typeName = GetFullTypeName(metadata, md.GetDeclaringType());
+                var name = metadata.GetString(md.Name);
+                return ($"M:{typeName}.{name}", typeName);
+            case HandleKind.MemberReference:
+                var mr = metadata.GetMemberReference((MemberReferenceHandle)handle);
+                var parentName = GetFullTypeName(metadata, mr.Parent);
+                if (parentName == null) return null;
+                var methodName = metadata.GetString(mr.Name);
+                return ($"M:{parentName}.{methodName}", parentName);
+            default:
+                return null;
+        }
+    }
+
+    private (string memberId, string typeName)? ResolveFieldId(MetadataReader metadata, int token)
+    {
+        var handle = MetadataTokens.EntityHandle(token);
+        switch (handle.Kind)
+        {
+            case HandleKind.FieldDefinition:
+                var fd = metadata.GetFieldDefinition((FieldDefinitionHandle)handle);
+                var typeName = GetFullTypeName(metadata, fd.GetDeclaringType());
+                var name = metadata.GetString(fd.Name);
+                return ($"F:{typeName}.{name}", typeName);
+            case HandleKind.MemberReference:
+                var mr = metadata.GetMemberReference((MemberReferenceHandle)handle);
+                var parentName = GetFullTypeName(metadata, mr.Parent);
+                if (parentName == null) return null;
+                var fieldName = metadata.GetString(mr.Name);
+                return ($"F:{parentName}.{fieldName}", parentName);
+            default:
+                return null;
+        }
+    }
+
+    private string? GetFullTypeName(MetadataReader metadata, EntityHandle handle)
+    {
+        switch (handle.Kind)
+        {
+            case HandleKind.TypeDefinition:
+                var td = metadata.GetTypeDefinition((TypeDefinitionHandle)handle);
+                var ns = metadata.GetString(td.Namespace);
+                var name = metadata.GetString(td.Name);
+                return string.IsNullOrEmpty(ns) ? name : $"{ns}.{name}";
+            case HandleKind.TypeReference:
+                var tr = metadata.GetTypeReference((TypeReferenceHandle)handle);
+                var ns2 = metadata.GetString(tr.Namespace);
+                var name2 = metadata.GetString(tr.Name);
+                return string.IsNullOrEmpty(ns2) ? name2 : $"{ns2}.{name2}";
+            default:
+                return null;
+        }
+    }
+
+    private static IEnumerable<(OpCode opCode, int operand)> ReadInstructions(byte[] il)
+    {
+        var pos = 0;
+        while (pos < il.Length)
+        {
+            OpCode opCode;
+            var code = il[pos++];
+            if (code == 0xFE)
+            {
+                opCode = _multiByteOpCodes[il[pos++]];
+            }
+            else
+            {
+                opCode = _singleByteOpCodes[code];
+            }
+
+            int operand = 0;
+            switch (opCode.OperandType)
+            {
+                case OperandType.InlineBrTarget:
+                case OperandType.InlineField:
+                case OperandType.InlineI:
+                case OperandType.InlineMethod:
+                case OperandType.InlineSig:
+                case OperandType.InlineString:
+                case OperandType.InlineTok:
+                case OperandType.InlineType:
+                    operand = BitConverter.ToInt32(il, pos);
+                    pos += 4;
+                    break;
+                case OperandType.ShortInlineBrTarget:
+                case OperandType.ShortInlineI:
+                case OperandType.ShortInlineVar:
+                    operand = il[pos];
+                    pos += 1;
+                    break;
+                case OperandType.InlineVar:
+                    operand = BitConverter.ToUInt16(il, pos);
+                    pos += 2;
+                    break;
+                case OperandType.InlineI8:
+                case OperandType.InlineR:
+                    pos += 8;
+                    break;
+                case OperandType.ShortInlineR:
+                    pos += 4;
+                    break;
+                case OperandType.InlineSwitch:
+                    var count = BitConverter.ToInt32(il, pos);
+                    pos += 4 + 4 * count;
+                    break;
+                case OperandType.InlineNone:
+                default:
+                    break;
+            }
+
+            yield return (opCode, operand);
+        }
     }
 
     private bool MatchesStringQuery(string text, string query, bool regex)
