@@ -19,11 +19,6 @@ public static class SearchStringLiteralsTool
                 throw new InvalidOperationException("No assembly loaded");
             }
 
-            if (string.IsNullOrWhiteSpace(pattern))
-            {
-                throw new ArgumentException("Search pattern cannot be empty");
-            }
-
             var stringLiterals = usageAnalyzer.FindStringLiterals(pattern, regex, limit, cursor);
             var literalsList = stringLiterals.ToList();
 

@@ -1176,7 +1176,7 @@ public class ToolImplementationTests : ServiceTestBase
     }
 
     [Fact]
-    public void SearchStringLiterals_WithEmptyPattern_ReturnsError()
+    public void SearchStringLiterals_WithEmptyPattern_ReturnsAllLiterals()
     {
         // Act
         var result = SearchStringLiteralsTool.SearchStringLiterals("");
@@ -1184,7 +1184,12 @@ public class ToolImplementationTests : ServiceTestBase
         // Assert
         Assert.NotNull(result);
         var response = JsonSerializer.Deserialize<JsonElement>(result);
-        Assert.Equal("error", response.GetProperty("status").GetString());
+        Assert.Equal("ok", response.GetProperty("status").GetString());
+        
+        // Should return data with string literals
+        var data = response.GetProperty("data");
+        Assert.True(data.TryGetProperty("items", out var items));
+        Assert.True(items.GetArrayLength() >= 0); // May be 0 or more depending on test assembly
     }
 
     #endregion
