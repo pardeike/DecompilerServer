@@ -12,6 +12,13 @@ public static class GetImplementationsTool
 		Behavior:
 		- If typeId is interface type, find all types implementing it; else if methodId is interface method, find concrete implementations.
 		- Return SearchResult<MemberSummary>.
+
+		Helper methods to use:
+		- MemberResolver.ResolveMember() to determine if type or member
+		- InheritanceAnalyzer.FindImplementors() for interface implementations
+		- InheritanceAnalyzer.GetOverrides() for method implementations
+		- ResponseFormatter.TryExecute() for error handling
+		- ResponseFormatter.SearchResult() for paginated response formatting
 		*/
 		return "TODO";
 	}

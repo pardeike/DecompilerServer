@@ -12,6 +12,12 @@ public static class SearchStringLiteralsTool
 		Behavior:
 		- If string-literal index exists, query it. Else lazily scan methods in pages, decompiling or reading IL constants.
 		- Return UsageRef entries with small code snippet containing the literal.
+
+		Helper methods to use:
+		- AssemblyContextManager.IsLoaded to check if assembly is loaded
+		- UsageAnalyzer.FindStringLiterals() for IL-based string literal search
+		- ResponseFormatter.TryExecute() for error handling
+		- ResponseFormatter.SearchResult() for paginated response formatting
 		*/
 		return "TODO";
 	}

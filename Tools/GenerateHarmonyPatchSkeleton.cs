@@ -15,6 +15,13 @@ public static class GenerateHarmonyPatchSkeletonTool
 		  * Stubs for requested patchKinds with correct signatures (Prefix/Postfix parameter patterns incl. ref/out, __instance, __result, __state).
 		  * If includeReflectionTargeting, show an alternative using AccessTools.Method with parameter type array to bind exact overload.
 		- Return { target: MemberSummary, code: string, notes: string[] }.
+
+		Helper methods to use:
+		- MemberResolver.ResolveMember() to validate and resolve target member
+		- MemberResolver.GetMemberSignature() for generating method signatures
+		- ResponseFormatter.TryExecute() for error handling
+		- ResponseFormatter.GeneratedCode() for response formatting
+		- Additional helper needed: HarmonyCodeGenerator for generating patch skeletons
 		*/
 		return "TODO";
 	}
