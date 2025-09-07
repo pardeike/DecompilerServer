@@ -30,17 +30,18 @@ public static class PlanChunkingTool
             var document = decompilerService.DecompileMember(memberId, includeHeader: true);
             var totalLines = document.TotalLines;
 
-            object result;
+            ChunkPlanResult result;
 
             if (totalLines == 0)
             {
-                result = new
-                {
-                    memberId = memberId,
-                    chunks = new object[0],
-                    totalLines = 0,
-                    estimatedChars = 0
-                };
+                result = new ChunkPlanResult(
+                    memberId,
+                    new List<ChunkInfo>(),
+                    0,
+                    0,
+                    targetChunkSize,
+                    overlap,
+                    0);
             }
             else
             {
@@ -76,19 +77,17 @@ public static class PlanChunkingTool
                         nameof(overlap));
                 }
 
-                var chunks = new List<object>();
+                var chunks = new List<ChunkInfo>();
                 var currentStart = 1;
 
                 while (currentStart <= totalLines)
                 {
                     var currentEnd = Math.Min(currentStart + targetLinesPerChunk - 1, totalLines);
 
-                    chunks.Add(new
-                    {
-                        startLine = currentStart,
-                        endLine = currentEnd,
-                        estimatedChars = (currentEnd - currentStart + 1) * avgCharsPerLine
-                    });
+                    chunks.Add(new ChunkInfo(
+                        currentStart,
+                        currentEnd,
+                        (currentEnd - currentStart + 1) * avgCharsPerLine));
 
                     // Move to next chunk with overlap consideration
                     currentStart = currentEnd + 1 - overlap;
@@ -100,19 +99,28 @@ public static class PlanChunkingTool
                     }
                 }
 
-                result = new
-                {
-                    memberId = memberId,
-                    chunks = chunks,
-                    totalLines = totalLines,
-                    estimatedChars = totalLines * avgCharsPerLine,
-                    targetChunkSize = targetChunkSize,
-                    overlap = overlap,
-                    avgCharsPerLine = avgCharsPerLine
-                };
+                result = new ChunkPlanResult(
+                    memberId,
+                    chunks,
+                    totalLines,
+                    totalLines * avgCharsPerLine,
+                    targetChunkSize,
+                    overlap,
+                    avgCharsPerLine);
             }
 
             return result;
         });
     }
 }
+
+internal record ChunkInfo(int StartLine, int EndLine, int EstimatedChars);
+
+internal record ChunkPlanResult(
+    string MemberId,
+    List<ChunkInfo> Chunks,
+    int TotalLines,
+    int EstimatedChars,
+    int TargetChunkSize,
+    int Overlap,
+    int AvgCharsPerLine);
