@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using ModelContextProtocol.Server;
+using DecompilerServer.Services;
 
 namespace DecompilerServer;
 
@@ -12,37 +13,38 @@ public static class LoadAssemblyTool
         string[]? additionalSearchDirs = null,
         bool rebuildIndex = true)
     {
-        /*
-		Goal: Initialize or refresh the global decompiler context.
+        return ResponseFormatter.TryExecute(() =>
+        {
+            var contextManager = ServiceLocator.ContextManager;
 
-		Inputs:
-		- gameDir: absolute path to Game's install root (contains Game*_Data/Managed).
-		- assemblyFile: relative or absolute path to Assembly-CSharp.dll.
-		- additionalSearchDirs: optional extra directories to add to resolver.
-		- rebuildIndex: if true, drop caches and rebuild minimal indexes.
+            // Load the assembly with enhanced auto-detection
+            contextManager.LoadAssembly(gameDir, assemblyFile, additionalSearchDirs);
 
-		Behavior:
-		- Validate paths and file existence. Return error if missing.
-		- Dispose existing context if already loaded.
-		- Create UniversalAssemblyResolver and add search dirs (Managed, MonoBleedingEdge, Unity, plus additionalSearchDirs).
-		- Load PEFile, TypeSystem, and CSharpDecompiler.
-		- Record MVID and build minimal indexes: namespaces, type name map, simple member name map.
-		- Return:
-		  {
-		    status: "ok",
-		    mvid: "<32hex>",
-		    assemblyPath: "<resolved>",
-		    types: <count>,
-		    methods: <count-estimate>,
-		    namespaces: <count>,
-		    warmed: false
-		  }
+            // Optionally warm up indexes for better performance
+            if (rebuildIndex)
+            {
+                contextManager.WarmIndexes();
+            }
 
-		Helper methods to use:
-		- AssemblyContextManager.LoadAssembly() for core assembly loading
-		- ResponseFormatter.TryExecute() for error handling
-		- ResponseFormatter.AssemblyLoaded() for response formatting
-		*/
-        return "TODO";
+            // Get assembly info for response
+            var assemblyInfo = new AssemblyInfo
+            {
+                Mvid = contextManager.Mvid!,
+                AssemblyPath = contextManager.AssemblyPath!,
+                TypeCount = contextManager.TypeCount,
+                MethodCount = EstimateMethodCount(contextManager),
+                NamespaceCount = contextManager.NamespaceCount,
+                Warmed = rebuildIndex
+            };
+
+            return assemblyInfo;
+        });
+    }
+
+    private static int EstimateMethodCount(AssemblyContextManager contextManager)
+    {
+        // Quick estimate without building full index
+        var types = contextManager.GetAllTypes();
+        return types.Sum(t => t.Methods.Count());
     }
 }
