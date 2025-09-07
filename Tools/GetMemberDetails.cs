@@ -17,6 +17,15 @@ public static class GetMemberDetailsTool
 		  * OverrideIds (if this overrides others)
 		  * ImplementorIds (if interface)
 		- Return MemberDetails.
+
+		Helper methods to use:
+		- MemberResolver.ResolveMember() to validate and resolve member ID
+		- InheritanceAnalyzer.GetOverrides() for override chain information
+		- MemberResolver.GetMemberSignature() for signature formatting
+		- ResponseFormatter.TryExecute() for error handling
+		- ResponseFormatter.MemberDetails() for response formatting
+		- Additional helper needed: AttributeExtractor for attribute information
+		- Additional helper needed: XmlDocumentationProvider for XML docs
 		*/
 		return "TODO";
 	}

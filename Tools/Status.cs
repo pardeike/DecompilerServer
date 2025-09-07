@@ -21,6 +21,13 @@ public static class StatusTool
 		  stats?: Stats,
 		  indexes: { namespaces: int, types: int, nameIndexReady: bool, stringLiteralIndexReady: bool }
 		}
+
+		Helper methods to use:
+		- AssemblyContextManager.IsLoaded property
+		- AssemblyContextManager.Mvid, AssemblyPath, LoadedAtUtc properties
+		- AssemblyContextManager.TypeCount, NamespaceCount properties
+		- DecompilerService.GetCacheStats() for cache statistics
+		- ResponseFormatter.Status() for response formatting
 		*/
 		return "TODO";
 	}

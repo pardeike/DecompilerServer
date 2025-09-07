@@ -15,6 +15,12 @@ public static class FindUsagesTool
 		- Inspect IL for instructions referencing target token (calls, ld/st fld, newobj).
 		- Produce UsageRef { InMember, Kind, Line?, Snippet? }. If line unknown, omit.
 		- Paginate. Respect time budgets per call.
+
+		Helper methods to use:
+		- MemberResolver.ResolveMember() to validate and resolve member ID
+		- UsageAnalyzer.FindUsages() for IL-based usage analysis
+		- ResponseFormatter.TryExecute() for error handling
+		- ResponseFormatter.SearchResult() for paginated response formatting
 		*/
 		return "TODO";
 	}

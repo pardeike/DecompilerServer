@@ -37,6 +37,11 @@ public static class LoadAssemblyTool
 		    namespaces: <count>,
 		    warmed: false
 		  }
+
+		Helper methods to use:
+		- AssemblyContextManager.LoadAssembly() for core assembly loading
+		- ResponseFormatter.TryExecute() for error handling
+		- ResponseFormatter.AssemblyLoaded() for response formatting
 		*/
 		return "TODO";
 	}

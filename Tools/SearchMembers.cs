@@ -14,6 +14,12 @@ public static class SearchMembersTool
 		- Apply filters: namespace, declaring type, attribute presence (by full name), return type match, parameter type contains-all, kind, accessibility, static/abstract/virtual, generic arity.
 		- Return SearchResult<MemberSummary>. Signature shows short C# signature.
 		- Include a small doc summary if XML doc is available.
+
+		Helper methods to use:
+		- AssemblyContextManager.IsLoaded to check if assembly is loaded
+		- SearchServiceBase.SearchMembers() for main search logic with all filters
+		- ResponseFormatter.TryExecute() for error handling
+		- ResponseFormatter.SearchResult() for response formatting
 		*/
 		return "TODO";
 	}

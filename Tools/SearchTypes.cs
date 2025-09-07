@@ -21,6 +21,12 @@ public static class SearchTypesTool
 		- Case-insensitive substring by default; if regex=true use compiled Regex with timeout.
 		- Filters: namespace, include nested types or not.
 		- Return SearchResult<MemberSummary> with Kind="Type". Signature includes generic arity and base type.
+
+		Helper methods to use:
+		- AssemblyContextManager.IsLoaded to check if assembly is loaded
+		- SearchServiceBase.SearchTypes() for main search logic
+		- ResponseFormatter.TryExecute() for error handling
+		- ResponseFormatter.SearchResult() for response formatting
 		*/
 		return "TODO";
 	}

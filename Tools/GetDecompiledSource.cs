@@ -14,6 +14,12 @@ public static class GetDecompiledSourceTool
 		- Store in cache with line index. Compute stable hash.
 		- Return SourceDocument { memberId, language: "C#", totalLines, hash, header? }.
 		- Do not return the full code here. Use GetSourceSlice for text.
+
+		Helper methods to use:
+		- MemberResolver.ResolveMember() to validate member ID
+		- DecompilerService.DecompileMember() for decompilation and caching
+		- ResponseFormatter.TryExecute() for error handling
+		- ResponseFormatter.SourceDocument() for response formatting
 		*/
 		return "TODO";
 	}
