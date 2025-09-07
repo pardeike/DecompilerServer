@@ -29,12 +29,6 @@ public class ToolImplementationTests : ServiceTestBase
     }
 
     [Fact]
-    public new void Dispose()
-    {
-        (_serviceProvider as IDisposable)?.Dispose();
-        base.Dispose();
-    }
-    [Fact]
     public void ResolveMemberId_WithValidType_ReturnsCorrectSummary()
     {
         // Arrange - find a type from the test assembly
