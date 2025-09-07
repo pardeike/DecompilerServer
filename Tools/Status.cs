@@ -14,6 +14,7 @@ public static class StatusTool
             var contextManager = ServiceLocator.ContextManager;
             var decompilerService = ServiceLocator.DecompilerService;
             var memberResolver = ServiceLocator.MemberResolver;
+            var usageAnalyzer = ServiceLocator.UsageAnalyzer;
 
             var status = new ServerStatus
             {
@@ -28,7 +29,7 @@ public static class StatusTool
                     Namespaces = contextManager.NamespaceCount,
                     Types = contextManager.TypeCount,
                     NameIndexReady = contextManager.TypeIndexReady,
-                    StringLiteralIndexReady = false // TODO: Implement when needed
+                    StringLiteralIndexReady = GetStringLiteralIndexStatus(usageAnalyzer)
                 } : null
             };
 
@@ -60,5 +61,12 @@ public static class StatusTool
             successfulResolutions = resolverStats.SuccessfulResolutions,
             failedResolutions = resolverStats.FailedResolutions
         };
+    }
+
+    private static bool GetStringLiteralIndexStatus(UsageAnalyzer usageAnalyzer)
+    {
+        // Consider string literal index ready if we have cached string literal queries
+        var stats = usageAnalyzer.GetCacheStats();
+        return stats.CachedStringLiteralQueries > 0;
     }
 }

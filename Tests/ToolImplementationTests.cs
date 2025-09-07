@@ -1342,5 +1342,123 @@ public class ToolImplementationTests : ServiceTestBase
         Assert.Equal("error", response.GetProperty("status").GetString());
     }
 
+    [Fact]
+    public void PlanChunking_WithValidMember_ReturnsChunkPlan()
+    {
+        // Arrange - find a method from the test assembly
+        var types = ContextManager.GetAllTypes();
+        var testType = types.FirstOrDefault(t => t.Methods.Any(m => !m.IsConstructor));
+        Assert.NotNull(testType);
+
+        var method = testType.Methods.FirstOrDefault(m => !m.IsConstructor);
+        Assert.NotNull(method);
+
+        var memberId = MemberResolver.GenerateMemberId(method);
+
+        // Act
+        var result = PlanChunkingTool.PlanChunking(memberId, targetChunkSize: 1000, overlap: 1);
+
+        // Assert
+        Assert.NotNull(result);
+        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        Assert.Equal("ok", response.GetProperty("status").GetString());
+
+        var data = response.GetProperty("data");
+        Assert.True(data.TryGetProperty("memberId", out _));
+        Assert.True(data.TryGetProperty("chunks", out var chunks));
+        Assert.True(data.TryGetProperty("totalLines", out _));
+        Assert.True(data.TryGetProperty("estimatedChars", out _));
+        Assert.True(data.TryGetProperty("targetChunkSize", out _));
+        Assert.True(data.TryGetProperty("overlap", out _));
+        Assert.True(data.TryGetProperty("avgCharsPerLine", out _));
+
+        // Verify chunks structure
+        Assert.True(chunks.ValueKind == JsonValueKind.Array);
+        
+        for (int i = 0; i < chunks.GetArrayLength(); i++)
+        {
+            var chunk = chunks[i];
+            Assert.True(chunk.TryGetProperty("startLine", out _));
+            Assert.True(chunk.TryGetProperty("endLine", out _));
+            Assert.True(chunk.TryGetProperty("estimatedChars", out _));
+        }
+    }
+
+    [Fact]
+    public void GetAstOutline_WithValidMember_ReturnsOutline()
+    {
+        // Arrange - find a method from the test assembly
+        var types = ContextManager.GetAllTypes();
+        var testType = types.FirstOrDefault(t => t.Methods.Any(m => !m.IsConstructor));
+        Assert.NotNull(testType);
+
+        var method = testType.Methods.FirstOrDefault(m => !m.IsConstructor);
+        Assert.NotNull(method);
+
+        var memberId = MemberResolver.GenerateMemberId(method);
+
+        // Act
+        var result = GetAstOutlineTool.GetAstOutline(memberId, maxDepth: 2);
+
+        // Assert
+        Assert.NotNull(result);
+        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        Assert.Equal("ok", response.GetProperty("status").GetString());
+
+        var data = response.GetProperty("data");
+        Assert.True(data.TryGetProperty("memberId", out _));
+        Assert.True(data.TryGetProperty("memberName", out _));
+        Assert.True(data.TryGetProperty("memberKind", out _));
+        Assert.True(data.TryGetProperty("outline", out var outline));
+        Assert.True(data.TryGetProperty("maxDepth", out _));
+
+        // Verify outline structure
+        Assert.True(outline.TryGetProperty("kind", out _));
+        Assert.True(outline.TryGetProperty("name", out _));
+        
+        // For methods, expect certain properties
+        if (outline.TryGetProperty("kind", out var kind) && 
+            (kind.GetString() == "Method" || kind.GetString() == "Constructor"))
+        {
+            Assert.True(outline.TryGetProperty("accessibility", out _));
+            Assert.True(outline.TryGetProperty("parameterCount", out _));
+        }
+    }
+
+    [Fact]
+    public void GetAstOutline_WithType_ReturnsTypeOutline()
+    {
+        // Arrange - find a type from the test assembly
+        var types = ContextManager.GetAllTypes();
+        var testType = types.FirstOrDefault();
+        Assert.NotNull(testType);
+
+        var memberId = MemberResolver.GenerateMemberId(testType);
+
+        // Act
+        var result = GetAstOutlineTool.GetAstOutline(memberId, maxDepth: 1);
+
+        // Assert
+        Assert.NotNull(result);
+        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        Assert.Equal("ok", response.GetProperty("status").GetString());
+
+        var data = response.GetProperty("data");
+        // Type kind could be Class, Interface, Struct, etc.
+        var memberKind = data.GetProperty("memberKind").GetString();
+        Assert.True(memberKind == "Class" || memberKind == "Interface" || memberKind == "Struct" || 
+                   memberKind == "Enum" || memberKind == "Delegate");
+        
+        var outline = data.GetProperty("outline");
+        Assert.True(outline.TryGetProperty("kind", out _));
+        Assert.True(outline.TryGetProperty("name", out _));
+        Assert.True(outline.TryGetProperty("fullName", out _));
+        Assert.True(outline.TryGetProperty("memberCount", out _));
+        Assert.True(outline.TryGetProperty("children", out var children));
+        
+        // Should have children at depth 1
+        Assert.True(children.ValueKind == JsonValueKind.Array);
+    }
+
     #endregion
 }
