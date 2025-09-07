@@ -5,10 +5,10 @@ namespace DecompilerServer;
 
 public static class ListNamespacesTool
 {
-	[McpServerTool, Description("List namespaces. Optional prefix filter and pagination.")]
-	public static string ListNamespaces(string? prefix = null, int limit = 100, string? cursor = null)
-	{
-		/*
+    [McpServerTool, Description("List namespaces. Optional prefix filter and pagination.")]
+    public static string ListNamespaces(string? prefix = null, int limit = 100, string? cursor = null)
+    {
+        /*
 		Inputs: prefix (optional), limit, cursor.
 
 		Behavior:
@@ -23,6 +23,6 @@ public static class ListNamespacesTool
 		- ResponseFormatter.TryExecute() for error handling
 		- ResponseFormatter.SearchResult() for paginated response formatting
 		*/
-		return "TODO";
-	}
+        return "TODO";
+    }
 }

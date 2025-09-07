@@ -5,10 +5,10 @@ namespace DecompilerServer;
 
 public static class StatusTool
 {
-	[McpServerTool, Description("Get current server status, including assembly MVID and cache stats.")]
-	public static string Status()
-	{
-		/*
+    [McpServerTool, Description("Get current server status, including assembly MVID and cache stats.")]
+    public static string Status()
+    {
+        /*
 		Goal: Report whether an assembly is loaded and key counters.
 
 		Output:
@@ -29,6 +29,6 @@ public static class StatusTool
 		- DecompilerService.GetCacheStats() for cache statistics
 		- ResponseFormatter.Status() for response formatting
 		*/
-		return "TODO";
-	}
+        return "TODO";
+    }
 }

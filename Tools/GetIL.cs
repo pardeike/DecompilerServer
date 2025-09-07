@@ -5,10 +5,10 @@ namespace DecompilerServer;
 
 public static class GetILTool
 {
-	[McpServerTool, Description("Get IL for a method or constructor. Format: IL or ILAst.")]
-	public static string GetIL(string memberId, string format = "IL")
-	{
-		/*
+    [McpServerTool, Description("Get IL for a method or constructor. Format: IL or ILAst.")]
+    public static string GetIL(string memberId, string format = "IL")
+    {
+        /*
 		Behavior:
 		- Resolve method/ctor. If format=="IL", use Decompiler.Disassembler to dump method body with tokens.
 		- If "ILAst", produce high-level IL (if available in library version) or return error if unsupported.
@@ -20,6 +20,6 @@ public static class GetILTool
 		- ResponseFormatter.TryExecute() for error handling
 		- ResponseFormatter.SourceSlice() or custom IL response formatting
 		*/
-		return "TODO";
-	}
+        return "TODO";
+    }
 }

@@ -5,10 +5,10 @@ namespace DecompilerServer;
 
 public static class SetDecompileSettingsTool
 {
-	[McpServerTool, Description("Update decompiler settings (e.g., UsingDeclarations, ShowXmlDocumentation).")]
-	public static string SetDecompileSettings(Dictionary<string, object> settings)
-	{
-		/*
+    [McpServerTool, Description("Update decompiler settings (e.g., UsingDeclarations, ShowXmlDocumentation).")]
+    public static string SetDecompileSettings(Dictionary<string, object> settings)
+    {
+        /*
 		Goal: Apply a subset of CSharpDecompilerSettings at runtime.
 
 		Inputs: settings as string->value. Supported keys:
@@ -17,6 +17,6 @@ public static class SetDecompileSettingsTool
 		- Validate known keys, ignore unknown, persist to context, clear code cache (since output can change).
 		- Return current effective settings.
 		*/
-		return "TODO";
-	}
+        return "TODO";
+    }
 }

@@ -5,10 +5,10 @@ namespace DecompilerServer;
 
 public static class GetTypesInNamespaceTool
 {
-	[McpServerTool, Description("Get all types inside a namespace. Optional deep traversal for child namespaces.")]
-	public static string GetTypesInNamespace(string ns, bool deep = false, int limit = 100, string? cursor = null)
-	{
-		/*
+    [McpServerTool, Description("Get all types inside a namespace. Optional deep traversal for child namespaces.")]
+    public static string GetTypesInNamespace(string ns, bool deep = false, int limit = 100, string? cursor = null)
+    {
+        /*
 		Behavior:
 		- Enumerate types whose Namespace equals ns (or startsWith(ns + ".") if deep).
 		- Return SearchResult<MemberSummary> for types.
@@ -21,6 +21,6 @@ public static class GetTypesInNamespaceTool
 		- ResponseFormatter.TryExecute() for error handling
 		- ResponseFormatter.SearchResult() for paginated response formatting
 		*/
-		return "TODO";
-	}
+        return "TODO";
+    }
 }

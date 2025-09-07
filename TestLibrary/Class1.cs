@@ -11,11 +11,12 @@ public class SimpleClass
     private string _privateField = "private";
 
     public string PublicProperty { get; set; } = "default";
-    
+
     public int AutoProperty { get; } = 100;
 
     public void SimpleMethod()
     {
+        _ = _privateField;
         Console.WriteLine("Simple method called");
     }
 
@@ -50,12 +51,12 @@ public interface ITestInterface
 public abstract class BaseClass
 {
     public abstract void AbstractMethod();
-    
+
     public virtual void VirtualMethod()
     {
         Console.WriteLine("Base virtual method");
     }
-    
+
     protected string ProtectedField = "protected";
 }
 
@@ -115,7 +116,7 @@ public enum TestEnum
 public class TestAttribute : Attribute
 {
     public string Value { get; }
-    
+
     public TestAttribute(string value)
     {
         Value = value;
@@ -148,7 +149,7 @@ public class AttributedClass
 public static class StaticUtilities
 {
     public static readonly string StaticField = "static";
-    
+
     public static string StaticProperty => "static property";
 
     public static void StaticUtilityMethod()
@@ -170,13 +171,13 @@ public class OuterClass
         {
             Console.WriteLine("Nested method");
         }
-        
+
         public class DeeplyNestedClass
         {
             public string DeepProperty { get; set; } = "deep";
         }
     }
-    
+
     private class PrivateNestedClass
     {
         internal void InternalMethod() { }

@@ -5,10 +5,10 @@ namespace DecompilerServer;
 
 public static class GetDecompiledSourceTool
 {
-	[McpServerTool, Description("Decompile a member to C#. Caches document and returns document metadata.")]
-	public static string GetDecompiledSource(string memberId, bool includeHeader = true)
-	{
-		/*
+    [McpServerTool, Description("Decompile a member to C#. Caches document and returns document metadata.")]
+    public static string GetDecompiledSource(string memberId, bool includeHeader = true)
+    {
+        /*
 		Behavior:
 		- Resolve member. Decompile to C# with current settings.
 		- Store in cache with line index. Compute stable hash.
@@ -21,6 +21,6 @@ public static class GetDecompiledSourceTool
 		- ResponseFormatter.TryExecute() for error handling
 		- ResponseFormatter.SourceDocument() for response formatting
 		*/
-		return "TODO";
-	}
+        return "TODO";
+    }
 }

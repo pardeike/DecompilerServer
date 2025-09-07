@@ -5,10 +5,10 @@ namespace DecompilerServer;
 
 public static class GetImplementationsTool
 {
-	[McpServerTool, Description("Find implementations of an interface or interface method.")]
-	public static string GetImplementations(string interfaceTypeOrMethodId, int limit = 100, string? cursor = null)
-	{
-		/*
+    [McpServerTool, Description("Find implementations of an interface or interface method.")]
+    public static string GetImplementations(string interfaceTypeOrMethodId, int limit = 100, string? cursor = null)
+    {
+        /*
 		Behavior:
 		- If typeId is interface type, find all types implementing it; else if methodId is interface method, find concrete implementations.
 		- Return SearchResult<MemberSummary>.
@@ -20,6 +20,6 @@ public static class GetImplementationsTool
 		- ResponseFormatter.TryExecute() for error handling
 		- ResponseFormatter.SearchResult() for paginated response formatting
 		*/
-		return "TODO";
-	}
+        return "TODO";
+    }
 }

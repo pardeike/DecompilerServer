@@ -5,16 +5,16 @@ namespace DecompilerServer;
 
 public static class SearchTypesTool
 {
-	[McpServerTool, Description("Search types by name. Supports regex and filters.")]
-	public static string SearchTypes(
-		string query,
-		bool regex = false,
-		string? namespaceFilter = null,
-		bool includeNested = true,
-		int limit = 50,
-		string? cursor = null)
-	{
-		/*
+    [McpServerTool, Description("Search types by name. Supports regex and filters.")]
+    public static string SearchTypes(
+        string query,
+        bool regex = false,
+        string? namespaceFilter = null,
+        bool includeNested = true,
+        int limit = 50,
+        string? cursor = null)
+    {
+        /*
 		Inputs: query, regex?, namespaceFilter?, includeNested?, limit, cursor.
 
 		Behavior:
@@ -28,6 +28,6 @@ public static class SearchTypesTool
 		- ResponseFormatter.TryExecute() for error handling
 		- ResponseFormatter.SearchResult() for response formatting
 		*/
-		return "TODO";
-	}
+        return "TODO";
+    }
 }

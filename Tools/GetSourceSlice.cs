@@ -5,10 +5,10 @@ namespace DecompilerServer;
 
 public static class GetSourceSliceTool
 {
-	[McpServerTool, Description("Return a line range of the decompiled source for a member.")]
-	public static string GetSourceSlice(string memberId, int startLine, int endLine, bool includeLineNumbers = false, int context = 0)
-	{
-		/*
+    [McpServerTool, Description("Return a line range of the decompiled source for a member.")]
+    public static string GetSourceSlice(string memberId, int startLine, int endLine, bool includeLineNumbers = false, int context = 0)
+    {
+        /*
 		Behavior:
 		- Ensure document in cache (call decompile if missing).
 		- Expand start/end by 'context' within bounds.
@@ -21,6 +21,6 @@ public static class GetSourceSliceTool
 		- ResponseFormatter.TryExecute() for error handling
 		- ResponseFormatter.SourceSlice() for response formatting
 		*/
-		return "TODO";
-	}
+        return "TODO";
+    }
 }

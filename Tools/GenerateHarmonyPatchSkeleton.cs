@@ -5,10 +5,10 @@ namespace DecompilerServer;
 
 public static class GenerateHarmonyPatchSkeletonTool
 {
-	[McpServerTool, Description("Generate a Harmony patch skeleton for a given member.")]
-	public static string GenerateHarmonyPatchSkeleton(string memberId, string patchKinds = "Prefix,Postfix,Transpiler,Finalizer", bool includeReflectionTargeting = true)
-	{
-		/*
+    [McpServerTool, Description("Generate a Harmony patch skeleton for a given member.")]
+    public static string GenerateHarmonyPatchSkeleton(string memberId, string patchKinds = "Prefix,Postfix,Transpiler,Finalizer", bool includeReflectionTargeting = true)
+    {
+        /*
 		Behavior:
 		- Resolve target and construct a compilable C# snippet that includes:
 		  * [HarmonyPatch] targeting Type and method (with overload disambiguation via argument types).
@@ -23,6 +23,6 @@ public static class GenerateHarmonyPatchSkeletonTool
 		- ResponseFormatter.GeneratedCode() for response formatting
 		- Additional helper needed: HarmonyCodeGenerator for generating patch skeletons
 		*/
-		return "TODO";
-	}
+        return "TODO";
+    }
 }

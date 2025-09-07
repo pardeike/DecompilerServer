@@ -5,10 +5,10 @@ namespace DecompilerServer;
 
 public static class GetMemberDetailsTool
 {
-	[McpServerTool, Description("Detailed metadata for a member: attributes, docs, inheritance links.")]
-	public static string GetMemberDetails(string memberId)
-	{
-		/*
+    [McpServerTool, Description("Detailed metadata for a member: attributes, docs, inheritance links.")]
+    public static string GetMemberDetails(string memberId)
+    {
+        /*
 		Behavior:
 		- Resolve member. Collect:
 		  * Attributes (full names, constructor args where simple)
@@ -27,6 +27,6 @@ public static class GetMemberDetailsTool
 		- Additional helper needed: AttributeExtractor for attribute information
 		- Additional helper needed: XmlDocumentationProvider for XML docs
 		*/
-		return "TODO";
-	}
+        return "TODO";
+    }
 }

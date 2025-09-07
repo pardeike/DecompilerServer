@@ -18,7 +18,7 @@ public class SimpleServiceTests : ServiceTestBase
     {
         // Act
         var entity = MemberResolver.ResolveMember("T:TestLibrary.SimpleClass");
-        
+
         // Assert
         Assert.NotNull(entity);
         Assert.Contains("SimpleClass", entity.Name);
@@ -38,10 +38,10 @@ public class SimpleServiceTests : ServiceTestBase
     {
         // Arrange
         var decompilerService = new DecompilerService(ContextManager, MemberResolver);
-        
+
         // Act
         var document = decompilerService.DecompileMember("T:TestLibrary.SimpleClass");
-        
+
         // Assert
         Assert.NotNull(document);
         Assert.Equal("T:TestLibrary.SimpleClass", document.MemberId);
@@ -49,7 +49,7 @@ public class SimpleServiceTests : ServiceTestBase
         Assert.True(document.TotalLines > 0);
         Assert.NotNull(document.Lines);
         Assert.True(document.Lines.Length > 0);
-        
+
         var source = string.Join("\n", document.Lines);
         Assert.Contains("SimpleClass", source);
     }
@@ -59,7 +59,7 @@ public class SimpleServiceTests : ServiceTestBase
     {
         // Act
         var response = ResponseFormatter.Success("test data");
-        
+
         // Assert
         Assert.NotNull(response);
         Assert.Contains("status", response);
@@ -72,7 +72,7 @@ public class SimpleServiceTests : ServiceTestBase
     {
         // Act
         var response = ResponseFormatter.Error("test error");
-        
+
         // Assert
         Assert.NotNull(response);
         Assert.Contains("status", response);
@@ -106,7 +106,7 @@ public class SimpleServiceTests : ServiceTestBase
 
     private class TestSearchService : SearchServiceBase
     {
-        public TestSearchService(AssemblyContextManager contextManager, MemberResolver memberResolver) 
+        public TestSearchService(AssemblyContextManager contextManager, MemberResolver memberResolver)
             : base(contextManager, memberResolver)
         {
         }

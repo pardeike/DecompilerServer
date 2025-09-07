@@ -12,11 +12,11 @@ public class DecompilationFunctionalityTests : ServiceTestBase
     {
         // Arrange
         var decompilerService = new DecompilerService(ContextManager, MemberResolver);
-        
+
         // Act
         var document = decompilerService.DecompileMember("T:TestLibrary.SimpleClass");
         var sourceCode = string.Join("\n", document.Lines);
-        
+
         // Assert
         Assert.Contains("class SimpleClass", sourceCode);
         Assert.Contains("PublicField", sourceCode);
@@ -32,11 +32,11 @@ public class DecompilationFunctionalityTests : ServiceTestBase
     {
         // Arrange
         var decompilerService = new DecompilerService(ContextManager, MemberResolver);
-        
+
         // Act
         var document = decompilerService.DecompileMember("T:TestLibrary.ITestInterface");
         var sourceCode = string.Join("\n", document.Lines);
-        
+
         // Assert
         Assert.Contains("interface ITestInterface", sourceCode);
         Assert.Contains("InterfaceMethod", sourceCode);
@@ -48,11 +48,11 @@ public class DecompilationFunctionalityTests : ServiceTestBase
     {
         // Arrange
         var decompilerService = new DecompilerService(ContextManager, MemberResolver);
-        
+
         // Act
         var document = decompilerService.DecompileMember("T:TestLibrary.DerivedClass");
         var sourceCode = string.Join("\n", document.Lines);
-        
+
         // Assert
         Assert.Contains("class DerivedClass", sourceCode);
         Assert.Contains("BaseClass", sourceCode);
@@ -65,11 +65,11 @@ public class DecompilationFunctionalityTests : ServiceTestBase
     {
         // Arrange
         var decompilerService = new DecompilerService(ContextManager, MemberResolver);
-        
+
         // Act
         var document = decompilerService.DecompileMember("T:TestLibrary.TestEnum");
         var sourceCode = string.Join("\n", document.Lines);
-        
+
         // Assert
         Assert.Contains("enum TestEnum", sourceCode);
         Assert.Contains("First", sourceCode);
@@ -82,11 +82,11 @@ public class DecompilationFunctionalityTests : ServiceTestBase
     {
         // Arrange
         var decompilerService = new DecompilerService(ContextManager, MemberResolver);
-        
+
         // Act
         var document = decompilerService.DecompileMember("T:TestLibrary.GenericClass`1");
         var sourceCode = string.Join("\n", document.Lines);
-        
+
         // Assert
         Assert.Contains("GenericClass", sourceCode);
         Assert.Contains("<T>", sourceCode);
@@ -98,15 +98,15 @@ public class DecompilationFunctionalityTests : ServiceTestBase
     {
         // Arrange
         var decompilerService = new DecompilerService(ContextManager, MemberResolver);
-        
+
         // Act
         var slice = decompilerService.GetSourceSlice("T:TestLibrary.SimpleClass", 1, 3);
-        
+
         // Assert
         Assert.Equal(1, slice.StartLine);
         Assert.Equal(3, slice.EndLine);
         Assert.NotEmpty(slice.Code);
-        
+
         // Should be shorter than full document
         var fullDocument = decompilerService.DecompileMember("T:TestLibrary.SimpleClass");
         var fullSource = string.Join("\n", fullDocument.Lines);
@@ -136,10 +136,10 @@ public class DecompilationFunctionalityTests : ServiceTestBase
         // Arrange
         var decompilerService = new DecompilerService(ContextManager, MemberResolver);
         var document = decompilerService.DecompileMember("T:TestLibrary.SimpleClass");
-        
+
         // Act
         var jsonResponse = ResponseFormatter.Success(document);
-        
+
         // Assert
         Assert.NotNull(jsonResponse);
         Assert.Contains("\"status\":\"ok\"", jsonResponse);

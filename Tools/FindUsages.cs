@@ -5,10 +5,10 @@ namespace DecompilerServer;
 
 public static class FindUsagesTool
 {
-	[McpServerTool, Description("Find usages of a member across the assembly. Time-box and paginate.")]
-	public static string FindUsages(string memberId, int limit = 100, string? cursor = null)
-	{
-		/*
+    [McpServerTool, Description("Find usages of a member across the assembly. Time-box and paginate.")]
+    public static string FindUsages(string memberId, int limit = 100, string? cursor = null)
+    {
+        /*
 		Behavior:
 		- Identify metadata token(s) for the target.
 		- Iterate candidate methods (heuristic order: smaller first; optionally from prebuilt callers map).
@@ -22,6 +22,6 @@ public static class FindUsagesTool
 		- ResponseFormatter.TryExecute() for error handling
 		- ResponseFormatter.SearchResult() for paginated response formatting
 		*/
-		return "TODO";
-	}
+        return "TODO";
+    }
 }

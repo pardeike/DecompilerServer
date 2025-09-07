@@ -5,14 +5,14 @@ namespace DecompilerServer;
 
 public static class LoadAssemblyTool
 {
-	[McpServerTool, Description("Load or reload the Assembly-CSharp.dll and build minimal indexes.")]
-	public static string LoadAssembly(
-		string gameDir,
-		string assemblyFile = "Assembly-CSharp.dll",
-		string[]? additionalSearchDirs = null,
-		bool rebuildIndex = true)
-	{
-		/*
+    [McpServerTool, Description("Load or reload the Assembly-CSharp.dll and build minimal indexes.")]
+    public static string LoadAssembly(
+        string gameDir,
+        string assemblyFile = "Assembly-CSharp.dll",
+        string[]? additionalSearchDirs = null,
+        bool rebuildIndex = true)
+    {
+        /*
 		Goal: Initialize or refresh the global decompiler context.
 
 		Inputs:
@@ -43,6 +43,6 @@ public static class LoadAssemblyTool
 		- ResponseFormatter.TryExecute() for error handling
 		- ResponseFormatter.AssemblyLoaded() for response formatting
 		*/
-		return "TODO";
-	}
+        return "TODO";
+    }
 }
