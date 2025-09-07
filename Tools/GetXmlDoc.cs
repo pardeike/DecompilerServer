@@ -42,17 +42,13 @@ public static class GetXmlDocTool
 
     private static string? ExtractXmlDocumentation(IEntity entity)
     {
-        // TODO: Implement XML documentation extraction
-        //
-        // Basic XML documentation extraction
-        // The decompiler system has XML documentation support but accessing it requires
-        // more complex setup with XML documentation providers. For now, we return null
-        // as implementing full XML documentation parsing would require significant additional code.
-        // 
-        // In a full implementation, you would:
-        // 1. Set up IDocumentationProvider in the decompiler settings
-        // 2. Load XML documentation files alongside assemblies
-        // 3. Use entity.GetDocumentation() or similar methods
+        // XML documentation extraction is not implemented
+        // Full implementation would require:
+        // 1. Setting up IDocumentationProvider in decompiler settings
+        // 2. Loading XML documentation files alongside assemblies  
+        // 3. Configuring documentation providers during assembly loading
+        // This is beyond the scope of minimal changes and would require
+        // significant refactoring of the assembly loading infrastructure.
 
         return null;
     }
