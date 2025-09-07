@@ -3,8 +3,10 @@ using ICSharpCode.Decompiler.CSharp;
 using ICSharpCode.Decompiler.Metadata;
 using ICSharpCode.Decompiler.TypeSystem;
 using System.Reflection.Metadata;
+using System.Reflection.Metadata.Ecma335;
 using System.Reflection.PortableExecutable;
 using System.Collections.Concurrent;
+using System;
 
 namespace DecompilerServer.Services;
 
@@ -103,7 +105,8 @@ public class AssemblyContextManager : IDisposable
             _decompiler = new CSharpDecompiler(_peFile, _resolver, settings);
 
             // Extract MVID
-            Mvid = _peFile.Metadata.GetModuleDefinition().Mvid.ToString();
+            var moduleDef = _peFile.Metadata.GetModuleDefinition();
+            Mvid = _peFile.Metadata.GetGuid(moduleDef.Mvid).ToString("N");
 
             AssemblyPath = assemblyPath;
             LoadedAtUtc = DateTime.UtcNow;
@@ -321,27 +324,29 @@ public class AssemblyContextManager : IDisposable
         var index = new ConcurrentDictionary<string, IEntity>();
         if (!IsLoaded) return index;
 
+        var mvid = Mvid!;
+        if (mvid.Contains('-'))
+            mvid = Guid.Parse(mvid).ToString("N");
+
         foreach (var type in _compilation!.MainModule.TypeDefinitions)
         {
-            // Index type itself
-            index.TryAdd($"T:{type.FullName}", type);
+            index.TryAdd($"{mvid}:{MetadataTokens.GetToken(type.MetadataToken):X8}:T", type);
 
-            // Index members
             foreach (var method in type.Methods)
             {
-                index.TryAdd($"M:{method.FullName}", method);
+                index.TryAdd($"{mvid}:{MetadataTokens.GetToken(method.MetadataToken):X8}:M", method);
             }
             foreach (var field in type.Fields)
             {
-                index.TryAdd($"F:{field.FullName}", field);
+                index.TryAdd($"{mvid}:{MetadataTokens.GetToken(field.MetadataToken):X8}:F", field);
             }
             foreach (var property in type.Properties)
             {
-                index.TryAdd($"P:{property.FullName}", property);
+                index.TryAdd($"{mvid}:{MetadataTokens.GetToken(property.MetadataToken):X8}:P", property);
             }
             foreach (var evt in type.Events)
             {
-                index.TryAdd($"E:{evt.FullName}", evt);
+                index.TryAdd($"{mvid}:{MetadataTokens.GetToken(evt.MetadataToken):X8}:E", evt);
             }
         }
         return index;

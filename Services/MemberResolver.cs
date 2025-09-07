@@ -1,7 +1,9 @@
 using ICSharpCode.Decompiler.TypeSystem;
 using System.Reflection.Metadata;
+using System.Reflection.Metadata.Ecma335;
 using System.Text.RegularExpressions;
 using System.Collections.Concurrent;
+using System;
 
 namespace DecompilerServer.Services;
 
@@ -95,15 +97,28 @@ public class MemberResolver
     /// </summary>
     public string GenerateMemberId(IEntity entity)
     {
-        return entity switch
+        var mvid = _contextManager.Mvid;
+        if (mvid == null)
         {
-            ITypeDefinition type => $"T:{type.FullName}",
-            IMethod method => $"M:{method.FullName}",
-            IField field => $"F:{field.FullName}",
-            IProperty property => $"P:{property.FullName}",
-            IEvent evt => $"E:{evt.FullName}",
-            _ => entity.FullName
+            mvid = new string('0', 32);
+        }
+        else if (mvid.Contains('-'))
+        {
+            mvid = Guid.Parse(mvid).ToString("N");
+        }
+
+        var token = MetadataTokens.GetToken(entity.MetadataToken);
+        var kind = entity switch
+        {
+            ITypeDefinition => 'T',
+            IMethod => 'M',
+            IField => 'F',
+            IProperty => 'P',
+            IEvent => 'E',
+            _ => 'T'
         };
+
+        return $"{mvid}:{token:X8}:{kind}";
     }
 
     /// <summary>
@@ -130,8 +145,8 @@ public class MemberResolver
         if (string.IsNullOrWhiteSpace(memberId))
             return false;
 
-        // Check common patterns: T:, M:, F:, P:, E: prefixes or tokens
-        return Regex.IsMatch(memberId, @"^([TMFPE]:.*|0x[0-9A-Fa-f]+|\d+)$");
+        return Regex.IsMatch(memberId,
+            @"^([0-9A-Fa-f]{32}:[0-9A-Fa-f]{8}:[TMFPE]|[TMFPE]:.*|0x[0-9A-Fa-f]+|\d+)$");
     }
 
     /// <summary>

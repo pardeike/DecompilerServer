@@ -39,7 +39,7 @@ public class EnhancedCachingTests : ServiceTestBase
     public void MemberResolver_CacheResolutions_ShouldImprovePerformance()
     {
         // Arrange
-        var memberId = "T:TestLibrary.SimpleClass";
+        var memberId = MemberResolver.GenerateMemberId(ContextManager.FindTypeByName("TestLibrary.SimpleClass")!);
         var initialStats = MemberResolver.GetCacheStats();
 
         // Assert - no cached resolutions initially
@@ -115,8 +115,9 @@ public class EnhancedCachingTests : ServiceTestBase
         var searchResult1 = searchService.SearchTypes("Simple");
         var searchResult2 = searchService.SearchTypes("Simple"); // Should use cache
 
-        var usageResult1 = usageAnalyzer.FindUsages("T:TestLibrary.SimpleClass", 10);
-        var usageResult2 = usageAnalyzer.FindUsages("T:TestLibrary.SimpleClass", 10); // Should use cache
+        var memberId = MemberResolver.GenerateMemberId(ContextManager.FindTypeByName("TestLibrary.SimpleClass")!);
+        var usageResult1 = usageAnalyzer.FindUsages(memberId, 10);
+        var usageResult2 = usageAnalyzer.FindUsages(memberId, 10); // Should use cache
 
         // Assert - results should be consistent and caching should work
         Assert.Equal(searchResult1.Items.Count, searchResult2.Items.Count);

@@ -13,8 +13,10 @@ public class DecompilationFunctionalityTests : ServiceTestBase
         // Arrange
         var decompilerService = new DecompilerService(ContextManager, MemberResolver);
 
-        // Act
-        var document = decompilerService.DecompileMember("T:TestLibrary.SimpleClass");
+        var type = ContextManager.FindTypeByName("TestLibrary.SimpleClass")!;
+        var memberId = MemberResolver.GenerateMemberId(type);
+
+        var document = decompilerService.DecompileMember(memberId);
         var sourceCode = string.Join("\n", document.Lines);
 
         // Assert
@@ -33,8 +35,10 @@ public class DecompilationFunctionalityTests : ServiceTestBase
         // Arrange
         var decompilerService = new DecompilerService(ContextManager, MemberResolver);
 
-        // Act
-        var document = decompilerService.DecompileMember("T:TestLibrary.ITestInterface");
+        var type = ContextManager.FindTypeByName("TestLibrary.ITestInterface")!;
+        var memberId = MemberResolver.GenerateMemberId(type);
+
+        var document = decompilerService.DecompileMember(memberId);
         var sourceCode = string.Join("\n", document.Lines);
 
         // Assert
@@ -49,8 +53,10 @@ public class DecompilationFunctionalityTests : ServiceTestBase
         // Arrange
         var decompilerService = new DecompilerService(ContextManager, MemberResolver);
 
-        // Act
-        var document = decompilerService.DecompileMember("T:TestLibrary.DerivedClass");
+        var type = ContextManager.FindTypeByName("TestLibrary.DerivedClass")!;
+        var memberId = MemberResolver.GenerateMemberId(type);
+
+        var document = decompilerService.DecompileMember(memberId);
         var sourceCode = string.Join("\n", document.Lines);
 
         // Assert
@@ -66,8 +72,10 @@ public class DecompilationFunctionalityTests : ServiceTestBase
         // Arrange
         var decompilerService = new DecompilerService(ContextManager, MemberResolver);
 
-        // Act
-        var document = decompilerService.DecompileMember("T:TestLibrary.TestEnum");
+        var type = ContextManager.FindTypeByName("TestLibrary.TestEnum")!;
+        var memberId = MemberResolver.GenerateMemberId(type);
+
+        var document = decompilerService.DecompileMember(memberId);
         var sourceCode = string.Join("\n", document.Lines);
 
         // Assert
@@ -83,8 +91,10 @@ public class DecompilationFunctionalityTests : ServiceTestBase
         // Arrange
         var decompilerService = new DecompilerService(ContextManager, MemberResolver);
 
-        // Act
-        var document = decompilerService.DecompileMember("T:TestLibrary.GenericClass`1");
+        var type = ContextManager.GetAllTypes().First(t => t.Name.StartsWith("GenericClass"));
+        var memberId = MemberResolver.GenerateMemberId(type);
+
+        var document = decompilerService.DecompileMember(memberId);
         var sourceCode = string.Join("\n", document.Lines);
 
         // Assert
@@ -99,8 +109,10 @@ public class DecompilationFunctionalityTests : ServiceTestBase
         // Arrange
         var decompilerService = new DecompilerService(ContextManager, MemberResolver);
 
-        // Act
-        var slice = decompilerService.GetSourceSlice("T:TestLibrary.SimpleClass", 1, 3);
+        var type = ContextManager.FindTypeByName("TestLibrary.SimpleClass")!;
+        var memberId = MemberResolver.GenerateMemberId(type);
+
+        var slice = decompilerService.GetSourceSlice(memberId, 1, 3);
 
         // Assert
         Assert.Equal(1, slice.StartLine);
@@ -108,7 +120,7 @@ public class DecompilationFunctionalityTests : ServiceTestBase
         Assert.NotEmpty(slice.Code);
 
         // Should be shorter than full document
-        var fullDocument = decompilerService.DecompileMember("T:TestLibrary.SimpleClass");
+        var fullDocument = decompilerService.DecompileMember(memberId);
         var fullSource = string.Join("\n", fullDocument.Lines);
         Assert.True(slice.Code.Length < fullSource.Length);
     }
@@ -117,15 +129,18 @@ public class DecompilationFunctionalityTests : ServiceTestBase
     public void MemberResolver_CanResolveVariousMembers()
     {
         // Act & Assert - Test different member types
-        var classEntity = MemberResolver.ResolveMember("T:TestLibrary.SimpleClass");
+        var classId = MemberResolver.GenerateMemberId(ContextManager.FindTypeByName("TestLibrary.SimpleClass")!);
+        var classEntity = MemberResolver.ResolveMember(classId);
         Assert.NotNull(classEntity);
         Assert.Equal("SimpleClass", classEntity.Name);
 
-        var interfaceEntity = MemberResolver.ResolveMember("T:TestLibrary.ITestInterface");
+        var interfaceId = MemberResolver.GenerateMemberId(ContextManager.FindTypeByName("TestLibrary.ITestInterface")!);
+        var interfaceEntity = MemberResolver.ResolveMember(interfaceId);
         Assert.NotNull(interfaceEntity);
         Assert.Equal("ITestInterface", interfaceEntity.Name);
 
-        var enumEntity = MemberResolver.ResolveMember("T:TestLibrary.TestEnum");
+        var enumId = MemberResolver.GenerateMemberId(ContextManager.FindTypeByName("TestLibrary.TestEnum")!);
+        var enumEntity = MemberResolver.ResolveMember(enumId);
         Assert.NotNull(enumEntity);
         Assert.Equal("TestEnum", enumEntity.Name);
     }
@@ -135,7 +150,9 @@ public class DecompilationFunctionalityTests : ServiceTestBase
     {
         // Arrange
         var decompilerService = new DecompilerService(ContextManager, MemberResolver);
-        var document = decompilerService.DecompileMember("T:TestLibrary.SimpleClass");
+        var type = ContextManager.FindTypeByName("TestLibrary.SimpleClass")!;
+        var memberId = MemberResolver.GenerateMemberId(type);
+        var document = decompilerService.DecompileMember(memberId);
 
         // Act
         var jsonResponse = ResponseFormatter.Success(document);
@@ -143,7 +160,7 @@ public class DecompilationFunctionalityTests : ServiceTestBase
         // Assert
         Assert.NotNull(jsonResponse);
         Assert.Contains("\"status\":\"ok\"", jsonResponse);
-        Assert.Contains("\"memberId\":\"T:TestLibrary.SimpleClass\"", jsonResponse);
+        Assert.Contains($"\"memberId\":\"{memberId}\"", jsonResponse);
         Assert.Contains("\"language\":\"C#\"", jsonResponse);
         Assert.Contains("\"totalLines\":", jsonResponse);
     }
