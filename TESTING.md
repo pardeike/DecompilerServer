@@ -20,7 +20,7 @@ This project now includes a comprehensive testing framework using xUnit that val
 
 ### 2. Test Project
 - **Framework**: xUnit
-- **Location**: `DecompilerServer.Tests/`
+- **Location**: `Tests/`
 - **Base Class**: `ServiceTestBase` - provides common setup with loaded test.dll
 
 ### 3. Test Categories
@@ -51,13 +51,13 @@ All major service helpers are comprehensively tested:
 ### xUnit Tests (Recommended)
 ```bash
 # Run all xUnit tests
-dotnet test DecompilerServer.Tests/
+dotnet test Tests/
 
 # Run with verbose output
-dotnet test DecompilerServer.Tests/ --verbosity normal
+dotnet test Tests/ --verbosity normal
 
 # Run specific test class
-dotnet test DecompilerServer.Tests/ --filter "ClassName=SimpleServiceTests"
+dotnet test Tests/ --filter "ClassName=SimpleServiceTests"
 ```
 
 ### Legacy Basic Tests (Backward Compatibility)

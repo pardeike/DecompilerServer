@@ -14,7 +14,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Compile Remove="DecompilerServer.Tests/**" />
+    <Compile Remove="Tests/**" />
     <Compile Remove="TestLibrary/**" />
   </ItemGroup>
 

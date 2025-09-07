@@ -32,7 +32,7 @@ DecompilerServer/
 │   ├── GetDecompiledSource.cs     # Core decompilation to C#
 │   ├── GetSourceSlice.cs          # Source code range viewing
 │   └── GetMemberDetails.cs        # Rich member metadata
-├── DecompilerServer.Tests/        # xUnit test suite
+├── Tests/                          # xUnit test suite
 ├── TestLibrary/                   # Test assembly for validation
 ├── ServiceLocator.cs              # Service locator for MCP tools
 ├── Program.cs                     # Application entry point

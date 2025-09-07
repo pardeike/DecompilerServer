@@ -1,6 +1,6 @@
 using DecompilerServer.Services;
 
-namespace DecompilerServer.Tests;
+namespace Tests;
 
 /// <summary>
 /// Tests that demonstrate the actual decompilation functionality working end-to-end

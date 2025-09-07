@@ -1,6 +1,6 @@
 using DecompilerServer.Services;
 
-namespace DecompilerServer.Tests;
+namespace Tests;
 
 public class SimpleServiceTests : ServiceTestBase
 {
