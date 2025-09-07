@@ -39,6 +39,14 @@ DecompilerServer/
 └── *.md                          # Documentation files
 ```
 
+## Documentation
+
+### Developer Guides
+- **[HELPER_METHODS_GUIDE.md](../HELPER_METHODS_GUIDE.md)** - Comprehensive guide to all service helper methods and implementation patterns for MCP tools. Essential reading for understanding the service architecture and implementing new endpoints.
+- **[TESTING.md](../TESTING.md)** - Complete testing framework documentation covering xUnit setup, test data structure, and testing patterns. Required reading for writing tests and understanding the test infrastructure.
+
+Both guides are actively maintained and provide crucial implementation guidance for developers working on the DecompilerServer.
+
 ## Core Architecture Principles
 
 ### Member ID System
@@ -119,6 +127,8 @@ dotnet format DecompilerServer.sln
 
 ## Common Patterns
 
+**See [HELPER_METHODS_GUIDE.md](../HELPER_METHODS_GUIDE.md) for comprehensive service helper documentation and implementation patterns.**
+
 ### Service Dependencies
 Services typically depend on:
 - `AssemblyContextManager` - for assembly access
@@ -148,6 +158,8 @@ Always return structured error objects rather than throwing exceptions when impl
 - Validate both service functionality and JSON output format
 - Ensure thread safety in concurrent scenarios
 - Test pagination and cursor handling
+
+**See [TESTING.md](../TESTING.md) for complete testing framework documentation and best practices.**
 
 ### MCP Tool Testing Patterns
 When implementing MCP tools (static methods), follow these patterns:
