@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using ModelContextProtocol.Server;
+using DecompilerServer.Services;
 
 namespace DecompilerServer;
 
@@ -14,20 +15,32 @@ public static class SearchTypesTool
         int limit = 50,
         string? cursor = null)
     {
-        /*
-		Inputs: query, regex?, namespaceFilter?, includeNested?, limit, cursor.
+        return ResponseFormatter.TryExecute(() =>
+        {
+            var contextManager = ServiceLocator.ContextManager;
 
-		Behavior:
-		- Case-insensitive substring by default; if regex=true use compiled Regex with timeout.
-		- Filters: namespace, include nested types or not.
-		- Return SearchResult<MemberSummary> with Kind="Type". Signature includes generic arity and base type.
+            if (!contextManager.IsLoaded)
+            {
+                throw new InvalidOperationException("No assembly loaded");
+            }
 
-		Helper methods to use:
-		- AssemblyContextManager.IsLoaded to check if assembly is loaded
-		- SearchServiceBase.SearchTypes() for main search logic
-		- ResponseFormatter.TryExecute() for error handling
-		- ResponseFormatter.SearchResult() for response formatting
-		*/
-        return "TODO";
+            // Create a SearchServiceBase instance to use the search functionality
+            var searchService = new SearchService(contextManager, ServiceLocator.MemberResolver);
+
+            var result = searchService.SearchTypes(query, regex, namespaceFilter, includeNested, limit, cursor);
+
+            return result;
+        });
+    }
+}
+
+/// <summary>
+/// Concrete implementation of SearchServiceBase for use in tools
+/// </summary>
+internal class SearchService : SearchServiceBase
+{
+    public SearchService(AssemblyContextManager contextManager, MemberResolver memberResolver)
+        : base(contextManager, memberResolver)
+    {
     }
 }

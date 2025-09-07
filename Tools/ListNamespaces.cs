@@ -1,5 +1,6 @@
 using System.ComponentModel;
 using ModelContextProtocol.Server;
+using DecompilerServer.Services;
 
 namespace DecompilerServer;
 
@@ -8,21 +9,68 @@ public static class ListNamespacesTool
     [McpServerTool, Description("List namespaces. Optional prefix filter and pagination.")]
     public static string ListNamespaces(string? prefix = null, int limit = 100, string? cursor = null)
     {
-        /*
-		Inputs: prefix (optional), limit, cursor.
+        return ResponseFormatter.TryExecute(() =>
+        {
+            var contextManager = ServiceLocator.ContextManager;
 
-		Behavior:
-		- Enumerate distinct namespaces from type system.
-		- Prefix match if provided (case-insensitive).
-		- Return SearchResult<MemberHandle> where Kind="Namespace" and Name="<ns>".
+            if (!contextManager.IsLoaded)
+            {
+                throw new InvalidOperationException("No assembly loaded");
+            }
 
-		Helper methods to use:
-		- AssemblyContextManager.IsLoaded to check if assembly is loaded
-		- AssemblyContextManager.GetNamespaces() to get all namespaces
-		- SearchServiceBase.ApplyPagination() for cursor-based pagination
-		- ResponseFormatter.TryExecute() for error handling
-		- ResponseFormatter.SearchResult() for paginated response formatting
-		*/
-        return "TODO";
+            // Get all namespaces
+            var namespaces = contextManager.GetNamespaces();
+
+            // Apply prefix filter if provided
+            if (!string.IsNullOrEmpty(prefix))
+            {
+                namespaces = namespaces.Where(ns =>
+                    ns.StartsWith(prefix, StringComparison.OrdinalIgnoreCase));
+            }
+
+            // Sort for consistent ordering
+            var sortedNamespaces = namespaces.OrderBy(ns => ns).ToList();
+
+            // Apply pagination
+            var startIndex = 0;
+            if (!string.IsNullOrEmpty(cursor) && int.TryParse(cursor, out var cursorIndex))
+            {
+                startIndex = cursorIndex;
+            }
+
+            var pageItems = sortedNamespaces
+                .Skip(startIndex)
+                .Take(limit)
+                .Select(ns => new MemberHandle
+                {
+                    MemberId = $"N:{ns}",
+                    Name = ns,
+                    Kind = "Namespace"
+                })
+                .ToList();
+
+            var hasMore = startIndex + limit < sortedNamespaces.Count;
+            var nextCursor = hasMore ? (startIndex + limit).ToString() : null;
+
+            var result = new SearchResult<MemberHandle>
+            {
+                Items = pageItems,
+                HasMore = hasMore,
+                NextCursor = nextCursor,
+                TotalEstimate = sortedNamespaces.Count
+            };
+
+            return result;
+        });
     }
+}
+
+/// <summary>
+/// Simple handle for members that don't need full summary information
+/// </summary>
+public class MemberHandle
+{
+    public required string MemberId { get; init; }
+    public required string Name { get; init; }
+    public required string Kind { get; init; }
 }

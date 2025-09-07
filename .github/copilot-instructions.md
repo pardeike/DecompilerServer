@@ -25,8 +25,16 @@ DecompilerServer/
 │   ├── UsageAnalyzer.cs           # Code usage analysis
 │   ├── InheritanceAnalyzer.cs     # Inheritance relationship analysis
 │   └── ResponseFormatter.cs       # JSON response formatting
+├── Tools/                 # MCP tool implementations (static methods)
+│   ├── ResolveMemberId.cs         # Member ID validation
+│   ├── ListNamespaces.cs          # Namespace enumeration
+│   ├── SearchTypes.cs             # Type discovery with search
+│   ├── GetDecompiledSource.cs     # Core decompilation to C#
+│   ├── GetSourceSlice.cs          # Source code range viewing
+│   └── GetMemberDetails.cs        # Rich member metadata
 ├── DecompilerServer.Tests/        # xUnit test suite
 ├── TestLibrary/                   # Test assembly for validation
+├── ServiceLocator.cs              # Service locator for MCP tools
 ├── Program.cs                     # Application entry point
 └── *.md                          # Documentation files
 ```
@@ -117,6 +125,13 @@ Services typically depend on:
 - `MemberResolver` - for ID resolution and validation
 - Other services as needed for specific functionality
 
+### MCP Tool Dependencies
+MCP tools (static methods) access services via:
+- `ServiceLocator.ContextManager` - assembly context access
+- `ServiceLocator.MemberResolver` - member ID operations
+- `ServiceLocator.DecompilerService` - source decompilation
+- `ServiceLocator.ResponseFormatter` - consistent JSON responses
+
 ### Response Models
 Use consistent model types (defined in shared Models.cs):
 - `MemberHandle`, `MemberSummary`, `SearchResult<T>`
@@ -134,9 +149,79 @@ Always return structured error objects rather than throwing exceptions when impl
 - Ensure thread safety in concurrent scenarios
 - Test pagination and cursor handling
 
+### MCP Tool Testing Patterns
+When implementing MCP tools (static methods), follow these patterns:
+
+- **ServiceLocator Setup**: Create a service provider in test constructor and register all required services:
+  ```csharp
+  public ToolImplementationTests()
+  {
+      var services = new ServiceCollection();
+      services.AddSingleton(ContextManager);
+      services.AddSingleton(MemberResolver);
+      services.AddSingleton<DecompilerService>();
+      services.AddSingleton<UsageAnalyzer>();
+      services.AddSingleton<InheritanceAnalyzer>();
+      services.AddSingleton<ResponseFormatter>();
+      
+      _serviceProvider = services.BuildServiceProvider();
+      ServiceLocator.SetServiceProvider(_serviceProvider);
+  }
+  ```
+
+- **Service Dependencies**: Always register services in the correct dependency order:
+  1. `AssemblyContextManager` (core, no dependencies)
+  2. `MemberResolver` (depends on AssemblyContextManager)
+  3. All other services (DecompilerService, UsageAnalyzer, etc.)
+  4. `ResponseFormatter` (standalone)
+
+- **Test Cleanup**: Do NOT override Dispose() with [Fact] attribute - this causes xUnit errors. Let ServiceTestBase handle disposal naturally.
+
+- **SearchService Pattern**: When tools need SearchServiceBase functionality, create a concrete implementation:
+  ```csharp
+  internal class SearchService : SearchServiceBase
+  {
+      public SearchService(AssemblyContextManager contextManager, MemberResolver memberResolver)
+          : base(contextManager, memberResolver) { }
+  }
+  ```
+
 ## Performance Optimization
 
 - Implement lazy loading for expensive operations
 - Use concurrent collections for thread-safe caching
 - Build indexes incrementally rather than upfront
 - Consider memory usage when caching large decompiled sources
+
+## MCP Tool Implementation Guidelines
+
+### Static Method Pattern
+MCP tools must be implemented as static methods with specific attributes:
+```csharp
+[McpServerTool, Description("Tool description")]
+public static string ToolName(parameters...)
+{
+    return ResponseFormatter.TryExecute(() =>
+    {
+        // Access services via ServiceLocator
+        var service = ServiceLocator.GetRequiredService<ServiceType>();
+        // Implementation logic
+        return result;
+    });
+}
+```
+
+### ServiceLocator Usage
+- Use ServiceLocator pattern to provide dependency injection for static MCP tools
+- Always check if assembly is loaded before performing operations
+- Use ResponseFormatter.TryExecute() for consistent error handling across all tools
+
+## Final Development Step
+
+**Before completing any major work or making the final commit, always review and update `.github/copilot-instructions.md` if:**
+- You encountered unexpected patterns or pitfalls during development
+- New architectural patterns or testing approaches were discovered
+- Additional framework-specific guidance would help future development
+- The current instructions have become outdated or incomplete
+
+This ensures knowledge from each development cycle is captured for improved efficiency in future work.
