@@ -28,6 +28,19 @@ public class DecompilationFunctionalityTests : ServiceTestBase
     }
 
     [Fact]
+    public void DecompileWithoutHeader_RemovesNamespaceAndUsings()
+    {
+        var decompilerService = new DecompilerService(ContextManager, MemberResolver);
+
+        var document = decompilerService.DecompileMember("T:TestLibrary.SimpleClass", includeHeader: false);
+
+        Assert.DoesNotContain(document.Lines, l => l.StartsWith("using"));
+        Assert.DoesNotContain(document.Lines, l => l.StartsWith("namespace"));
+        var source = string.Join("\n", document.Lines);
+        Assert.Contains("class SimpleClass", source);
+    }
+
+    [Fact]
     public void DecompileInterface_ShouldContainInterfaceDeclaration()
     {
         // Arrange

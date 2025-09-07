@@ -156,6 +156,31 @@ public class ToolImplementationTests : ServiceTestBase
     }
 
     [Fact]
+    public void GetDecompiledSource_WithoutHeader_StripsHeader()
+    {
+        var types = ContextManager.GetAllTypes();
+        var testType = types.FirstOrDefault(t => t.Name.Contains("Test"));
+        Assert.NotNull(testType);
+
+        var memberId = MemberResolver.GenerateMemberId(testType);
+
+        var result = GetDecompiledSourceTool.GetDecompiledSource(memberId, includeHeader: false);
+
+        Assert.NotNull(result);
+        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        Assert.Equal("ok", response.GetProperty("status").GetString());
+
+        var data = response.GetProperty("data");
+        Assert.False(data.GetProperty("includeHeader").GetBoolean());
+
+        var service = _serviceProvider.GetRequiredService<DecompilerService>();
+        var document = service.DecompileMember(memberId, includeHeader: false);
+
+        Assert.DoesNotContain(document.Lines, l => l.StartsWith("using"));
+        Assert.DoesNotContain(document.Lines, l => l.StartsWith("namespace"));
+    }
+
+    [Fact]
     public void GetSourceSlice_WithValidRange_ReturnsSourceCode()
     {
         // Arrange - find a type and decompile it first
@@ -989,7 +1014,7 @@ public class ToolImplementationTests : ServiceTestBase
         // Arrange - find an interface type if available
         var types = ContextManager.GetAllTypes();
         var interfaceType = types.FirstOrDefault(t => t.Kind == ICSharpCode.Decompiler.TypeSystem.TypeKind.Interface);
-        
+
         if (interfaceType != null)
         {
             var memberId = MemberResolver.GenerateMemberId(interfaceType);
@@ -1374,7 +1399,7 @@ public class ToolImplementationTests : ServiceTestBase
 
         // Verify chunks structure
         Assert.True(chunks.ValueKind == JsonValueKind.Array);
-        
+
         for (int i = 0; i < chunks.GetArrayLength(); i++)
         {
             var chunk = chunks[i];
@@ -1415,9 +1440,9 @@ public class ToolImplementationTests : ServiceTestBase
         // Verify outline structure
         Assert.True(outline.TryGetProperty("kind", out _));
         Assert.True(outline.TryGetProperty("name", out _));
-        
+
         // For methods, expect certain properties
-        if (outline.TryGetProperty("kind", out var kind) && 
+        if (outline.TryGetProperty("kind", out var kind) &&
             (kind.GetString() == "Method" || kind.GetString() == "Constructor"))
         {
             Assert.True(outline.TryGetProperty("accessibility", out _));
@@ -1446,16 +1471,16 @@ public class ToolImplementationTests : ServiceTestBase
         var data = response.GetProperty("data");
         // Type kind could be Class, Interface, Struct, etc.
         var memberKind = data.GetProperty("memberKind").GetString();
-        Assert.True(memberKind == "Class" || memberKind == "Interface" || memberKind == "Struct" || 
+        Assert.True(memberKind == "Class" || memberKind == "Interface" || memberKind == "Struct" ||
                    memberKind == "Enum" || memberKind == "Delegate");
-        
+
         var outline = data.GetProperty("outline");
         Assert.True(outline.TryGetProperty("kind", out _));
         Assert.True(outline.TryGetProperty("name", out _));
         Assert.True(outline.TryGetProperty("fullName", out _));
         Assert.True(outline.TryGetProperty("memberCount", out _));
         Assert.True(outline.TryGetProperty("children", out var children));
-        
+
         // Should have children at depth 1
         Assert.True(children.ValueKind == JsonValueKind.Array);
     }
