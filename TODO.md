@@ -31,24 +31,18 @@ This document contains comprehensive TODOs and recommendations based on a detail
 - More concise syntax
 - Aligns with original design intent
 
-### TODO-003: Fix Hanging Test in PlanChunking Tool
+### TODO-003: Fix Hanging Test in PlanChunking Tool ✅ COMPLETED
 **Priority**: High | **Complexity**: Medium  
-**Context**: The test `PlanChunking_WithValidMember_ReturnsChunkPlan` in `ToolImplementationTests.cs` hangs indefinitely and never completes, causing CI/testing issues.
+**Context**: The test `PlanChunking_WithValidMember_ReturnsChunkPlan` in `ToolImplementationTests.cs` was hanging indefinitely due to an infinite loop in the chunking logic.
 
-**Root Cause Analysis**:
-- Test calls `PlanChunkingTool.PlanChunking()` which internally calls `DecompilerService.DecompileMember()` and `GetSourceSlice()`
-- Issue likely in decompilation process rather than chunking logic itself
-- DecompilerService decompiles entire containing type for methods/fields/properties (lines 153, 158, 163, 168 in DecompilerService.cs)
-- Potential infinite loop or very slow decompilation when processing test assembly members
-- Test times out after 10+ seconds, indicating genuine hang rather than slow operation
+**Root Cause**: The infinite loop prevention logic in PlanChunking tool was flawed. When `currentStart = currentEnd + 1 - overlap`, if the overlap was large enough, `currentStart` would not advance, causing an infinite loop.
 
-**Investigation Needed**:
-- Add timeout protection to decompilation calls in PlanChunking tool
-- Identify which specific member ID causes the hang (test finds first non-constructor method)
-- Consider caching issues or circular reference in decompiler
-- May need fallback mechanism or early termination for problematic members
+**Fix Applied**: 
+- Simplified and fixed the infinite loop prevention logic to ensure `currentStart` always advances
+- Changed the logic to `if (nextStart <= currentStart) { nextStart = currentStart + 1; }`
+- Test now passes reliably in ~1 second instead of hanging indefinitely
 
-**Immediate Fix**: Add timeout wrapper around decompilation calls in PlanChunking tool to prevent infinite hangs.
+**Status**: ✅ COMPLETED - Fix verified, all tests passing
 
 ### TODO-004: Standardize Pagination Across All Tools
 **Priority**: High | **Complexity**: Low  

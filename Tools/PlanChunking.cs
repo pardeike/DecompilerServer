@@ -96,13 +96,15 @@ public static class PlanChunkingTool
                         (currentEnd - currentStart + 1) * avgCharsPerLine));
 
                     // Move to next chunk with overlap consideration
-                    currentStart = currentEnd + 1 - overlap;
+                    var nextStart = currentEnd + 1 - overlap;
 
-                    // Prevent infinite loop if overlap is too large
-                    if (currentStart <= currentEnd - targetLinesPerChunk + overlap)
+                    // Prevent infinite loop by ensuring we always advance
+                    if (nextStart <= currentStart)
                     {
-                        currentStart = currentEnd + 1;
+                        nextStart = currentStart + 1;
                     }
+
+                    currentStart = nextStart;
                 }
 
                 result = new ChunkPlanResult(
