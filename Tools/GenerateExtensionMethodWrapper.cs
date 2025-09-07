@@ -42,12 +42,7 @@ public static class GenerateExtensionMethodWrapperTool
 
             var target = CreateMethodSummary(method);
 
-            var result = new GeneratedCodeResult
-            {
-                Target = target,
-                Code = code,
-                Notes = notes
-            };
+            var result = new GeneratedCodeResult(target, code, notes);
 
             return result;
         });
@@ -98,9 +93,9 @@ public static class GenerateExtensionMethodWrapperTool
 
         // Parameters - first parameter is the 'this' extension parameter
         methodSignature.Append("(");
-        
+
         var parameters = new List<string>();
-        
+
         // Add 'this' parameter for the declaring type
         parameters.Add($"this {GetTypeDisplayName(declaringType)} instance");
 
@@ -121,21 +116,21 @@ public static class GenerateExtensionMethodWrapperTool
         // Generic constraints
         foreach (var typeParam in method.TypeParameters)
         {
-            if (typeParam.HasValueTypeConstraint || typeParam.HasReferenceTypeConstraint || 
+            if (typeParam.HasValueTypeConstraint || typeParam.HasReferenceTypeConstraint ||
                 typeParam.HasDefaultConstructorConstraint || typeParam.DirectBaseTypes.Any())
             {
                 var constraints = new List<string>();
-                
+
                 if (typeParam.HasReferenceTypeConstraint)
                     constraints.Add("class");
                 if (typeParam.HasValueTypeConstraint)
                     constraints.Add("struct");
-                    
+
                 foreach (var baseType in typeParam.DirectBaseTypes)
                 {
                     constraints.Add(GetTypeDisplayName(baseType));
                 }
-                
+
                 if (typeParam.HasDefaultConstructorConstraint)
                     constraints.Add("new()");
 
@@ -166,7 +161,7 @@ public static class GenerateExtensionMethodWrapperTool
         // Add notes
         notes.Add("This extension method allows calling the instance method using extension syntax");
         notes.Add("Usage: instance.ExtensionMethodName(params) instead of ExtensionMethods.Extensions.MethodName(instance, params)");
-        
+
         if (method.TypeParameters.Any())
         {
             notes.Add("Generic type parameters are preserved from the original method");

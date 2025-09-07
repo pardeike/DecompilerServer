@@ -35,16 +35,7 @@ public static class GetSourceSliceTool
                 var numberedCode = string.Join("\n", numberedLines);
 
                 // Create a new slice with the numbered code
-                slice = new SourceSlice
-                {
-                    MemberId = slice.MemberId,
-                    Language = slice.Language,
-                    StartLine = slice.StartLine,
-                    EndLine = slice.EndLine,
-                    TotalLines = slice.TotalLines,
-                    Hash = slice.Hash,
-                    Code = numberedCode
-                };
+                slice = slice with { Code = numberedCode };
             }
 
             return slice;

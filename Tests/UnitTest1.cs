@@ -1,4 +1,6 @@
 using DecompilerServer.Services;
+using ICSharpCode.Decompiler.TypeSystem;
+using System.Reflection.Metadata.Ecma335;
 
 namespace Tests;
 
@@ -16,8 +18,8 @@ public class SimpleServiceTests : ServiceTestBase
     [Fact]
     public void MemberResolver_ResolveSimpleClass_ShouldReturnValidType()
     {
-        // Act
-        var entity = MemberResolver.ResolveMember("T:TestLibrary.SimpleClass");
+        var memberId = MemberResolver.GenerateMemberId(ContextManager.FindTypeByName("TestLibrary.SimpleClass")!);
+        var entity = MemberResolver.ResolveMember(memberId);
 
         // Assert
         Assert.NotNull(entity);
@@ -27,10 +29,34 @@ public class SimpleServiceTests : ServiceTestBase
     [Fact]
     public void MemberResolver_IsValidMemberId_ShouldValidateCorrectly()
     {
-        // Act & Assert
-        Assert.True(MemberResolver.IsValidMemberId("T:TestLibrary.SimpleClass"));
+        var memberId = MemberResolver.GenerateMemberId(ContextManager.FindTypeByName("TestLibrary.SimpleClass")!);
+        Assert.True(MemberResolver.IsValidMemberId(memberId));
         Assert.False(MemberResolver.IsValidMemberId(""));
         Assert.False(MemberResolver.IsValidMemberId("InvalidFormat"));
+    }
+
+    [Fact]
+    public void MemberResolver_ResolveHexToken_ShouldReturnMember()
+    {
+        var method = (IMethod)MemberResolver.ResolveMember("M:TestLibrary.SimpleClass.SimpleMethod")!;
+        var token = $"0x{MetadataTokens.GetToken(method.MetadataToken):X8}";
+
+        var resolved = MemberResolver.ResolveMember(token);
+
+        Assert.NotNull(resolved);
+        Assert.Equal(method, resolved);
+    }
+
+    [Fact]
+    public void MemberResolver_ResolveDecimalToken_ShouldReturnMember()
+    {
+        var field = (IField)MemberResolver.ResolveMember("F:TestLibrary.SimpleClass.PublicField")!;
+        var token = MetadataTokens.GetToken(field.MetadataToken).ToString();
+
+        var resolved = MemberResolver.ResolveMember(token);
+
+        Assert.NotNull(resolved);
+        Assert.Equal(field, resolved);
     }
 
     [Fact]
@@ -39,12 +65,12 @@ public class SimpleServiceTests : ServiceTestBase
         // Arrange
         var decompilerService = new DecompilerService(ContextManager, MemberResolver);
 
-        // Act
-        var document = decompilerService.DecompileMember("T:TestLibrary.SimpleClass");
+        var memberId = MemberResolver.GenerateMemberId(ContextManager.FindTypeByName("TestLibrary.SimpleClass")!);
+        var document = decompilerService.DecompileMember(memberId);
 
         // Assert
         Assert.NotNull(document);
-        Assert.Equal("T:TestLibrary.SimpleClass", document.MemberId);
+        Assert.Equal(memberId, document.MemberId);
         Assert.Equal("C#", document.Language);
         Assert.True(document.TotalLines > 0);
         Assert.NotNull(document.Lines);

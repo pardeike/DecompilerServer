@@ -25,13 +25,7 @@ public static class GetOverloadsTool
                 .ThenBy(m => m.Signature)
                 .ToList();
 
-            var result = new SearchResult<MemberSummary>
-            {
-                Items = overloadList,
-                HasMore = false,
-                NextCursor = null,
-                TotalEstimate = overloadList.Count
-            };
+            var result = new SearchResult<MemberSummary>(overloadList, false, null, overloadList.Count);
 
             return result;
         });

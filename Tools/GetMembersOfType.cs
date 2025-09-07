@@ -75,13 +75,7 @@ public static class GetMembersOfTypeTool
             var hasMore = startIndex + limit < sortedMembers.Count;
             var nextCursor = hasMore ? (startIndex + limit).ToString() : null;
 
-            var result = new SearchResult<MemberSummary>
-            {
-                Items = pageItems,
-                HasMore = hasMore,
-                NextCursor = nextCursor,
-                TotalEstimate = sortedMembers.Count
-            };
+            var result = new SearchResult<MemberSummary>(pageItems, hasMore, nextCursor, sortedMembers.Count);
 
             return result;
         });
