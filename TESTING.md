@@ -28,7 +28,7 @@ This project now includes a comprehensive testing framework using xUnit that val
 #### SimpleServiceTests
 Basic functionality tests that validate core service creation and basic operations.
 
-#### ServiceIntegrationTests  
+#### ServiceIntegrationTests
 Integration tests that verify services work together correctly with real assembly data.
 
 #### DecompilationFunctionalityTests
@@ -58,12 +58,6 @@ dotnet test DecompilerServer.Tests/ --verbosity normal
 
 # Run specific test class
 dotnet test DecompilerServer.Tests/ --filter "ClassName=SimpleServiceTests"
-```
-
-### Legacy Basic Tests (Backward Compatibility)
-```bash
-# Run original basic tests
-dotnet run -- --test
 ```
 
 ## Test Data
