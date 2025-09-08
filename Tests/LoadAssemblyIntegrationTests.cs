@@ -34,7 +34,7 @@ public class LoadAssemblyIntegrationTests : IDisposable
         var gameDir = Path.Combine(_tempDir, "RimWorld");
         var dataDir = Path.Combine(gameDir, "RimWorldWin64_Data", "Managed");
         Directory.CreateDirectory(dataDir);
-        
+
         var testAssemblyPath = GetTestAssemblyPath();
         var targetAssemblyPath = Path.Combine(dataDir, "Assembly-CSharp.dll");
         File.Copy(testAssemblyPath, targetAssemblyPath);
@@ -57,7 +57,7 @@ public class LoadAssemblyIntegrationTests : IDisposable
         var gameDir = Path.Combine(_tempDir, "MyGame");
         var dataDir = Path.Combine(gameDir, "MyGame_Data", "Managed");
         Directory.CreateDirectory(dataDir);
-        
+
         var testAssemblyPath = GetTestAssemblyPath();
         var targetAssemblyPath = Path.Combine(dataDir, "Assembly-CSharp.dll");
         File.Copy(testAssemblyPath, targetAssemblyPath);

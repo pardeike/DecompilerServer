@@ -125,42 +125,45 @@ public class DecompilerService
 
     private static string StripHeader(string code)
     {
-        var lines = code.Split('\n').ToList();
+        var lines = code.Split('\n');
         var index = 0;
 
-        while (index < lines.Count && (lines[index].StartsWith("using ") || string.IsNullOrWhiteSpace(lines[index])))
+        while (index < lines.Length && (lines[index].StartsWith("using ") || string.IsNullOrWhiteSpace(lines[index])))
             index++;
 
-        if (index < lines.Count && lines[index].StartsWith("namespace"))
+        var startIndex = index;
+        var endIndex = lines.Length;
+
+        if (index < lines.Length && lines[index].StartsWith("namespace"))
         {
             var nsLine = lines[index];
             var braceStyle = !nsLine.TrimEnd().EndsWith(";");
             index++;
 
-            if (braceStyle && index < lines.Count && lines[index].Trim() == "{")
+            if (braceStyle && index < lines.Length && lines[index].Trim() == "{")
                 index++;
 
-            var end = lines.Count;
+            startIndex = index;
+
             if (braceStyle)
             {
-                while (end > index && string.IsNullOrWhiteSpace(lines[end - 1]))
-                    end--;
-                if (end > index && lines[end - 1].Trim() == "}")
-                    end--;
+                endIndex = lines.Length;
+                while (endIndex > startIndex && string.IsNullOrWhiteSpace(lines[endIndex - 1]))
+                    endIndex--;
+                if (endIndex > startIndex && lines[endIndex - 1].Trim() == "}")
+                    endIndex--;
             }
-
-            lines = lines.GetRange(index, end - index);
         }
-        else
+
+        // Create result array with proper size
+        var resultLines = new string[endIndex - startIndex];
+        for (var i = 0; i < resultLines.Length; i++)
         {
-            lines = lines.GetRange(index, lines.Count - index);
+            var line = lines[startIndex + i];
+            resultLines[i] = line.StartsWith("    ") ? line[4..] : line;
         }
 
-        for (var i = 0; i < lines.Count; i++)
-            if (lines[i].StartsWith("    "))
-                lines[i] = lines[i][4..];
-
-        return string.Join('\n', lines);
+        return string.Join('\n', resultLines);
     }
 
     private string DecompileMethod(IMethod method, CSharpDecompiler decompiler)

@@ -59,6 +59,25 @@ public class ResponseFormatter
     }
 
     /// <summary>
+    /// Format an error response with error code for structured error handling
+    /// </summary>
+    public static string Error(string code, string message, string? details = null)
+    {
+        var response = new
+        {
+            status = "error",
+            error = new
+            {
+                code = code,
+                message = message,
+                details = details
+            }
+        };
+
+        return JsonSerializer.Serialize(response, DefaultOptions);
+    }
+
+    /// <summary>
     /// Format a search result with pagination
     /// </summary>
     public static string SearchResult<T>(SearchResult<T> result)
@@ -211,31 +230,7 @@ public class ResponseFormatter
     /// </summary>
     public static string TryExecute<T>(Func<T> operation)
     {
-        try
-        {
-            var result = operation();
-            return Success(result);
-        }
-        catch (ArgumentException ex)
-        {
-            return Error("Invalid argument", ex.Message);
-        }
-        catch (InvalidOperationException ex)
-        {
-            return Error("Invalid operation", ex.Message);
-        }
-        catch (FileNotFoundException ex)
-        {
-            return Error("File not found", ex.Message);
-        }
-        catch (NotSupportedException ex)
-        {
-            return Error("Not supported", ex.Message);
-        }
-        catch (Exception ex)
-        {
-            return Error("Internal error", ex.Message);
-        }
+        return TryExecuteInternal(() => Success(operation()));
     }
 
     /// <summary>
@@ -243,10 +238,21 @@ public class ResponseFormatter
     /// </summary>
     public static string TryExecute(Action operation)
     {
-        try
+        return TryExecuteInternal(() =>
         {
             operation();
             return Success();
+        });
+    }
+
+    /// <summary>
+    /// Internal method that handles exception catching and error formatting
+    /// </summary>
+    private static string TryExecuteInternal(Func<string> operation)
+    {
+        try
+        {
+            return operation();
         }
         catch (ArgumentException ex)
         {
