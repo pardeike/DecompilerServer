@@ -14,7 +14,7 @@ namespace Tests;
 public class McpProtocolTests
 {
     [Fact]
-    public async Task McpServer_Should_Have_ListToolsHandler_Registered()
+    public void McpServer_Should_Have_ListToolsHandler_Registered()
     {
         // Arrange
         var builder = Host.CreateApplicationBuilder();
