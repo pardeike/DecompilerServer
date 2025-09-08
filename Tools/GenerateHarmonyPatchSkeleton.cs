@@ -6,6 +6,7 @@ using System.Text;
 
 namespace DecompilerServer;
 
+[McpServerToolType]
 public static class GenerateHarmonyPatchSkeletonTool
 {
     [McpServerTool, Description("Generate a Harmony patch skeleton for a given member.")]

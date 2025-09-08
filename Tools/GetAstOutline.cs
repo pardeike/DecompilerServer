@@ -5,6 +5,7 @@ using ICSharpCode.Decompiler.TypeSystem;
 
 namespace DecompilerServer;
 
+[McpServerToolType]
 public static class GetAstOutlineTool
 {
     [McpServerTool, Description("AST outline: lightweight tree summary for a member for quick orientation.")]

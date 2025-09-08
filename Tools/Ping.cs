@@ -4,6 +4,7 @@ using DecompilerServer.Services;
 
 namespace DecompilerServer;
 
+[McpServerToolType]
 public static class PingTool
 {
     [McpServerTool, Description("Connectivity check. Returns 'pong' and current MVID if loaded.")]

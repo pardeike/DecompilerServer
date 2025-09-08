@@ -4,6 +4,7 @@ using DecompilerServer.Services;
 
 namespace DecompilerServer;
 
+[McpServerToolType]
 public static class FindUsagesTool
 {
     [McpServerTool, Description("Find usages of a member across the assembly. Time-box and paginate.")]

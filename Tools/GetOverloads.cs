@@ -4,6 +4,7 @@ using DecompilerServer.Services;
 
 namespace DecompilerServer;
 
+[McpServerToolType]
 public static class GetOverloadsTool
 {
     [McpServerTool, Description("Find overloads for a method name within its declaring type.")]

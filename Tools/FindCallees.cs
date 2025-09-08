@@ -4,6 +4,7 @@ using DecompilerServer.Services;
 
 namespace DecompilerServer;
 
+[McpServerToolType]
 public static class FindCalleesTool
 {
     [McpServerTool, Description("List direct callees invoked by a method.")]

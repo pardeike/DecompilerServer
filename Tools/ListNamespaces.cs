@@ -4,6 +4,7 @@ using DecompilerServer.Services;
 
 namespace DecompilerServer;
 
+[McpServerToolType]
 public static class ListNamespacesTool
 {
     [McpServerTool, Description("List namespaces. Optional prefix filter and pagination.")]

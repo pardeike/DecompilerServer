@@ -4,6 +4,7 @@ using DecompilerServer.Services;
 
 namespace DecompilerServer;
 
+[McpServerToolType]
 public static class SearchTypesTool
 {
     [McpServerTool, Description("Search types by name. Supports regex and filters.")]

@@ -4,6 +4,7 @@ using DecompilerServer.Services;
 
 namespace DecompilerServer;
 
+[McpServerToolType]
 public static class SearchStringLiteralsTool
 {
     [McpServerTool, Description("Search string literals across code. Regex optional.")]

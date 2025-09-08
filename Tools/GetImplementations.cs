@@ -4,6 +4,7 @@ using DecompilerServer.Services;
 
 namespace DecompilerServer;
 
+[McpServerToolType]
 public static class GetImplementationsTool
 {
     [McpServerTool, Description("Find implementations of an interface or interface method.")]

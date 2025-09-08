@@ -4,6 +4,7 @@ using DecompilerServer.Services;
 
 namespace DecompilerServer;
 
+[McpServerToolType]
 public static class GetTypesInNamespaceTool
 {
     [McpServerTool, Description("Get all types inside a namespace. Optional deep traversal for child namespaces.")]

@@ -5,6 +5,7 @@ using ICSharpCode.Decompiler.TypeSystem;
 
 namespace DecompilerServer;
 
+[McpServerToolType]
 public static class GetXmlDocTool
 {
     [McpServerTool, Description("Get raw XML doc for a member if available.")]

@@ -4,6 +4,7 @@ using DecompilerServer.Services;
 
 namespace DecompilerServer;
 
+[McpServerToolType]
 public static class FindBaseTypesTool
 {
     [McpServerTool, Description("Get base types and optionally implemented interfaces.")]

@@ -4,6 +4,7 @@ using DecompilerServer.Services;
 
 namespace DecompilerServer;
 
+[McpServerToolType]
 public static class UnloadTool
 {
     [McpServerTool, Description("Unload assembly and free all caches and indexes.")]

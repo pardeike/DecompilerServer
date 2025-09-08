@@ -8,6 +8,7 @@ using System.Text;
 
 namespace DecompilerServer;
 
+[McpServerToolType]
 public static class SuggestTranspilerTargetsTool
 {
     [McpServerTool, Description("Suggest candidate IL offsets and patterns for transpiler insertion points.")]

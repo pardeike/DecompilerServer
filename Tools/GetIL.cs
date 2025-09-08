@@ -9,6 +9,7 @@ using System.Reflection.Metadata;
 
 namespace DecompilerServer;
 
+[McpServerToolType]
 public static class GetILTool
 {
     [McpServerTool, Description("Get IL for a method or constructor. Format: IL or ILAst.")]

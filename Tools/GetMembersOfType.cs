@@ -5,6 +5,7 @@ using ICSharpCode.Decompiler.TypeSystem;
 
 namespace DecompilerServer;
 
+[McpServerToolType]
 public static class GetMembersOfTypeTool
 {
     [McpServerTool, Description("List members of a given type with filters and pagination.")]

@@ -6,6 +6,7 @@ using System.Text;
 
 namespace DecompilerServer;
 
+[McpServerToolType]
 public static class GenerateDetourStubTool
 {
     [McpServerTool, Description("Generate a detour/stub method that calls the original, suitable for patch testing.")]

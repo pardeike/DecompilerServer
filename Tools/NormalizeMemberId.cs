@@ -6,6 +6,7 @@ using System.Text.RegularExpressions;
 
 namespace DecompilerServer;
 
+[McpServerToolType]
 public static class NormalizeMemberIdTool
 {
     [McpServerTool, Description("Normalize a possibly partial or human-entered identifier into a canonical memberId.")]

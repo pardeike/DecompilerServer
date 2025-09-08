@@ -4,6 +4,7 @@ using DecompilerServer.Services;
 
 namespace DecompilerServer;
 
+[McpServerToolType]
 public static class FindCallersTool
 {
     [McpServerTool, Description("List direct callers of a method.")]
