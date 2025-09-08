@@ -5,23 +5,44 @@ namespace DecompilerServer;
 
 /// <summary>
 /// Simple service locator for MCP tools to access registered services.
-/// Thread-safe to support concurrent test execution.
+/// Thread-safe to support concurrent test execution and MCP tool calls.
 /// </summary>
 public static class ServiceLocator
 {
-    private static readonly ThreadLocal<IServiceProvider?> _serviceProvider = new ThreadLocal<IServiceProvider?>();
+    private static readonly ThreadLocal<IServiceProvider?> _threadLocalProvider = new ThreadLocal<IServiceProvider?>();
+    private static volatile IServiceProvider? _globalProvider;
+    private static readonly object _lock = new object();
 
+    /// <summary>
+    /// Sets the service provider. Uses global storage for production, thread-local for tests.
+    /// </summary>
     public static void SetServiceProvider(IServiceProvider serviceProvider)
     {
-        _serviceProvider.Value = serviceProvider;
+        // Always set thread-local for test compatibility
+        _threadLocalProvider.Value = serviceProvider;
+
+        // Also set global if not already set (production scenario)
+        if (_globalProvider == null)
+        {
+            lock (_lock)
+            {
+                if (_globalProvider == null)
+                {
+                    _globalProvider = serviceProvider;
+                }
+            }
+        }
     }
 
     public static T GetRequiredService<T>() where T : notnull
     {
-        if (_serviceProvider.Value == null)
+        // Try thread-local first (for tests)
+        var provider = _threadLocalProvider.Value ?? _globalProvider;
+
+        if (provider == null)
             throw new InvalidOperationException("Service provider not initialized for current thread");
 
-        return _serviceProvider.Value.GetRequiredService<T>();
+        return provider.GetRequiredService<T>();
     }
 
     public static AssemblyContextManager ContextManager => GetRequiredService<AssemblyContextManager>();
