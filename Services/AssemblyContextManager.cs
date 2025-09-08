@@ -269,20 +269,36 @@ public class AssemblyContextManager : IDisposable
         if (File.Exists(assemblyPath))
             return assemblyPath;
 
-        // Try common Unity paths for Assembly-CSharp.dll
-        var unityPaths = new[]
+        // Generate Unity data directory patterns
+        var gameBaseName = Path.GetFileNameWithoutExtension(gameDir);
+        var unityDataPatterns = new[]
         {
-            Path.Combine(gameDir, "Managed", assemblyFile),
-            Path.Combine(gameDir, "Data", "Managed", assemblyFile),
-            Path.Combine(gameDir, $"{Path.GetFileNameWithoutExtension(gameDir)}_Data", "Managed", assemblyFile),
-            // Unity standalone builds
-            Path.Combine(gameDir, "Contents", "Resources", "Data", "Managed", assemblyFile),
+            // Standard Unity patterns
+            "Managed",
+            "Data/Managed",
+            $"{gameBaseName}_Data/Managed",
+            
+            // Platform-specific Unity patterns
+            $"{gameBaseName}Win64_Data/Managed",
+            $"{gameBaseName}Win32_Data/Managed",
+            $"{gameBaseName}Linux_Data/Managed",
+            $"{gameBaseName}Mac_Data/Managed",
+            
+            // Alternative Unity patterns
+            $"{gameBaseName}x64_Data/Managed",
+            $"{gameBaseName}x86_Data/Managed",
+            
+            // Unity standalone builds (macOS)
+            "Contents/Resources/Data/Managed",
+            
             // UWP builds
-            Path.Combine(gameDir, "Package", "Managed", assemblyFile)
+            "Package/Managed"
         };
 
-        foreach (var path in unityPaths)
+        // Try all Unity path patterns
+        foreach (var pattern in unityDataPatterns)
         {
+            var path = Path.Combine(gameDir, pattern, assemblyFile);
             if (File.Exists(path))
                 return path;
         }
@@ -362,17 +378,38 @@ public class AssemblyContextManager : IDisposable
 
     private void AddUnitySearchPaths(UniversalAssemblyResolver resolver, string gameDir)
     {
-        // Common Unity assembly paths
-        var searchPaths = new[]
+        // Generate Unity data directory patterns for dependency resolution
+        var gameBaseName = Path.GetFileNameWithoutExtension(gameDir);
+        var unityDataPatterns = new[]
         {
-            Path.Combine(gameDir, "Managed"),
-            Path.Combine(gameDir, "MonoBleedingEdge", "lib", "mono", "4.0"),
-            Path.Combine(gameDir, "Data", "Managed"),
-            Path.Combine(gameDir, "Data", "MonoBleedingEdge", "lib", "mono", "4.0")
+            // Standard Unity patterns
+            "Managed",
+            "MonoBleedingEdge/lib/mono/4.0",
+            "Data/Managed",
+            "Data/MonoBleedingEdge/lib/mono/4.0",
+            $"{gameBaseName}_Data/Managed",
+            
+            // Platform-specific Unity patterns
+            $"{gameBaseName}Win64_Data/Managed",
+            $"{gameBaseName}Win32_Data/Managed",
+            $"{gameBaseName}Linux_Data/Managed",
+            $"{gameBaseName}Mac_Data/Managed",
+            
+            // Alternative Unity patterns
+            $"{gameBaseName}x64_Data/Managed",
+            $"{gameBaseName}x86_Data/Managed",
+            
+            // Unity standalone builds (macOS)
+            "Contents/Resources/Data/Managed",
+            
+            // UWP builds
+            "Package/Managed"
         };
 
-        foreach (var path in searchPaths)
+        // Add all existing Unity search directories
+        foreach (var pattern in unityDataPatterns)
         {
+            var path = Path.Combine(gameDir, pattern);
             if (Directory.Exists(path))
                 resolver.AddSearchDirectory(path);
         }
