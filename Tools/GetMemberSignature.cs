@@ -5,6 +5,7 @@ using ICSharpCode.Decompiler.TypeSystem;
 
 namespace DecompilerServer;
 
+[McpServerToolType]
 public static class GetMemberSignatureTool
 {
     [McpServerTool, Description("Quick signature preview for any member.")]

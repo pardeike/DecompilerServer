@@ -4,6 +4,7 @@ using DecompilerServer.Services;
 
 namespace DecompilerServer;
 
+[McpServerToolType]
 public static class FindDerivedTypesTool
 {
     [McpServerTool, Description("Find derived types of a base class. Optionally include indirect.")]

@@ -4,6 +4,7 @@ using DecompilerServer.Services;
 
 namespace DecompilerServer;
 
+[McpServerToolType]
 public static class GetServerStatsTool
 {
     [McpServerTool, Description("Basic health and timing info for the server.")]

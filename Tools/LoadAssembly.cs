@@ -4,6 +4,7 @@ using DecompilerServer.Services;
 
 namespace DecompilerServer;
 
+[McpServerToolType]
 public static class LoadAssemblyTool
 {
     [McpServerTool, Description("Load or reload the Assembly-CSharp.dll and build minimal indexes.")]

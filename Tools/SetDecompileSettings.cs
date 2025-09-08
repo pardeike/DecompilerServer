@@ -5,6 +5,7 @@ using ICSharpCode.Decompiler;
 
 namespace DecompilerServer;
 
+[McpServerToolType]
 public static class SetDecompileSettingsTool
 {
     [McpServerTool, Description("Update decompiler settings (e.g., UsingDeclarations, ShowXmlDocumentation).")]

@@ -4,6 +4,7 @@ using DecompilerServer.Services;
 
 namespace DecompilerServer;
 
+[McpServerToolType]
 public static class GetSourceSliceTool
 {
     [McpServerTool, Description("Return a line range of the decompiled source for a member.")]

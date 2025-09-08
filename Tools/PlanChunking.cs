@@ -4,6 +4,7 @@ using DecompilerServer.Services;
 
 namespace DecompilerServer;
 
+[McpServerToolType]
 public static class PlanChunkingTool
 {
     [McpServerTool, Description("Plan line-range chunks for a member's source for LLM-friendly paging.")]

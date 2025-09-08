@@ -5,6 +5,7 @@ using ICSharpCode.Decompiler.TypeSystem;
 
 namespace DecompilerServer;
 
+[McpServerToolType]
 public static class SearchAttributesTool
 {
     [McpServerTool, Description("Find members decorated with a specific attribute type.")]

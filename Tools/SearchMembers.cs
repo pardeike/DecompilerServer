@@ -4,6 +4,7 @@ using DecompilerServer.Services;
 
 namespace DecompilerServer;
 
+[McpServerToolType]
 public static class SearchMembersTool
 {
     [McpServerTool, Description("Search members (methods, ctors, properties, fields, events) with rich filters.")]

@@ -5,6 +5,7 @@ using ICSharpCode.Decompiler.TypeSystem;
 
 namespace DecompilerServer;
 
+[McpServerToolType]
 public static class ResolveMemberIdTool
 {
     [McpServerTool, Description("Resolve a memberId and return a one-line summary for quick validation.")]

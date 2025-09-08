@@ -5,6 +5,7 @@ using ICSharpCode.Decompiler.TypeSystem;
 
 namespace DecompilerServer;
 
+[McpServerToolType]
 public static class GetMemberDetailsTool
 {
     [McpServerTool, Description("Detailed metadata for a member: attributes, docs, inheritance links.")]

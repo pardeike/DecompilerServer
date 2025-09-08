@@ -6,6 +6,7 @@ using System.Text;
 
 namespace DecompilerServer;
 
+[McpServerToolType]
 public static class GenerateExtensionMethodWrapperTool
 {
     [McpServerTool, Description("Generate an extension method wrapper for an instance method to ease call sites in mods.")]

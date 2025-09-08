@@ -5,6 +5,7 @@ using System.Diagnostics;
 
 namespace DecompilerServer;
 
+[McpServerToolType]
 public static class WarmIndexTool
 {
     [McpServerTool, Description("Optionally precompute heavier indexes (string literals, attribute hits). Time-boxed.")]

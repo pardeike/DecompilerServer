@@ -4,6 +4,7 @@ using DecompilerServer.Services;
 
 namespace DecompilerServer;
 
+[McpServerToolType]
 public static class ClearCachesTool
 {
     [McpServerTool, Description("Clear caches and indexes. Scope: 'all' | 'source' | 'resolutions' | 'usage'.")]

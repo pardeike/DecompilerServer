@@ -4,6 +4,7 @@ using DecompilerServer.Services;
 
 namespace DecompilerServer;
 
+[McpServerToolType]
 public static class StatusTool
 {
     [McpServerTool, Description("Get current server status, including assembly MVID and cache stats.")]

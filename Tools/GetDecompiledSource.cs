@@ -4,6 +4,7 @@ using DecompilerServer.Services;
 
 namespace DecompilerServer;
 
+[McpServerToolType]
 public static class GetDecompiledSourceTool
 {
     [McpServerTool, Description("Decompile a member to C#. Caches document and returns document metadata.")]

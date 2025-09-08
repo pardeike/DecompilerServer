@@ -4,6 +4,7 @@ using DecompilerServer.Services;
 
 namespace DecompilerServer;
 
+[McpServerToolType]
 public static class BatchGetDecompiledSourceTool
 {
     [McpServerTool, Description("Fetch multiple members' decompiled source in one call with size caps.")]

@@ -4,6 +4,7 @@ using DecompilerServer.Services;
 
 namespace DecompilerServer;
 
+[McpServerToolType]
 public static class GetOverridesTool
 {
     [McpServerTool, Description("Find override chain of a virtual method. Base definition and overrides.")]
