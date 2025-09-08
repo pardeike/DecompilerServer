@@ -44,15 +44,12 @@ A powerful MCP (Model Context Protocol) server for decompiling and analyzing .NE
 
 Configure with AI assistants via MCP (Model Context Protocol):
 
-**GitHub Copilot** (VS Code):
-```json
-{
-  "github.copilot.mcp.servers": {
-    "decompiler": {
-      "command": "dotnet run --project /path/to/DecompilerServer"
-    }
-  }
-}
+**GitHub Copilot** (`.copilot/config.yaml`):
+```yaml
+servers:
+  decompiler:
+    command: dotnet
+    args: ["run", "--project", "/path/to/DecompilerServer"]
 ```
 
 **Claude Desktop** (`claude_desktop_config.json`):
