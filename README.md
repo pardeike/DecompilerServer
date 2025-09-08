@@ -38,62 +38,13 @@ A powerful MCP (Model Context Protocol) server for decompiling and analyzing .NE
    dotnet test
    ```
 
-> **💡 Ready for AI tools?** Skip to [🤖 AI Tool Integration](#-ai-tool-integration) to configure with GitHub Copilot, Claude Desktop, or other MCP-compatible AI assistants.
+> **💡 Tip**: See [🤖 AI Tool Integration](#-ai-tool-integration) to configure with AI assistants.
 
 ## 🤖 AI Tool Integration
 
-DecompilerServer implements the Model Context Protocol (MCP) for seamless integration with AI coding assistants. The server communicates via STDIO and automatically exposes all 38 tools for AI discovery and usage.
+Configure with AI assistants via MCP (Model Context Protocol):
 
-### Supported AI Tools
-
-- **GitHub Copilot** - With MCP support in VS Code
-- **Claude Desktop** - Anthropic's desktop client with MCP integration  
-- **Codeium** - AI coding assistant with MCP support
-- **VS Code Extensions** - Any MCP-compatible extension
-- **OpenAI ChatGPT** - Via MCP-compatible clients
-- **Custom MCP Clients** - Any client implementing the MCP protocol
-
-### Configuration Examples
-
-#### Claude Desktop
-
-Add to your `claude_desktop_config.json`:
-
-```json
-{
-  "mcpServers": {
-    "decompiler": {
-      "command": "dotnet",
-      "args": ["run", "--project", "/path/to/DecompilerServer"],
-      "env": {
-        "DOTNET_CLI_TELEMETRY_OPTOUT": "1"
-      }
-    }
-  }
-}
-```
-
-#### VS Code with MCP Extension
-
-Configure in `.vscode/settings.json`:
-
-```json
-{
-  "mcp.servers": [
-    {
-      "name": "decompiler", 
-      "command": "dotnet",
-      "args": ["run", "--project", "/path/to/DecompilerServer"],
-      "stdio": true
-    }
-  ]
-}
-```
-
-#### GitHub Copilot (VS Code)
-
-With MCP support enabled:
-
+**GitHub Copilot** (VS Code):
 ```json
 {
   "github.copilot.mcp.servers": {
@@ -104,26 +55,27 @@ With MCP support enabled:
 }
 ```
 
-### How AI Tools Use DecompilerServer
-
-1. **Tool Discovery**: AI tools automatically discover all 38 available tools via MCP's `tools/list` endpoint
-2. **Assembly Loading**: AI assistants can load Unity assemblies using `LoadAssembly` 
-3. **Code Analysis**: Tools like `SearchTypes`, `FindUsages`, and `GetDecompiledSource` help AI understand codebases
-4. **Code Generation**: AI can generate Harmony patches, detour stubs, and extension methods using specialized tools
-
-### Example AI Workflow
-
+**Claude Desktop** (`claude_desktop_config.json`):
+```json
+{
+  "mcpServers": {
+    "decompiler": {
+      "command": "dotnet",
+      "args": ["run", "--project", "/path/to/DecompilerServer"]
+    }
+  }
+}
 ```
-Human: "Help me understand this Unity game's player movement system"
 
-AI: I'll help you analyze the player movement system. Let me start by loading the assembly and searching for player-related classes.
-
-[AI calls LoadAssembly with the game's Assembly-CSharp.dll]
-[AI calls SearchTypes with query "Player" to find relevant classes]  
-[AI calls GetDecompiledSource to examine PlayerController methods]
-[AI calls FindUsages to see how movement methods are called]
-
-AI: Based on my analysis, I found a PlayerController class with Move(), Jump(), and HandleInput() methods. The movement system uses Unity's Rigidbody physics...
+**VS Code MCP Extension** (`.vscode/settings.json`):
+```json
+{
+  "mcp.servers": [{
+    "name": "decompiler",
+    "command": "dotnet",
+    "args": ["run", "--project", "/path/to/DecompilerServer"]
+  }]
+}
 ```
 
 ### Basic Usage
@@ -353,14 +305,12 @@ DecompilerServer is designed for high performance and thread safety:
 
 DecompilerServer implements the Model Context Protocol for seamless integration with AI development tools:
 
-- **AI Tool Ready**: Compatible with GitHub Copilot, Claude Desktop, Codeium, and other MCP clients
 - **Auto-Discovery**: Tools automatically discovered via `[McpServerTool]` attributes
-- **STDIO Transport**: Communicates via standard input/output for universal compatibility
 - **Standardized Responses**: Consistent JSON formatting across all endpoints
 - **Error Handling**: Structured error responses with detailed messages
 - **Type Safety**: Strong typing for all tool parameters and responses
 
-See [🤖 AI Tool Integration](#-ai-tool-integration) for configuration examples and setup instructions.
+See [🤖 AI Tool Integration](#-ai-tool-integration) for configuration examples.
 
 ## 📋 System Requirements
 
