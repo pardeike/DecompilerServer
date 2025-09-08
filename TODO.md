@@ -4,21 +4,9 @@ This document contains comprehensive TODOs and recommendations based on a detail
 
 ## High Priority - Core Implementation Gaps
 
-### TODO-001: Complete IL Analysis Implementation ✅ COMPLETED
-**Status**: ✅ COMPLETED - IL analysis implementation is comprehensive and functional, with proper IL scanning, metadata token resolution, and usage detection.
-
-### TODO-002: Convert Model Classes to Records ✅ COMPLETED  
-**Status**: ✅ COMPLETED - All model classes converted to records with improved immutability and value semantics.
-
-### TODO-003: Fix Hanging Test in PlanChunking Tool ✅ COMPLETED
-**Status**: ✅ COMPLETED - Fixed infinite loop in chunking logic, test now passes reliably.
-
-### TODO-004: Standardize Pagination Across All Tools ✅ COMPLETED
-**Status**: ✅ COMPLETED - All tools use standardized `SearchResult<T>` format with consistent pagination patterns.
-
 ## Medium Priority - API Enhancement
 
-### TODO-005: Implement Unity-Specific Analysis Features
+### TODO-001: Implement Unity-Specific Analysis Features
 **Priority**: Medium | **Complexity**: Medium  
 **Context**: For game code analysis, Unity-specific patterns and attributes are crucial for AI understanding.
 
@@ -31,7 +19,7 @@ This document contains comprehensive TODOs and recommendations based on a detail
 
 **Benefits**: Enables AI to understand Unity-specific patterns and provide more relevant game development insights.
 
-### TODO-006: Add Code Quality and Metrics Analysis
+### TODO-002: Add Code Quality and Metrics Analysis
 **Priority**: Medium | **Complexity**: Medium  
 **Context**: AI analysis would benefit from code quality metrics to identify refactoring opportunities.
 
@@ -44,7 +32,7 @@ This document contains comprehensive TODOs and recommendations based on a detail
 
 **Implementation**: Leverage ILSpy analysis capabilities and AST traversal for metrics calculation.
 
-### TODO-007: Enhance Context-Aware Analysis
+### TODO-003: Enhance Context-Aware Analysis
 **Priority**: Medium | **Complexity**: High  
 **Context**: Current tools provide isolated information. AI needs broader context understanding.
 
@@ -57,7 +45,7 @@ This document contains comprehensive TODOs and recommendations based on a detail
 
 **Benefits**: Enables AI to understand code purpose and relationships beyond simple structural analysis.
 
-### TODO-008: Improve Code Generation Tools
+### TODO-004: Improve Code Generation Tools
 **Priority**: Medium | **Complexity**: Low  
 **Context**: Current generation tools are comprehensive but could be more flexible and user-friendly.
 
@@ -72,7 +60,7 @@ This document contains comprehensive TODOs and recommendations based on a detail
 
 ## Low Priority - Quality of Life Improvements
 
-### TODO-009: Add Response Mode Options
+### TODO-005: Add Response Mode Options
 **Priority**: Low | **Complexity**: Low  
 **Context**: Some responses are verbose for AI consumption. Adding summary vs detailed modes would improve usability.
 
@@ -82,7 +70,7 @@ This document contains comprehensive TODOs and recommendations based on a detail
 - `SearchTypes`/`SearchMembers` - Summary mode returns only names and IDs
 - `GetDecompiledSource` - Summary mode returns signature + documentation only
 
-### TODO-010: Consolidate Overlapping Tools
+### TODO-006: Consolidate Overlapping Tools
 **Priority**: Low | **Complexity**: Medium  
 **Context**: Some tools have overlapping functionality that could be streamlined.
 
@@ -94,7 +82,7 @@ This document contains comprehensive TODOs and recommendations based on a detail
 
 **Benefits**: Simpler API surface, reduced cognitive load, fewer edge cases to handle.
 
-### TODO-011: Enhance Error Reporting and Diagnostics
+### TODO-007: Enhance Error Reporting and Diagnostics
 **Priority**: Low | **Complexity**: Low  
 **Context**: Current error handling is good but could provide more actionable feedback.
 
@@ -104,7 +92,7 @@ This document contains comprehensive TODOs and recommendations based on a detail
 - Add diagnostic tool `ValidateAssembly` for health checks
 - Enhance `GetServerStats` with performance metrics and warnings
 
-### TODO-012: Add Batch Operation Consistency
+### TODO-008: Add Batch Operation Consistency
 **Priority**: Low | **Complexity**: Medium  
 **Context**: Only `BatchGetDecompiledSource` exists. Other operations could benefit from batching.
 
@@ -118,10 +106,10 @@ This document contains comprehensive TODOs and recommendations based on a detail
 
 ## Technical Debt and Maintenance
 
-### TODO-013: Address Nullable Reference Warnings ✅ COMPLETED
+### TODO-009: Address Nullable Reference Warnings ✅ COMPLETED
 **Status**: ✅ COMPLETED - All nullable reference warnings resolved, build shows 0 warnings.
 
-### TODO-014: Consider ServiceLocator Alternatives
+### TODO-010: Consider ServiceLocator Alternatives
 **Priority**: Low | **Complexity**: High  
 **Context**: ServiceLocator pattern is functional but could be replaced with more modern DI patterns.
 
@@ -132,7 +120,7 @@ This document contains comprehensive TODOs and recommendations based on a detail
 
 **Note**: This is architectural and should be carefully considered as it affects the entire tool implementation pattern.
 
-### TODO-015: Performance Optimization Review
+### TODO-011: Performance Optimization Review
 **Priority**: Low | **Complexity**: Medium  
 **Context**: Current implementation prioritizes correctness over performance. Some optimizations could improve AI workflow speed.
 
@@ -145,7 +133,7 @@ This document contains comprehensive TODOs and recommendations based on a detail
 
 ## Future Enhancements - Advanced Features
 
-### TODO-016: Add Machine Learning Integration Points
+### TODO-012: Add Machine Learning Integration Points
 **Priority**: Future | **Complexity**: High  
 **Context**: Prepare for future ML-based code analysis by adding structured data export.
 
@@ -156,7 +144,7 @@ This document contains comprehensive TODOs and recommendations based on a detail
 - Add feature extraction for code classification
 - Support for custom analysis pipelines
 
-### TODO-017: Multi-Assembly Analysis Support
+### TODO-013: Multi-Assembly Analysis Support
 **Priority**: Future | **Complexity**: High  
 **Context**: Current design focuses on single Assembly-CSharp.dll. Games often have multiple assemblies.
 
@@ -166,7 +154,7 @@ This document contains comprehensive TODOs and recommendations based on a detail
 - Assembly dependency graphing
 - Multi-assembly search and navigation
 
-### TODO-018: Real-time Analysis and Watching
+### TODO-014: Real-time Analysis and Watching
 **Priority**: Future | **Complexity**: High  
 **Context**: For development scenarios, real-time file watching and incremental analysis could be valuable.
 
