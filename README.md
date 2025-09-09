@@ -38,6 +38,43 @@ A powerful MCP (Model Context Protocol) server for decompiling and analyzing .NE
    dotnet test
    ```
 
+> **💡 Tip**: See [🤖 AI Tool Integration](#-ai-tool-integration) to configure with AI assistants.
+
+## 🤖 AI Tool Integration
+
+Configure with AI assistants via MCP (Model Context Protocol):
+
+**GitHub Copilot** (`.copilot/config.yaml`):
+```yaml
+servers:
+  decompiler:
+    command: dotnet
+    args: ["run", "--project", "/path/to/DecompilerServer"]
+```
+
+**Claude Desktop** (`claude_desktop_config.json`):
+```json
+{
+  "mcpServers": {
+    "decompiler": {
+      "command": "dotnet",
+      "args": ["run", "--project", "/path/to/DecompilerServer"]
+    }
+  }
+}
+```
+
+**VS Code MCP Extension** (`.vscode/settings.json`):
+```json
+{
+  "mcp.servers": [{
+    "name": "decompiler",
+    "command": "dotnet",
+    "args": ["run", "--project", "/path/to/DecompilerServer"]
+  }]
+}
+```
+
 ### Basic Usage
 
 1. **Start the server**:
@@ -269,6 +306,8 @@ DecompilerServer implements the Model Context Protocol for seamless integration 
 - **Standardized Responses**: Consistent JSON formatting across all endpoints
 - **Error Handling**: Structured error responses with detailed messages
 - **Type Safety**: Strong typing for all tool parameters and responses
+
+See [🤖 AI Tool Integration](#-ai-tool-integration) for configuration examples.
 
 ## 📋 System Requirements
 
