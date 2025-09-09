@@ -5,7 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 namespace Tests;
 
 /// <summary>
-/// Tests for generic assembly loading functionality using LoadAssemblyDirect
+/// Tests for generic assembly loading functionality using LoadAssembly with assemblyPath
 /// </summary>
 public class GenericAssemblyLoadingTests : IDisposable
 {
@@ -17,7 +17,7 @@ public class GenericAssemblyLoadingTests : IDisposable
         _tempDir = Path.Combine(Path.GetTempPath(), $"GenericAssemblyTest_{Guid.NewGuid():N}");
         Directory.CreateDirectory(_tempDir);
 
-        // Set up service provider for the LoadAssemblyDirect tool
+        // Set up service provider for the LoadAssembly tool
         var services = new ServiceCollection();
         services.AddSingleton<AssemblyContextManager>();
         services.AddSingleton<MemberResolver>();
@@ -28,13 +28,13 @@ public class GenericAssemblyLoadingTests : IDisposable
     }
 
     [Fact]
-    public void LoadAssemblyDirect_WithValidPath_LoadsSuccessfully()
+    public void LoadAssembly_WithValidAssemblyPath_LoadsSuccessfully()
     {
         // Arrange - Use the test library DLL
         var testLibraryPath = GetTestLibraryPath();
 
         // Act
-        var result = LoadAssemblyDirectTool.LoadAssemblyDirect(testLibraryPath, rebuildIndex: false);
+        var result = LoadAssemblyTool.LoadAssembly(assemblyPath: testLibraryPath, rebuildIndex: false);
 
         // Assert
         Assert.NotNull(result);
@@ -45,20 +45,20 @@ public class GenericAssemblyLoadingTests : IDisposable
     }
 
     [Fact]
-    public void LoadAssemblyDirect_WithInvalidPath_ThrowsFileNotFoundException()
+    public void LoadAssembly_WithInvalidAssemblyPath_ThrowsFileNotFoundException()
     {
         // Arrange
         var invalidPath = Path.Combine(_tempDir, "nonexistent.dll");
 
         // Act & Assert
-        var result = LoadAssemblyDirectTool.LoadAssemblyDirect(invalidPath);
+        var result = LoadAssemblyTool.LoadAssembly(assemblyPath: invalidPath);
 
         // Should return error response instead of throwing
         Assert.Contains("error", result.ToLower());
     }
 
     [Fact]
-    public void LoadAssemblyDirect_WithAdditionalSearchDirs_ConfiguresResolver()
+    public void LoadAssembly_WithAdditionalSearchDirs_ConfiguresResolver()
     {
         // Arrange
         var testLibraryPath = GetTestLibraryPath();
@@ -66,7 +66,7 @@ public class GenericAssemblyLoadingTests : IDisposable
         var additionalSearchDirs = new[] { searchDir };
 
         // Act
-        var result = LoadAssemblyDirectTool.LoadAssemblyDirect(testLibraryPath, additionalSearchDirs, rebuildIndex: false);
+        var result = LoadAssemblyTool.LoadAssembly(assemblyPath: testLibraryPath, additionalSearchDirs: additionalSearchDirs, rebuildIndex: false);
 
         // Assert
         Assert.NotNull(result);
@@ -75,13 +75,13 @@ public class GenericAssemblyLoadingTests : IDisposable
     }
 
     [Fact]
-    public void LoadAssemblyDirect_CanAnalyzeGenericAssembly_ReturnsBasicInfo()
+    public void LoadAssembly_CanAnalyzeGenericAssembly_ReturnsBasicInfo()
     {
         // Arrange
         var testLibraryPath = GetTestLibraryPath();
 
         // Act
-        var result = LoadAssemblyDirectTool.LoadAssemblyDirect(testLibraryPath, rebuildIndex: true);
+        var result = LoadAssemblyTool.LoadAssembly(assemblyPath: testLibraryPath, rebuildIndex: true);
 
         // Assert
         Assert.NotNull(result);
@@ -132,6 +132,31 @@ public class GenericAssemblyLoadingTests : IDisposable
         // The resolver should be able to find dependencies in the same directory
         var resolver = contextManager.GetPEFile().Metadata;
         Assert.NotNull(resolver);
+    }
+
+    [Fact]
+    public void LoadAssembly_WithBothGameDirAndAssemblyPath_ThrowsArgumentException()
+    {
+        // Arrange
+        var testLibraryPath = GetTestLibraryPath();
+
+        // Act & Assert
+        var result = LoadAssemblyTool.LoadAssembly(gameDir: "/some/game/dir", assemblyPath: testLibraryPath);
+
+        // Should return error response about conflicting parameters
+        Assert.Contains("error", result.ToLower());
+        Assert.Contains("cannot specify both", result.ToLower());
+    }
+
+    [Fact]
+    public void LoadAssembly_WithNeitherParameter_ThrowsArgumentException()
+    {
+        // Act & Assert
+        var result = LoadAssemblyTool.LoadAssembly();
+
+        // Should return error response about missing parameters
+        Assert.Contains("error", result.ToLower());
+        Assert.Contains("must specify either", result.ToLower());
     }
 
     private string GetTestLibraryPath()

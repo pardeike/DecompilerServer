@@ -86,7 +86,7 @@ servers:
 2. **Load any .NET assembly** (via MCP client):
    ```json
    {
-     "tool": "LoadAssemblyDirect",
+     "tool": "LoadAssembly",
      "arguments": {
        "assemblyPath": "/path/to/YourAssembly.dll"
      }
@@ -145,8 +145,8 @@ DecompilerServer is built on a robust, modular architecture:
 - **InheritanceAnalyzer**: Inheritance relationship tracking
 - **ResponseFormatter**: Standardized JSON response formatting
 
-### MCP Tools (39 endpoints)
-- **Core Operations**: Status, LoadAssemblyDirect, LoadAssembly, Unload, WarmIndex
+### MCP Tools (38 endpoints)
+- **Core Operations**: Status, LoadAssembly, Unload, WarmIndex
 - **Discovery**: ListNamespaces, SearchTypes, SearchMembers, SearchAttributes
 - **Analysis**: GetMemberDetails, GetDecompiledSource, GetSourceSlice, GetIL
 - **Relationships**: FindUsages, FindCallers, FindCallees, GetOverrides
@@ -165,7 +165,7 @@ All members use a stable ID format: `<mvid-32hex>:<token-8hex>:<kind-code>`
 ```bash
 # 1. Load any .NET assembly directly
 {
-  "tool": "LoadAssemblyDirect",
+  "tool": "LoadAssembly",
   "arguments": {
     "assemblyPath": "/path/to/MyLibrary.dll"
   }
