@@ -5,12 +5,11 @@ using DecompilerServer.Services;
 namespace DecompilerServer;
 
 [McpServerToolType]
-public static class LoadAssemblyTool
+public static class LoadAssemblyDirectTool
 {
-    [McpServerTool, Description("Load Unity's Assembly-CSharp.dll from game directory with automatic path detection and build minimal indexes.")]
-    public static string LoadAssembly(
-        string gameDir,
-        string assemblyFile = "Assembly-CSharp.dll",
+    [McpServerTool, Description("Load any .NET assembly directly by file path for decompilation and analysis.")]
+    public static string LoadAssemblyDirect(
+        string assemblyPath,
         string[]? additionalSearchDirs = null,
         bool rebuildIndex = true)
     {
@@ -18,8 +17,8 @@ public static class LoadAssemblyTool
         {
             var contextManager = ServiceLocator.ContextManager;
 
-            // Load the assembly with enhanced auto-detection
-            contextManager.LoadAssembly(gameDir, assemblyFile, additionalSearchDirs);
+            // Load the assembly directly
+            contextManager.LoadAssemblyDirect(assemblyPath, additionalSearchDirs);
 
             // Optionally warm up indexes for better performance
             if (rebuildIndex)
