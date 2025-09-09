@@ -1,12 +1,13 @@
 # DecompilerServer
 
-A powerful MCP (Model Context Protocol) server for decompiling and analyzing .NET assemblies, with specialized support for Unity's Assembly-CSharp.dll files. DecompilerServer provides comprehensive decompilation, search, and code analysis capabilities through a rich set of tools and APIs.
+A powerful MCP (Model Context Protocol) server for decompiling and analyzing .NET assemblies. DecompilerServer provides comprehensive decompilation, search, and code analysis capabilities for any .NET DLL, with specialized convenience features for Unity's Assembly-CSharp.dll files.
 
 ## ✨ Features
 
-- **🔍 Comprehensive Analysis**: 38 specialized MCP tools for deep assembly inspection
+- **🔍 Comprehensive Analysis**: 39 specialized MCP tools for deep assembly inspection
 - **⚡ High Performance**: Optimized decompilation with intelligent caching and lazy loading  
-- **🎮 Unity-Focused**: Specialized support for Unity Assembly-CSharp.dll files
+- **🛠️ Universal Support**: Works with any .NET assembly (.dll, .exe)
+- **🎮 Unity-Optimized**: Specialized convenience features for Unity Assembly-CSharp.dll files
 - **🔧 Code Generation**: Generate Harmony patches, detour stubs, and extension method wrappers
 - **📊 Advanced Search**: Search types, members, attributes, string literals, and usage patterns
 - **🧬 Relationship Analysis**: Inheritance tracking, usage analysis, and implementation discovery
@@ -89,12 +90,22 @@ servers:
    dotnet run --project DecompilerServer
    ```
 
-2. **Load an assembly** (via MCP client):
+2. **Load any .NET assembly** (via MCP client):
    ```json
    {
      "tool": "LoadAssembly",
      "arguments": {
-       "assemblyPath": "/path/to/Assembly-CSharp.dll"
+       "assemblyPath": "/path/to/YourAssembly.dll"
+     }
+   }
+   ```
+
+   **OR for Unity projects:**
+   ```json
+   {
+     "tool": "LoadAssembly", 
+     "arguments": {
+       "gameDir": "/path/to/unity/game"
      }
    }
    ```
@@ -155,6 +166,35 @@ All members use a stable ID format: `<mvid-32hex>:<token-8hex>:<kind-code>`
 - IDs remain consistent across sessions for reliable automation
 
 ## 📖 Examples
+
+### Analyzing Any .NET Assembly
+
+```bash
+# 1. Load any .NET assembly directly
+{
+  "tool": "LoadAssembly",
+  "arguments": {
+    "assemblyPath": "/path/to/MyLibrary.dll"
+  }
+}
+
+# 2. Find all public classes
+{
+  "tool": "SearchTypes",
+  "arguments": {
+    "query": "",
+    "accessibility": "public"
+  }
+}
+
+# 3. Get detailed information about a specific type
+{
+  "tool": "GetMemberDetails", 
+  "arguments": {
+    "memberId": "abc123...def:12345678:T"
+  }
+}
+```
 
 ### Analyzing a Unity Assembly
 
@@ -261,7 +301,7 @@ dotnet format DecompilerServer.sln
 ```
 DecompilerServer/
 ├── Services/           # Core service implementations (7 services)
-├── Tools/             # MCP tool implementations (38 tools)  
+├── Tools/             # MCP tool implementations (39 tools)  
 ├── Tests/             # Comprehensive xUnit test suite
 ├── TestLibrary/       # Test assembly for validation
 ├── Program.cs         # Application entry point

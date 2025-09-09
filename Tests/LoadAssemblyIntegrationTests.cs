@@ -40,7 +40,7 @@ public class LoadAssemblyIntegrationTests : IDisposable
         File.Copy(testAssemblyPath, targetAssemblyPath);
 
         // Act - Use LoadAssembly tool with just the game directory
-        var result = LoadAssemblyTool.LoadAssembly(gameDir, "Assembly-CSharp.dll");
+        var result = LoadAssemblyTool.LoadAssembly(gameDir: gameDir, assemblyFile: "Assembly-CSharp.dll");
 
         // Assert
         Assert.NotNull(result);
@@ -63,7 +63,7 @@ public class LoadAssemblyIntegrationTests : IDisposable
         File.Copy(testAssemblyPath, targetAssemblyPath);
 
         // Act
-        var result = LoadAssemblyTool.LoadAssembly(gameDir, "Assembly-CSharp.dll");
+        var result = LoadAssemblyTool.LoadAssembly(gameDir: gameDir, assemblyFile: "Assembly-CSharp.dll");
 
         // Assert
         Assert.NotNull(result);

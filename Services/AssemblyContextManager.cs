@@ -55,7 +55,69 @@ public class AssemblyContextManager : IDisposable
     public bool MemberIndexReady => _memberByIdIndex.IsValueCreated;
 
     /// <summary>
-    /// Load an assembly and initialize the decompilation context with auto-detection support
+    /// Load an assembly directly by file path and initialize the decompilation context
+    /// </summary>
+    public void LoadAssemblyDirect(string assemblyPath, string[]? additionalSearchDirs = null)
+    {
+        if (_disposed) throw new ObjectDisposedException(nameof(AssemblyContextManager));
+
+        _lock.EnterWriteLock();
+        try
+        {
+            // Dispose existing context and reset lazy indexes
+            DisposeContext();
+
+            if (!File.Exists(assemblyPath))
+                throw new FileNotFoundException($"Assembly not found: {assemblyPath}");
+
+            // Create resolver and add search directories
+            _resolver = new UniversalAssemblyResolver(assemblyPath, false, null);
+
+            // Add the assembly's directory as a search path
+            var assemblyDir = Path.GetDirectoryName(assemblyPath);
+            if (assemblyDir != null && Directory.Exists(assemblyDir))
+                _resolver.AddSearchDirectory(assemblyDir);
+
+            // Add additional search directories
+            if (additionalSearchDirs != null)
+            {
+                foreach (var dir in additionalSearchDirs)
+                {
+                    if (Directory.Exists(dir))
+                        _resolver.AddSearchDirectory(dir);
+                }
+            }
+
+            // Load PEFile
+            _peFile = new PEFile(assemblyPath);
+
+            // Create TypeSystem
+            _compilation = new DecompilerTypeSystem(_peFile, _resolver);
+
+            // Create decompiler with enhanced settings
+            var settings = new DecompilerSettings
+            {
+                UsingDeclarations = true,
+                ShowXmlDocumentation = true,
+                NamedArguments = true
+            };
+            _decompiler = new CSharpDecompiler(_peFile, _resolver, settings);
+
+            // Extract MVID
+            var moduleDef = _peFile.Metadata.GetModuleDefinition();
+            Mvid = _peFile.Metadata.GetGuid(moduleDef.Mvid).ToString("N");
+
+            AssemblyPath = assemblyPath;
+            LoadedAtUtc = DateTime.UtcNow;
+        }
+        finally
+        {
+            _lock.ExitWriteLock();
+        }
+    }
+
+    /// <summary>
+    /// Load an assembly and initialize the decompilation context with Unity auto-detection support
     /// </summary>
     public void LoadAssembly(string gameDir, string assemblyFile = "Assembly-CSharp.dll", string[]? additionalSearchDirs = null)
     {
