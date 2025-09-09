@@ -166,6 +166,8 @@ public class AttributedClass
     public void AttributedMethod([Test("parameter-attribute")] string param)
     {
         // Method with parameter attribute
+        _ = param;
+
     }
 }
 

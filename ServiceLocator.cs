@@ -26,10 +26,7 @@ public static class ServiceLocator
         {
             lock (_lock)
             {
-                if (_globalProvider == null)
-                {
-                    _globalProvider = serviceProvider;
-                }
+                _globalProvider ??= serviceProvider;
             }
         }
     }
