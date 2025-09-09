@@ -1,0 +1,10 @@
+# Codex MCP Server Configuration for DecompilerServer
+# This configuration enables Codex to use DecompilerServer for .NET assembly analysis
+
+[servers.decompiler]
+command = "dotnet"
+args = ["run", "--project", "/path/to/DecompilerServer"]
+
+[servers.decompiler.env]
+# Optional: Set environment variables if needed
+# DOTNET_ENVIRONMENT = "Development"

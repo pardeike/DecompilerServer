@@ -75,6 +75,13 @@ servers:
 }
 ```
 
+**Codex** (`.codex/config.toml`):
+```toml
+[servers.decompiler]
+command = "dotnet"
+args = ["run", "--project", "/path/to/DecompilerServer"]
+```
+
 ### Basic Usage
 
 1. **Start the server**:
