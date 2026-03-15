@@ -16,17 +16,19 @@ public static class ServiceLocator
     /// <summary>
     /// Sets the service provider. Uses global storage for production, thread-local for tests.
     /// </summary>
-    public static void SetServiceProvider(IServiceProvider serviceProvider)
+    public static void SetServiceProvider(IServiceProvider? serviceProvider)
     {
-        // Always set thread-local for test compatibility
+        // Always set thread-local for test compatibility.
         _threadLocalProvider.Value = serviceProvider;
 
-        // Also set global if not already set (production scenario)
-        if (_globalProvider == null)
+        // Refresh the global provider whenever a non-null provider is supplied.
+        // Tests create and dispose independent service providers, so "first write wins"
+        // leaves the global fallback pointing at stale containers.
+        if (serviceProvider != null)
         {
             lock (_lock)
             {
-                _globalProvider ??= serviceProvider;
+                _globalProvider = serviceProvider;
             }
         }
     }
