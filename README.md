@@ -1,267 +1,191 @@
 # DecompilerServer
 
-A powerful MCP (Model Context Protocol) server for decompiling and analyzing .NET assemblies. DecompilerServer provides comprehensive decompilation, search, and code analysis capabilities for any .NET DLL, with specialized convenience features for Unity's Assembly-CSharp.dll files.
+A Model Context Protocol (MCP) server for decompiling and analyzing .NET assemblies. DecompilerServer works with any managed assembly (`.dll` or `.exe`) and includes a Unity-oriented `gameDir` workflow for locating `Assembly-CSharp.dll` under a game install.
 
 ## ✨ Features
 
-- **🔍 Comprehensive Analysis**: 39 specialized MCP tools for deep assembly inspection
-- **⚡ High Performance**: Optimized decompilation with intelligent caching and lazy loading  
-- **🛠️ Universal Support**: Works with any .NET assembly (.dll, .exe)
-- **🎮 Unity-Optimized**: Specialized convenience features for Unity Assembly-CSharp.dll files
-- **🔧 Code Generation**: Generate Harmony patches, detour stubs, and extension method wrappers
-- **📊 Advanced Search**: Search types, members, attributes, string literals, and usage patterns
-- **🧬 Relationship Analysis**: Inheritance tracking, usage analysis, and implementation discovery
-- **📝 Source Management**: Line-precise source slicing and batch decompilation
-- **🛠️ Developer Tools**: IL analysis, AST outlining, and transpiler target suggestions
+- **🔍 Broad MCP surface**: 38 MCP tools for decompilation, search, relationship analysis, cache management, and code generation
+- **⚡ Fast iteration**: Cached decompiled documents, line-precise slicing, and optional index warming
+- **🛠️ General .NET support**: Load assemblies directly via `assemblyPath` or let the server resolve Unity layouts from `gameDir`
+- **🎮 Unity-friendly workflows**: Convenience loading for `Assembly-CSharp.dll` plus modding-oriented code generation helpers
+- **📊 Search and graph analysis**: Search types, members, attributes, and string literals; inspect usages, callers, callees, base/derived types, overrides, overloads, and implementations
+- **🧬 Stable automation**: Member IDs remain stable per assembly MVID for repeatable MCP-driven workflows
 
 ## 🚀 Quick Start
 
 ### Prerequisites
 
-- .NET 8.0 SDK or later
+- .NET 10 SDK to build from source (`DecompilerServer.csproj` targets `net10.0`)
+- .NET 10 runtime if you run the framework-dependent build output with `dotnet`
 - Windows, macOS, or Linux
 
 ### Installation
 
-1. **Clone the repository**:
+1. **Clone the repository**
    ```bash
    git clone https://github.com/pardeike/DecompilerServer.git
    cd DecompilerServer
    ```
 
-2. **Build the project**:
+2. **Build the server**
    ```bash
-   dotnet build DecompilerServer.sln
+   dotnet build DecompilerServer.sln -c Release
    ```
 
-3. **Run tests** (optional):
+3. **Run tests** (optional)
    ```bash
-   dotnet test
+   dotnet test -c Release
    ```
 
-> **💡 Tip**: See [🤖 AI Tool Integration](#-ai-tool-integration) to configure with AI assistants.
+> **💡 Tip**: See [🤖 MCP Client Integration](#-mcp-client-integration) for the launch command you will wire into your MCP client.
 
-## 🤖 AI Tool Integration
+## 🤖 MCP Client Integration
 
-Configure with AI assistants via MCP (Model Context Protocol):
+DecompilerServer is a stdio MCP server. The stable part across clients is the process you launch.
 
-**Codex** (`.codex/config.toml`):
-```toml
-[mcp_servers.decompiler]
-command = "path_to_DecompilerServer.exe"
-args = []
+**Framework-dependent build output**
+```text
+command: dotnet
+args:
+  - /absolute/path/to/DecompilerServer/bin/Release/net10.0/DecompilerServer.dll
 ```
 
-**GitHub Copilot** (`.copilot/config.yaml`):
-```yaml
-servers:
-  decompiler:
-    command: "path_to_DecompilerServer.exe"
-    args: []
-```
+**Native app host produced by `dotnet build` or `dotnet publish`**
+- macOS/Linux: `/absolute/path/to/DecompilerServer/bin/Release/net10.0/DecompilerServer`
+- Windows: `C:\\absolute\\path\\to\\DecompilerServer\\bin\\Release\\net10.0\\DecompilerServer.exe`
 
-**Claude Desktop** (`claude_desktop_config.json`):
-```json
-{
-  "mcpServers": {
-    "decompiler": {
-      "command": "path_to_DecompilerServer.exe",
-      "args": []
-    }
-  }
-}
-```
-
-**VS Code MCP Extension** (`.vscode/settings.json`):
-```json
-{
-  "mcp.servers": [{
-    "name": "decompiler",
-    "command": "path_to_DecompilerServer.exe",
-    "args": []
-  }]
-}
-```
+Use whichever launch style your MCP client supports. If you publish the project, point your client at the published executable or published DLL instead of the `bin/Release/net10.0` build output shown above.
 
 ### Basic Usage
 
-1. **Start the server**:
+Most MCP clients expose these tools in `snake_case` even though the underlying C# methods are PascalCase. The examples below show the tool name and arguments that the server expects; your client may wrap them in its own request envelope.
+
+1. **Start the server locally**
    ```bash
-   dotnet run --project DecompilerServer
+   dotnet run --project DecompilerServer.csproj -c Release
    ```
 
-2. **Load any .NET assembly** (via MCP client):
-   ```json
-   {
-     "tool": "LoadAssembly",
-     "arguments": {
-       "assemblyPath": "/path/to/YourAssembly.dll"
-     }
-   }
+2. **Load an assembly directly**
+   ```text
+   load_assembly({
+     "assemblyPath": "/path/to/YourAssembly.dll",
+     "rebuildIndex": true
+   })
    ```
 
-   **OR for Unity projects:**
-   ```json
-   {
-     "tool": "LoadAssembly", 
-     "arguments": {
-       "gameDir": "/path/to/unity/game"
-     }
-   }
+   **Or load a Unity game directory**
+   ```text
+   load_assembly({
+     "gameDir": "/path/to/unity/game",
+     "assemblyFile": "Assembly-CSharp.dll",
+     "rebuildIndex": true
+   })
    ```
 
-3. **Explore the assembly**:
-   ```json
-   {
-     "tool": "ListNamespaces",
-     "arguments": {}
-   }
+3. **List namespaces**
+   ```text
+   list_namespaces({})
    ```
 
-4. **Search for types**:
-   ```json
-   {
-     "tool": "SearchTypes", 
-     "arguments": {
-       "query": "Player",
-       "limit": 10
-     }
-   }
+4. **Search for types**
+   ```text
+   search_types({
+     "query": "Player",
+     "limit": 10
+   })
    ```
 
-5. **Decompile source code**:
-   ```json
-   {
-     "tool": "GetDecompiledSource",
-     "arguments": {
-       "memberId": "<member-id-from-search>"
-     }
-   }
+5. **Decompile a discovered member**
+   ```text
+   get_decompiled_source({
+     "memberId": "<member-id-from-search>"
+   })
    ```
 
 ## 🏗️ Architecture
 
-DecompilerServer is built on a robust, modular architecture:
+DecompilerServer uses a small singleton service graph and auto-discovers MCP tools from the assembly at startup.
 
 ### Core Services
-- **AssemblyContextManager**: Assembly loading and context management
-- **MemberResolver**: Member ID resolution and validation  
-- **DecompilerService**: C# decompilation with caching
-- **SearchServiceBase**: Search and pagination framework
-- **UsageAnalyzer**: Code usage analysis
-- **InheritanceAnalyzer**: Inheritance relationship tracking
-- **ResponseFormatter**: Standardized JSON response formatting
+- **AssemblyContextManager**: Assembly loading, indexing, locking, and context lifetime
+- **MemberResolver**: Stable member ID generation, normalization, resolution, and caching
+- **DecompilerService**: C# decompilation plus cached document retrieval
+- **SearchServiceBase**: Shared filtering, pagination, and cached search helpers
+- **UsageAnalyzer**: Usage analysis, caller/callee traversal, and string-literal search support
+- **InheritanceAnalyzer**: Base/derived type analysis, overrides, and interface implementation discovery
+- **ResponseFormatter**: Consistent camelCase JSON serialization and error handling
 
-### MCP Tools (38 endpoints)
-- **Core Operations**: Status, LoadAssembly, Unload, WarmIndex
-- **Discovery**: ListNamespaces, SearchTypes, SearchMembers, SearchAttributes
-- **Analysis**: GetMemberDetails, GetDecompiledSource, GetSourceSlice, GetIL
-- **Relationships**: FindUsages, FindCallers, FindCallees, GetOverrides
-- **Code Generation**: GenerateHarmonyPatchSkeleton, GenerateDetourStub
-- **Advanced**: BatchGetDecompiledSource, SuggestTranspilerTargets, PlanChunking
+### MCP Tool Surface (38 tools)
+- **Core/server**: `ping`, `status`, `get_server_stats`, `load_assembly`, `unload`, `warm_index`, `clear_caches`, `set_decompile_settings`
+- **Discovery/search**: `list_namespaces`, `get_types_in_namespace`, `search_types`, `search_members`, `search_attributes`, `search_string_literals`, `get_members_of_type`
+- **Member inspection/source**: `resolve_member_id`, `normalize_member_id`, `get_member_signature`, `get_member_details`, `get_decompiled_source`, `get_source_slice`, `get_xml_doc`, `get_il`, `get_ast_outline`, `batch_get_decompiled_source`, `plan_chunking`
+- **Relationship analysis**: `find_usages`, `find_callers`, `find_callees`, `find_base_types`, `find_derived_types`, `get_overrides`, `get_overloads`, `get_implementations`
+- **Code generation/modding**: `generate_harmony_patch_skeleton`, `generate_detour_stub`, `generate_extension_method_wrapper`, `suggest_transpiler_targets`
+
+> **Current behavior note**: `get_il` currently accepts only `{ "format": "IL" }`. The implementation does not yet support `ILAst`.
 
 ### Member ID System
+
 All members use a stable ID format: `<mvid-32hex>:<token-8hex>:<kind-code>`
-- **Kind Codes**: T=Type, M=Method/Constructor, P=Property, F=Field, E=Event, N=Namespace
-- IDs remain consistent across sessions for reliable automation
+- **Kind codes**: `T` = Type, `M` = Method/Constructor, `P` = Property, `F` = Field, `E` = Event, `N` = Namespace
+- IDs remain stable for a given assembly MVID, which makes automated follow-up calls reliable
 
 ## 📖 Examples
 
-### Analyzing Any .NET Assembly
+### Analyze any .NET assembly
 
-```bash
-# 1. Load any .NET assembly directly
-{
-  "tool": "LoadAssembly",
-  "arguments": {
-    "assemblyPath": "/path/to/MyLibrary.dll"
-  }
-}
+```text
+load_assembly({
+  "assemblyPath": "/path/to/MyLibrary.dll"
+})
 
-# 2. Find all public classes
-{
-  "tool": "SearchTypes",
-  "arguments": {
-    "query": "",
-    "accessibility": "public"
-  }
-}
+search_types({
+  "query": "Simple",
+  "limit": 10
+})
 
-# 3. Get detailed information about a specific type
-{
-  "tool": "GetMemberDetails", 
-  "arguments": {
-    "memberId": "abc123...def:12345678:T"
-  }
-}
+get_member_details({
+  "memberId": "abc123...def:12345678:T"
+})
 ```
 
-### Analyzing a Unity Assembly
+### Analyze a Unity assembly
 
-```bash
-# 1. Load Unity's main assembly
-{
-  "tool": "LoadAssembly",
-  "arguments": {
-    "assemblyPath": "Game_Data/Managed/Assembly-CSharp.dll"
-  }
-}
+```text
+load_assembly({
+  "gameDir": "/path/to/Game",
+  "assemblyFile": "Assembly-CSharp.dll"
+})
 
-# 2. Find all Player-related classes
-{
-  "tool": "SearchTypes",
-  "arguments": {
-    "query": "Player",
-    "accessibility": "public"
-  }
-}
+search_members({
+  "query": "Player",
+  "kind": "method",
+  "limit": 10
+})
 
-# 3. Get detailed information about a specific type
-{
-  "tool": "GetMemberDetails", 
-  "arguments": {
-    "memberId": "abc123...def:12345678:T"
-  }
-}
-
-# 4. Generate a Harmony patch skeleton
-{
-  "tool": "GenerateHarmonyPatchSkeleton",
-  "arguments": {
-    "memberId": "abc123...def:87654321:M",
-    "patchType": "Prefix"
-  }
-}
+generate_harmony_patch_skeleton({
+  "memberId": "abc123...def:87654321:M",
+  "patchKinds": "Prefix,Postfix",
+  "includeReflectionTargeting": true
+})
 ```
 
-### Batch Analysis Workflow
+### Batch analysis workflow
 
-```bash
-# 1. Search for methods containing specific string literals
-{
-  "tool": "SearchStringLiterals",
-  "arguments": {
-    "query": "PlayerDied",
-    "caseSensitive": false
-  }
-}
+```text
+search_string_literals({
+  "pattern": "PlayerDied",
+  "limit": 20
+})
 
-# 2. Batch decompile multiple members
-{
-  "tool": "BatchGetDecompiledSource",
-  "arguments": {
-    "memberIds": ["id1", "id2", "id3"]
-  }
-}
+batch_get_decompiled_source({
+  "memberIds": ["id1", "id2", "id3"]
+})
 
-# 3. Analyze usage patterns
-{
-  "tool": "FindUsages",
-  "arguments": {
-    "memberId": "target-member-id",
-    "includeReferences": true
-  }
-}
+find_usages({
+  "memberId": "target-member-id",
+  "limit": 25
+})
 ```
 
 ## 🔧 Development
@@ -270,23 +194,23 @@ All members use a stable ID format: `<mvid-32hex>:<token-8hex>:<kind-code>`
 
 ```bash
 # Build entire solution
-dotnet build DecompilerServer.sln
+dotnet build DecompilerServer.sln -c Release
 
 # Build specific project
-dotnet build DecompilerServer.csproj
+dotnet build DecompilerServer.csproj -c Release
 ```
 
 ### Testing
 
 ```bash
 # Run all tests
-dotnet test
+dotnet test -c Release
 
 # Run with verbose output
-dotnet test --verbosity normal
+dotnet test -c Release --verbosity normal
 
 # Run specific test class
-dotnet test --filter "ClassName=CoreToolTests"
+dotnet test -c Release --filter "ClassName=CoreToolTests"
 ```
 
 ### Code Formatting
@@ -298,32 +222,32 @@ dotnet format DecompilerServer.sln
 
 ### Project Structure
 
-```
+```text
 DecompilerServer/
 ├── Services/           # Core service implementations (7 services)
-├── Tools/             # MCP tool implementations (39 tools)  
-├── Tests/             # Comprehensive xUnit test suite
-├── TestLibrary/       # Test assembly for validation
-├── Program.cs         # Application entry point
-├── ServiceLocator.cs  # Service locator for MCP tools
-└── *.md              # Documentation files
+├── Tools/              # MCP tool implementations (38 tools)
+├── Tests/              # Comprehensive xUnit test suite
+├── TestLibrary/        # Test assembly for validation
+├── Program.cs          # Application entry point
+├── ServiceLocator.cs   # Service locator for MCP tools
+└── *.md                # Documentation files
 ```
 
 ## 📚 Documentation
 
 - **[HELPER_METHODS_GUIDE.md](HELPER_METHODS_GUIDE.md)** - Comprehensive guide to service helpers and implementation patterns
-- **[TESTING.md](TESTING.md)** - Complete testing framework documentation and best practices  
+- **[TESTING.md](TESTING.md)** - Complete testing framework documentation and best practices
 - **[TODO.md](TODO.md)** - Prioritized enhancement opportunities and development roadmap
 - **[.github/copilot-instructions.md](.github/copilot-instructions.md)** - Detailed project architecture and AI development guidelines
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see our development documentation for detailed guidelines:
+We welcome contributions. Please use the project documentation and existing tool patterns as the baseline:
 
 1. **Read the documentation**: Start with [HELPER_METHODS_GUIDE.md](HELPER_METHODS_GUIDE.md) and [TESTING.md](TESTING.md)
 2. **Check the roadmap**: Review [TODO.md](TODO.md) for priority items
-3. **Follow patterns**: Study existing tools and services for consistency
-4. **Test thoroughly**: Use the comprehensive xUnit framework
+3. **Follow established patterns**: Match the existing service and tool structure
+4. **Test thoroughly**: Use the xUnit suite before submitting changes
 5. **Format code**: Run `dotnet format` before committing
 
 ### Development Workflow
@@ -332,40 +256,41 @@ We welcome contributions! Please see our development documentation for detailed 
 2. Create a feature branch
 3. Make your changes following existing patterns
 4. Add tests for new functionality
-5. Run `dotnet test` to ensure all tests pass
+5. Run `dotnet test -c Release` to ensure the suite passes
 6. Run `dotnet format` to maintain code style
 7. Submit a pull request with a clear description
 
 ## 🛡️ Thread Safety & Performance
 
-DecompilerServer is designed for high performance and thread safety:
+DecompilerServer is designed for concurrent, tool-driven analysis:
 
-- **Thread-Safe Access**: Uses `ReaderWriterLockSlim` for concurrent operations
-- **Intelligent Caching**: Decompiled source with line indexing for efficient slicing
-- **Lazy Loading**: Minimal upfront computation, build indexes on demand
-- **Pagination**: All search results paginated (default: 50, max: 500 items)
+- **Thread-safe assembly access**: `AssemblyContextManager` uses `ReaderWriterLockSlim` around load/read/update paths
+- **Caching**: Decompiled source, member resolution, and search results are cached to reduce repeated work
+- **Lazy and opt-in indexing**: Basic indexes build on demand, and `warm_index` can precompute additional data
+- **Cursor-based pagination**: Search-style tools page results with tool-specific defaults and limits
 
 ## 🔌 MCP Integration
 
-DecompilerServer implements the Model Context Protocol for seamless integration with AI development tools:
+DecompilerServer implements MCP for seamless integration with AI and developer tooling:
 
-- **Auto-Discovery**: Tools automatically discovered via `[McpServerTool]` attributes
-- **Standardized Responses**: Consistent JSON formatting across all endpoints
-- **Error Handling**: Structured error responses with detailed messages
-- **Type Safety**: Strong typing for all tool parameters and responses
+- **Auto-discovery**: Tools are registered via `[McpServerTool]` attributes and loaded from the assembly
+- **Consistent payload conventions**: Responses are camelCase JSON strings with shared success/error formatting
+- **Structured errors**: Tool failures return machine-readable error payloads
+- **Typed parameters**: Tool signatures map directly to strongly typed C# parameters
 
-See [🤖 AI Tool Integration](#-ai-tool-integration) for configuration examples.
+See [🤖 MCP Client Integration](#-mcp-client-integration) for launch guidance.
 
 ## 📋 System Requirements
 
-- **.NET 8.0** or later
-- **Memory**: Recommended 4GB+ for large assemblies
-- **Storage**: Varies by assembly size (caching may require additional space)
+- **Build from source**: .NET 10 SDK
+- **Run framework-dependent output**: .NET 10 runtime
+- **Memory**: Recommended 4 GB+ for large assemblies
+- **Storage**: Varies by assembly size and cache growth
 - **Platform**: Windows, macOS, or Linux
 
 ## 📜 License
 
-This project is open source. Please check the repository for license details.
+This project is open source. See [LICENSE](LICENSE) for the current license text.
 
 ## 🙏 Acknowledgments
 
@@ -376,4 +301,4 @@ Built with:
 
 ---
 
-*For detailed technical documentation and advanced usage scenarios, please refer to the comprehensive guides in the repository documentation.*
+For deeper implementation details and testing guidance, see the additional markdown guides in the repository.
