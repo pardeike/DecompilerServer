@@ -7,7 +7,7 @@ This project now includes a comprehensive testing framework using xUnit that val
 ### 1. TestLibrary Project
 - **Purpose**: Creates `test.dll` - a sample assembly used for testing decompiler services
 - **Location**: `TestLibrary/`
-- **Output**: `TestLibrary/bin/Debug/net8.0/test.dll`
+- **Output**: `TestLibrary/bin/Debug/<target-framework>/test.dll`
 - **Contents**: Various C# constructs for testing:
   - Simple classes with fields, properties, and methods
   - Interface definitions
@@ -84,7 +84,7 @@ The tests use the `test.dll` assembly which contains:
 
 ## Test Environment
 
-- **.NET 8.0**: Target framework
+- **.NET 10.0**: Target framework
 - **xUnit 2.4.2**: Test framework
 - **ICSharpCode.Decompiler**: Real decompilation engine
 - **test.dll**: Dedicated test assembly with known structure

@@ -161,13 +161,7 @@ public class GenericAssemblyLoadingTests : IDisposable
 
     private string GetTestLibraryPath()
     {
-        // Find the test library DLL
-        var testLibraryPath = Path.Combine(
-            AppDomain.CurrentDomain.BaseDirectory,
-            "..", "..", "..", "..",
-            "TestLibrary", "bin", "Debug", "net8.0", "test.dll");
-
-        testLibraryPath = Path.GetFullPath(testLibraryPath);
+        var testLibraryPath = TestAssemblyLocator.GetPath();
 
         if (!File.Exists(testLibraryPath))
         {

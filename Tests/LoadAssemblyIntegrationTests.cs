@@ -73,9 +73,7 @@ public class LoadAssemblyIntegrationTests : IDisposable
 
     private string GetTestAssemblyPath()
     {
-        return Path.GetFullPath(Path.Combine(
-            AppDomain.CurrentDomain.BaseDirectory,
-            "..", "..", "..", "..", "TestLibrary", "bin", "Debug", "net8.0", "test.dll"));
+        return TestAssemblyLocator.GetPath();
     }
 
     public void Dispose()
