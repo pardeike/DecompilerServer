@@ -61,6 +61,34 @@ public class DecompilationFunctionalityTests : ServiceTestBase
     }
 
     [Fact]
+    public void DecompileNestedTypeWithoutSymbols_ShouldUseFallbackDecompiler()
+    {
+        using var contextManager = new AssemblyContextManager();
+        var memberResolver = new MemberResolver(contextManager);
+        var decompilerService = new DecompilerService(contextManager, memberResolver);
+
+        var assemblyPath = typeof(global::NestedNoSymbolsTestLibrary.OuterContainer.NestedWorker).Assembly.Location;
+        contextManager.LoadAssemblyDirect(assemblyPath);
+
+        var nestedType = contextManager.GetAllTypes()
+            .Single(type => type.ReflectionName == "NestedNoSymbolsTestLibrary.OuterContainer+NestedWorker");
+
+        var typeDocument = decompilerService.DecompileMember(memberResolver.GenerateMemberId(nestedType));
+        var typeSource = string.Join("\n", typeDocument.Lines);
+
+        Assert.Equal(SourceKinds.Decompiled, typeDocument.SourceKind);
+        Assert.Contains("class NestedWorker", typeSource);
+
+        var method = nestedType.Methods.Single(m => m.Name == "Compute");
+        var methodDocument = decompilerService.DecompileMember(memberResolver.GenerateMemberId(method));
+        var methodSource = string.Join("\n", methodDocument.Lines);
+
+        Assert.Equal(SourceKinds.Decompiled, methodDocument.SourceKind);
+        Assert.Contains("class NestedWorker", methodSource);
+        Assert.Contains("Compute", methodSource);
+    }
+
+    [Fact]
     public void DecompileDerivedClass_ShouldShowInheritance()
     {
         // Arrange

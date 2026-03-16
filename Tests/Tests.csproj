@@ -29,6 +29,7 @@
   <ItemGroup>
     <ProjectReference Include="../DecompilerServer.csproj" />
     <ProjectReference Include="../EmbeddedSourceTestLibrary/EmbeddedSourceTestLibrary.csproj" />
+    <ProjectReference Include="../NestedNoSymbolsTestLibrary/NestedNoSymbolsTestLibrary.csproj" />
     <ProjectReference Include="../TestLibrary/TestLibrary.csproj" />
   </ItemGroup>
 

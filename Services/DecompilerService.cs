@@ -189,7 +189,7 @@ public class DecompilerService
             var decompiler = _contextManager.GetDecompiler();
             return entity switch
             {
-                ITypeDefinition type => decompiler.DecompileTypeAsString(type.FullTypeName),
+                ITypeDefinition type => DecompileType(type, decompiler),
                 IMethod method => DecompileMethod(method, decompiler),
                 IField field => DecompileField(field, decompiler),
                 IProperty property => DecompileProperty(property, decompiler),
@@ -197,6 +197,23 @@ public class DecompilerService
                 _ => throw new NotSupportedException($"Decompilation not supported for entity type: {entity.GetType()}")
             };
         }
+    }
+
+    private static string DecompileType(IType type, CSharpDecompiler decompiler)
+    {
+        return decompiler.DecompileTypeAsString(GetDecompilerTypeName(type));
+    }
+
+    private static FullTypeName GetDecompilerTypeName(IType type)
+    {
+        if (!string.IsNullOrWhiteSpace(type.ReflectionName))
+            return new FullTypeName(type.ReflectionName);
+
+        return type switch
+        {
+            ITypeDefinition typeDefinition => typeDefinition.FullTypeName,
+            _ => new FullTypeName(type.FullName)
+        };
     }
 
     private static string StripHeader(string code)
@@ -248,7 +265,7 @@ public class DecompilerService
         if (method.DeclaringType == null)
             return $"// Error: Method '{method.Name}' has no declaring type and cannot be decompiled";
 
-        return decompiler.DecompileTypeAsString(new ICSharpCode.Decompiler.TypeSystem.FullTypeName(method.DeclaringType.FullName));
+        return DecompileType(method.DeclaringType, decompiler);
     }
 
     private string DecompileField(IField field, CSharpDecompiler decompiler)
@@ -256,7 +273,7 @@ public class DecompilerService
         if (field.DeclaringType == null)
             return $"// Error: Field '{field.Name}' has no declaring type and cannot be decompiled";
 
-        return decompiler.DecompileTypeAsString(new ICSharpCode.Decompiler.TypeSystem.FullTypeName(field.DeclaringType.FullName));
+        return DecompileType(field.DeclaringType, decompiler);
     }
 
     private string DecompileProperty(IProperty property, CSharpDecompiler decompiler)
@@ -264,7 +281,7 @@ public class DecompilerService
         if (property.DeclaringType == null)
             return $"// Error: Property '{property.Name}' has no declaring type and cannot be decompiled";
 
-        return decompiler.DecompileTypeAsString(new ICSharpCode.Decompiler.TypeSystem.FullTypeName(property.DeclaringType.FullName));
+        return DecompileType(property.DeclaringType, decompiler);
     }
 
     private string DecompileEvent(IEvent evt, CSharpDecompiler decompiler)
@@ -272,7 +289,7 @@ public class DecompilerService
         if (evt.DeclaringType == null)
             return $"// Error: Event '{evt.Name}' has no declaring type and cannot be decompiled";
 
-        return decompiler.DecompileTypeAsString(new ICSharpCode.Decompiler.TypeSystem.FullTypeName(evt.DeclaringType.FullName));
+        return DecompileType(evt.DeclaringType, decompiler);
     }
 
     private string ComputeHash(string content)

@@ -122,6 +122,7 @@ dotnet format DecompilerServer.sln
 - Cache decompiled C# source with line indexing
 - Support ranged retrieval without re-decompilation
 - Include proper headers/footers and maintain source document metadata
+- When decompiling nested types by name, prefer reflection names such as `Outer+Inner`; dotted names such as `Outer.Inner` can fail in ILSpy lookup paths even when the type exists in metadata.
 
 ### IL Handling
 - Use ICSharpCode.Decompiler.Disassembler for readable IL output
