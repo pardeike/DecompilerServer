@@ -18,10 +18,10 @@ jobs:
 
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up .NET 10
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: "10.0.x"
 
@@ -53,7 +53,7 @@ jobs:
 
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Ensure GitHub release exists
         env:
@@ -93,10 +93,10 @@ jobs:
 
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up .NET 10
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: "10.0.x"
 
@@ -148,10 +148,8 @@ jobs:
               cd dist
               zip -qr "${asset_base}.zip" "${asset_base}"
             )
-            sha256sum "dist/${asset_base}.zip" > "dist/${asset_base}.zip.sha256"
           else
             tar -C dist -czf "dist/${asset_base}.tar.gz" "${asset_base}"
-            sha256sum "dist/${asset_base}.tar.gz" > "dist/${asset_base}.tar.gz.sha256"
           fi
 
       - name: Upload release artifacts
@@ -166,5 +164,4 @@ jobs:
           gh release upload \
             "$RELEASE_TAG" \
             "dist/${asset_base}.${ARCHIVE_EXT}" \
-            "dist/${asset_base}.${ARCHIVE_EXT}.sha256" \
             --clobber
