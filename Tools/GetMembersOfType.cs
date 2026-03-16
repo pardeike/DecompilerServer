@@ -8,13 +8,15 @@ namespace DecompilerServer;
 [McpServerToolType]
 public static class GetMembersOfTypeTool
 {
-    [McpServerTool, Description("List members of a given type with filters and pagination.")]
-    public static string GetMembersOfType(string typeId, string? kind = null, string? accessibility = null, bool? isStatic = null, bool includeInherited = false, int limit = 100, string? cursor = null)
+    [McpServerTool, Description("List members of a given type with filters and pagination. Modes: 'ids', 'discovery', 'signatures' (default), 'full'.")]
+    public static string GetMembersOfType(string typeId, string? kind = null, string? accessibility = null, bool? isStatic = null, bool includeInherited = false, int limit = 100, string? cursor = null, string mode = "signatures")
     {
         return ResponseFormatter.TryExecute(() =>
         {
             var contextManager = ServiceLocator.ContextManager;
             var memberResolver = ServiceLocator.MemberResolver;
+            var normalizedLimit = MemberSummaryModes.ClampLimit(limit, 100);
+            var parsedMode = MemberSummaryModes.Parse(mode, MemberSummaryMode.Signatures);
 
             if (!contextManager.IsLoaded)
             {
@@ -69,16 +71,16 @@ public static class GetMembersOfTypeTool
 
             var pageItems = sortedMembers
                 .Skip(startIndex)
-                .Take(limit)
+                .Take(normalizedLimit)
                 .Select(member => CreateMemberSummary(member, memberResolver))
                 .ToList();
 
-            var hasMore = startIndex + limit < sortedMembers.Count;
-            var nextCursor = hasMore ? (startIndex + limit).ToString() : null;
+            var hasMore = startIndex + normalizedLimit < sortedMembers.Count;
+            var nextCursor = hasMore ? (startIndex + normalizedLimit).ToString() : null;
 
             var result = new SearchResult<MemberSummary>(pageItems, hasMore, nextCursor, sortedMembers.Count);
 
-            return result;
+            return MemberSummaryModes.Project(result, parsedMode);
         });
     }
 

@@ -91,7 +91,8 @@ Most MCP clients expose these tools in `snake_case` even though the underlying C
    ```text
    search_types({
      "query": "Player",
-     "limit": 10
+     "limit": 10,
+     "mode": "discovery"
    })
    ```
 
@@ -141,7 +142,8 @@ load_assembly({
 
 search_types({
   "query": "Simple",
-  "limit": 10
+  "limit": 10,
+  "mode": "discovery"
 })
 
 get_member_details({
@@ -160,7 +162,8 @@ load_assembly({
 search_members({
   "query": "Player",
   "kind": "method",
-  "limit": 10
+  "limit": 10,
+  "mode": "signatures"
 })
 
 generate_harmony_patch_skeleton({
@@ -187,6 +190,21 @@ find_usages({
   "limit": 25
 })
 ```
+
+### Result modes for high-churn discovery tools
+
+`search_types`, `search_members`, and `get_members_of_type` support output modes so callers can trade detail for context size:
+
+- `ids`: minimal chaining payload (`memberId`, `name`, `kind`)
+- `discovery`: candidate selection payload for follow-up inspection
+- `signatures`: callable/member surface focused payload
+- `full`: legacy rich summary payload
+
+Defaults are tuned for common workflows:
+
+- `search_types`: `discovery`
+- `search_members`: `discovery`
+- `get_members_of_type`: `signatures`
 
 ## 🔧 Development
 

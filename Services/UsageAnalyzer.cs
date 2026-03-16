@@ -17,6 +17,8 @@ public class UsageAnalyzer
     private readonly MemberResolver _memberResolver;
     private readonly ConcurrentDictionary<string, List<UsageReference>> _usageCache = new();
     private readonly ConcurrentDictionary<string, List<StringLiteralReference>> _stringLiteralCache = new();
+    private readonly object _cacheLock = new();
+    private long _cacheVersion = -1;
 
     private static readonly OpCode[] _singleByteOpCodes = new OpCode[0x100];
     private static readonly OpCode[] _multiByteOpCodes = new OpCode[0x100];
@@ -45,6 +47,8 @@ public class UsageAnalyzer
     /// </summary>
     public IEnumerable<UsageReference> FindUsages(string memberId, int limit = 100, string? cursor = null)
     {
+        EnsureCacheCurrent();
+
         // Create cache key
         var cacheKey = $"{memberId}:{limit}:{cursor}";
 
@@ -105,6 +109,7 @@ public class UsageAnalyzer
     /// </summary>
     public IEnumerable<UsageReference> FindCallers(string methodId, int limit = 100, string? cursor = null)
     {
+        EnsureCacheCurrent();
         var usages = FindUsages(methodId, limit, cursor);
         return usages.Where(u => u.Kind == UsageKind.Call || u.Kind == UsageKind.NewObject);
     }
@@ -114,6 +119,8 @@ public class UsageAnalyzer
     /// </summary>
     public IEnumerable<UsageReference> FindCallees(string methodId, int limit = 100, string? cursor = null)
     {
+        EnsureCacheCurrent();
+
         var method = _memberResolver.ResolveMethod(methodId);
         if (method == null)
             return Enumerable.Empty<UsageReference>();
@@ -187,6 +194,8 @@ public class UsageAnalyzer
     /// </summary>
     public IEnumerable<string> FindStringLiteralsInMethod(IMethod method)
     {
+        EnsureCacheCurrent();
+
         if (method.MetadataToken.IsNil)
             return Enumerable.Empty<string>();
 
@@ -223,6 +232,8 @@ public class UsageAnalyzer
     /// </summary>
     public IEnumerable<StringLiteralReference> FindStringLiterals(string query, bool regex = false, int limit = 100, string? cursor = null)
     {
+        EnsureCacheCurrent();
+
         // Create cache key
         var cacheKey = $"{query}:{regex}:{limit}:{cursor}";
 
@@ -287,8 +298,12 @@ public class UsageAnalyzer
     /// </summary>
     public void ClearCache()
     {
-        _usageCache.Clear();
-        _stringLiteralCache.Clear();
+        lock (_cacheLock)
+        {
+            _usageCache.Clear();
+            _stringLiteralCache.Clear();
+            _cacheVersion = _contextManager.ContextVersion;
+        }
     }
 
     /// <summary>
@@ -296,11 +311,30 @@ public class UsageAnalyzer
     /// </summary>
     public UsageAnalyzerCacheStats GetCacheStats()
     {
+        EnsureCacheCurrent();
+
         return new UsageAnalyzerCacheStats(
               _usageCache.Count,
               _stringLiteralCache.Count,
               _usageCache.Values.Sum(list => list.Count),
               _stringLiteralCache.Values.Sum(list => list.Count));
+    }
+
+    private void EnsureCacheCurrent()
+    {
+        var version = _contextManager.ContextVersion;
+        if (_cacheVersion == version)
+            return;
+
+        lock (_cacheLock)
+        {
+            if (_cacheVersion == version)
+                return;
+
+            _usageCache.Clear();
+            _stringLiteralCache.Clear();
+            _cacheVersion = version;
+        }
     }
 
     private IEnumerable<UsageReference> FindUsagesInMethod(IMethod method, IEntity targetMember)

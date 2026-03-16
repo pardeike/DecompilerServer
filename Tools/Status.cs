@@ -57,6 +57,10 @@ public static class StatusTool
         return new
         {
             sourceDocuments = decompilerStats.SourceDocuments,
+            rawContents = decompilerStats.RawContents,
+            decompiledContents = decompilerStats.DecompiledContents,
+            originalSourceContents = decompilerStats.OriginalSourceContents,
+            sourceLinkContents = decompilerStats.SourceLinkContents,
             totalMemoryEstimate = decompilerStats.TotalMemoryEstimate,
             cachedResolutions = resolverStats.CachedResolutions,
             successfulResolutions = resolverStats.SuccessfulResolutions,

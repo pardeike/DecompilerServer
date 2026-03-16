@@ -23,6 +23,7 @@ public class AssemblyContextManager : IDisposable
     private CSharpDecompiler? _decompiler;
     private UniversalAssemblyResolver? _resolver;
     private bool _disposed;
+    private long _contextVersion;
     private readonly ReaderWriterLockSlim _lock = new();
 
     // Lazy indexes - built on-demand and cached
@@ -48,6 +49,7 @@ public class AssemblyContextManager : IDisposable
     public string? AssemblyPath { get; private set; }
     public string? Mvid { get; private set; }
     public DateTime? LoadedAtUtc { get; private set; }
+    public long ContextVersion => Interlocked.Read(ref _contextVersion);
 
     // Basic statistics with enhanced caching awareness
     public int TypeCount => _compilation?.MainModule.TypeDefinitions.Count() ?? 0;
@@ -315,6 +317,7 @@ public class AssemblyContextManager : IDisposable
         {
             if (!IsLoaded) return;
             _decompiler = new CSharpDecompiler(_peFile!, _resolver!, settings);
+            Interlocked.Increment(ref _contextVersion);
         }
         finally
         {
@@ -511,6 +514,7 @@ public class AssemblyContextManager : IDisposable
 
     private void DisposeContext()
     {
+        Interlocked.Increment(ref _contextVersion);
         _decompiler = null;
         _compilation = null;
         _peFile?.Dispose();

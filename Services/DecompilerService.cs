@@ -14,12 +14,19 @@ public class DecompilerService
 {
     private readonly AssemblyContextManager _contextManager;
     private readonly MemberResolver _memberResolver;
-    private readonly ConcurrentDictionary<string, SourceDocument> _sourceCache = new();
+    private readonly OriginalSourceResolver _originalSourceResolver;
+    private readonly ConcurrentDictionary<string, RawSourceContent> _contentCache = new();
+    private readonly ConcurrentDictionary<string, PreparedSourceContent> _preparedSourceCache = new();
+    private readonly ConcurrentDictionary<string, string> _memberContentKeyCache = new();
+    private readonly object _cacheLock = new();
+    private readonly object _decompileLock = new();
+    private long _cacheVersion = -1;
 
     public DecompilerService(AssemblyContextManager contextManager, MemberResolver memberResolver)
     {
         _contextManager = contextManager;
         _memberResolver = memberResolver;
+        _originalSourceResolver = new OriginalSourceResolver(contextManager);
     }
 
     /// <summary>
@@ -27,25 +34,29 @@ public class DecompilerService
     /// </summary>
     public SourceDocument DecompileMember(string memberId, bool includeHeader = true)
     {
-        // Check cache first
-        var cacheKey = $"{memberId}:{includeHeader}";
-        if (_sourceCache.TryGetValue(cacheKey, out var cached))
-            return cached;
+        EnsureCacheCurrent();
 
         var entity = _memberResolver.ResolveMember(memberId);
         if (entity == null)
             throw new ArgumentException($"Cannot resolve member: {memberId}");
 
-        var decompiler = _contextManager.GetDecompiler();
-        var code = DecompileEntity(entity, decompiler, includeHeader);
+        var contentKey = GetOrCreateContentKey(memberId, entity);
+        if (!_contentCache.TryGetValue(contentKey, out var rawContent))
+            throw new InvalidOperationException($"Source content was not cached for '{memberId}'");
 
-        var lines = code.Split('\n');
-        var hash = ComputeHash(code);
+        var preparedKey = $"{contentKey}:header={includeHeader}";
+        var preparedContent = _preparedSourceCache.GetOrAdd(preparedKey, _ => PrepareSourceContent(rawContent, includeHeader));
 
-        var document = new SourceDocument(memberId, "C#", lines.Length, hash, lines, includeHeader);
-
-        _sourceCache[cacheKey] = document;
-        return document;
+        return new SourceDocument(
+            memberId,
+            preparedContent.Language,
+            preparedContent.TotalLines,
+            preparedContent.Hash,
+            preparedContent.Lines,
+            includeHeader,
+            preparedContent.SourceKind,
+            preparedContent.SourcePath,
+            preparedContent.SourceUri);
     }
 
     /// <summary>
@@ -68,7 +79,7 @@ public class DecompilerService
             .ToArray();
 
         return new SourceSlice(memberId, document.Language, startLine, endLine.Value, document.TotalLines, document.Hash,
-            string.Join('\n', sliceLines));
+            string.Join('\n', sliceLines), document.SourceKind, document.SourcePath, document.SourceUri);
     }
 
     /// <summary>
@@ -96,7 +107,14 @@ public class DecompilerService
     /// </summary>
     public void ClearCache()
     {
-        _sourceCache.Clear();
+        lock (_cacheLock)
+        {
+            _contentCache.Clear();
+            _preparedSourceCache.Clear();
+            _memberContentKeyCache.Clear();
+            _originalSourceResolver.ClearCache();
+            _cacheVersion = _contextManager.ContextVersion;
+        }
     }
 
     /// <summary>
@@ -104,23 +122,81 @@ public class DecompilerService
     /// </summary>
     public CacheStats GetCacheStats()
     {
-        return new CacheStats(_sourceCache.Count,
-            _sourceCache.Values.Sum(d => d.Lines.Sum(l => l.Length * 2))); // rough estimate
+        EnsureCacheCurrent();
+
+        var totalMemoryEstimate =
+            _contentCache.Values.Sum(content => content.Code.Length * 2L) +
+            _preparedSourceCache.Values.Sum(content => content.Lines.Sum(line => line.Length * 2L));
+
+        return new CacheStats(
+            _preparedSourceCache.Count,
+            totalMemoryEstimate,
+            _contentCache.Count,
+            _contentCache.Values.Count(content => content.SourceKind == SourceKinds.Decompiled),
+            _contentCache.Values.Count(content => content.SourceKind != SourceKinds.Decompiled),
+            _contentCache.Values.Count(content => content.SourceKind == SourceKinds.SourceLink));
     }
 
-    private string DecompileEntity(IEntity entity, CSharpDecompiler decompiler, bool includeHeader)
+    private string GetOrCreateContentKey(string memberId, IEntity entity)
     {
-        var code = entity switch
-        {
-            ITypeDefinition type => decompiler.DecompileTypeAsString(type.FullTypeName),
-            IMethod method => DecompileMethod(method, decompiler),
-            IField field => DecompileField(field, decompiler),
-            IProperty property => DecompileProperty(property, decompiler),
-            IEvent evt => DecompileEvent(evt, decompiler),
-            _ => throw new NotSupportedException($"Decompilation not supported for entity type: {entity.GetType()}")
-        };
+        if (_memberContentKeyCache.TryGetValue(memberId, out var cachedContentKey))
+            return cachedContentKey;
 
-        return includeHeader ? code : StripHeader(code);
+        var originalSource = _originalSourceResolver.TryResolve(entity);
+        if (originalSource != null)
+        {
+            _contentCache.TryAdd(originalSource.CacheKey, new RawSourceContent(
+                originalSource.Language,
+                NormalizeLineEndings(originalSource.Code),
+                originalSource.SourceKind,
+                originalSource.SourcePath,
+                originalSource.SourceUri));
+            _memberContentKeyCache[memberId] = originalSource.CacheKey;
+            return originalSource.CacheKey;
+        }
+
+        var decompiledContentKey = CreateDecompiledContentKey(entity);
+        _contentCache.GetOrAdd(decompiledContentKey, _ => new RawSourceContent(
+            "C#",
+            NormalizeLineEndings(DecompileEntity(entity)),
+            SourceKinds.Decompiled,
+            null,
+            null));
+        _memberContentKeyCache[memberId] = decompiledContentKey;
+        return decompiledContentKey;
+    }
+
+    private PreparedSourceContent PrepareSourceContent(RawSourceContent rawContent, bool includeHeader)
+    {
+        var transformedCode = includeHeader ? rawContent.Code : StripHeader(rawContent.Code);
+        var lines = transformedCode.Split('\n');
+        var hash = ComputeHash(transformedCode);
+
+        return new PreparedSourceContent(
+            rawContent.Language,
+            lines.Length,
+            hash,
+            lines,
+            rawContent.SourceKind,
+            rawContent.SourcePath,
+            rawContent.SourceUri);
+    }
+
+    private string DecompileEntity(IEntity entity)
+    {
+        lock (_decompileLock)
+        {
+            var decompiler = _contextManager.GetDecompiler();
+            return entity switch
+            {
+                ITypeDefinition type => decompiler.DecompileTypeAsString(type.FullTypeName),
+                IMethod method => DecompileMethod(method, decompiler),
+                IField field => DecompileField(field, decompiler),
+                IProperty property => DecompileProperty(property, decompiler),
+                IEvent evt => DecompileEvent(evt, decompiler),
+                _ => throw new NotSupportedException($"Decompilation not supported for entity type: {entity.GetType()}")
+            };
+        }
     }
 
     private static string StripHeader(string code)
@@ -206,19 +282,97 @@ public class DecompilerService
         var hash = sha256.ComputeHash(bytes);
         return Convert.ToHexString(hash).ToLowerInvariant();
     }
+
+    private static string NormalizeLineEndings(string content)
+    {
+        return content.Replace("\r\n", "\n").Replace('\r', '\n');
+    }
+
+    private string CreateDecompiledContentKey(IEntity entity)
+    {
+        var canonicalEntity = entity switch
+        {
+            ITypeDefinition typeDefinition => typeDefinition,
+            IMember member when member.DeclaringTypeDefinition != null => member.DeclaringTypeDefinition,
+            IMember member when member.DeclaringType != null => member.DeclaringType.GetDefinition(),
+            _ => entity
+        };
+
+        return $"decompiled:{_memberResolver.GenerateMemberId(canonicalEntity ?? entity)}";
+    }
+
+    private void EnsureCacheCurrent()
+    {
+        var version = _contextManager.ContextVersion;
+        if (_cacheVersion == version)
+            return;
+
+        lock (_cacheLock)
+        {
+            if (_cacheVersion == version)
+                return;
+
+            _contentCache.Clear();
+            _preparedSourceCache.Clear();
+            _memberContentKeyCache.Clear();
+            _originalSourceResolver.ClearCache();
+            _cacheVersion = version;
+        }
+    }
+
+    private sealed record RawSourceContent(
+        string Language,
+        string Code,
+        string SourceKind,
+        string? SourcePath,
+        string? SourceUri);
+
+    private sealed record PreparedSourceContent(
+        string Language,
+        int TotalLines,
+        string Hash,
+        string[] Lines,
+        string SourceKind,
+        string? SourcePath,
+        string? SourceUri);
 }
 
 /// <summary>
 /// Represents a cached source document
 /// </summary>
-public record SourceDocument(string MemberId, string Language, int TotalLines, string Hash, string[] Lines, bool IncludeHeader);
+public record SourceDocument(
+    string MemberId,
+    string Language,
+    int TotalLines,
+    string Hash,
+    string[] Lines,
+    bool IncludeHeader,
+    string SourceKind = SourceKinds.Decompiled,
+    string? SourcePath = null,
+    string? SourceUri = null);
 
 /// <summary>
 /// Represents a slice of source code
 /// </summary>
-public record SourceSlice(string MemberId, string Language, int StartLine, int EndLine, int TotalLines, string Hash, string Code);
+public record SourceSlice(
+    string MemberId,
+    string Language,
+    int StartLine,
+    int EndLine,
+    int TotalLines,
+    string Hash,
+    string Code,
+    string SourceKind = SourceKinds.Decompiled,
+    string? SourcePath = null,
+    string? SourceUri = null);
 
 /// <summary>
 /// Cache statistics
 /// </summary>
-public record CacheStats(int SourceDocuments, long TotalMemoryEstimate);
+public record CacheStats(
+    int SourceDocuments,
+    long TotalMemoryEstimate,
+    int RawContents = 0,
+    int DecompiledContents = 0,
+    int OriginalSourceContents = 0,
+    int SourceLinkContents = 0);

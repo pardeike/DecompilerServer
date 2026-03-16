@@ -18,6 +18,9 @@ public static class LoadAssemblyTool
         return ResponseFormatter.TryExecute(() =>
         {
             var contextManager = ServiceLocator.ContextManager;
+            var decompilerService = ServiceLocator.DecompilerService;
+            var memberResolver = ServiceLocator.MemberResolver;
+            var usageAnalyzer = ServiceLocator.UsageAnalyzer;
 
             // Validate parameters - exactly one of gameDir or assemblyPath must be provided
             if (gameDir != null && assemblyPath != null)
@@ -25,6 +28,11 @@ public static class LoadAssemblyTool
 
             if (gameDir == null && assemblyPath == null)
                 throw new ArgumentException("Must specify either gameDir (for Unity projects) or assemblyPath (for direct assembly loading).");
+
+            // Drop singleton caches eagerly before switching contexts.
+            decompilerService.ClearCache();
+            memberResolver.ClearCache();
+            usageAnalyzer.ClearCache();
 
             // Load the assembly using the appropriate method
             if (gameDir != null)

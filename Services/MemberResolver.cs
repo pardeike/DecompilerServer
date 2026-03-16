@@ -15,6 +15,8 @@ public class MemberResolver
 {
     private readonly AssemblyContextManager _contextManager;
     private readonly ConcurrentDictionary<string, IEntity?> _resolutionCache = new();
+    private readonly object _cacheLock = new();
+    private long _cacheVersion = -1;
 
     public MemberResolver(AssemblyContextManager contextManager)
     {
@@ -26,6 +28,8 @@ public class MemberResolver
     /// </summary>
     public IEntity? ResolveMember(string memberId)
     {
+        EnsureCacheCurrent();
+
         if (string.IsNullOrWhiteSpace(memberId))
             return null;
 
@@ -154,7 +158,11 @@ public class MemberResolver
     /// </summary>
     public void ClearCache()
     {
-        _resolutionCache.Clear();
+        lock (_cacheLock)
+        {
+            _resolutionCache.Clear();
+            _cacheVersion = _contextManager.ContextVersion;
+        }
     }
 
     /// <summary>
@@ -162,10 +170,28 @@ public class MemberResolver
     /// </summary>
     public ResolverCacheStats GetCacheStats()
     {
+        EnsureCacheCurrent();
+
         return new ResolverCacheStats(
             _resolutionCache.Count,
             _resolutionCache.Count(kv => kv.Value != null),
             _resolutionCache.Count(kv => kv.Value == null));
+    }
+
+    private void EnsureCacheCurrent()
+    {
+        var version = _contextManager.ContextVersion;
+        if (_cacheVersion == version)
+            return;
+
+        lock (_cacheLock)
+        {
+            if (_cacheVersion == version)
+                return;
+
+            _resolutionCache.Clear();
+            _cacheVersion = version;
+        }
     }
 
     private IEntity? ResolveMemberByFullName(string memberId, ICompilation compilation)

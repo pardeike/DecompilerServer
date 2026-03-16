@@ -13,6 +13,8 @@ public abstract class SearchServiceBase
     protected readonly AssemblyContextManager _contextManager;
     protected readonly MemberResolver _memberResolver;
     private readonly ConcurrentDictionary<string, SearchResult<MemberSummary>> _searchCache = new();
+    private readonly object _cacheLock = new();
+    private long _cacheVersion = -1;
 
     protected SearchServiceBase(AssemblyContextManager contextManager, MemberResolver memberResolver)
     {
@@ -31,6 +33,8 @@ public abstract class SearchServiceBase
         int limit = 50,
         string? cursor = null)
     {
+        EnsureCacheCurrent();
+
         // Create cache key from search parameters
         var cacheKey = $"types:{query}:{regex}:{namespaceFilter}:{includeNested}:{limit}:{cursor}";
 
@@ -97,6 +101,8 @@ public abstract class SearchServiceBase
         int limit = 50,
         string? cursor = null)
     {
+        EnsureCacheCurrent();
+
         // Create cache key from search parameters
         var paramTypesKey = paramTypeFilters != null ? string.Join(",", paramTypeFilters) : "";
         var cacheKey = $"members:{query}:{regex}:{namespaceFilter}:{declaringTypeFilter}:{attributeFilter}:{returnTypeFilter}:{paramTypesKey}:{kind}:{accessibility}:{isStatic}:{isAbstract}:{isVirtual}:{genericArity}:{limit}:{cursor}";
@@ -199,7 +205,11 @@ public abstract class SearchServiceBase
     /// </summary>
     public void ClearSearchCache()
     {
-        _searchCache.Clear();
+        lock (_cacheLock)
+        {
+            _searchCache.Clear();
+            _cacheVersion = _contextManager.ContextVersion;
+        }
     }
 
     /// <summary>
@@ -207,10 +217,28 @@ public abstract class SearchServiceBase
     /// </summary>
     public SearchCacheStats GetSearchCacheStats()
     {
+        EnsureCacheCurrent();
+
         return new SearchCacheStats(
             _searchCache.Count,
             _searchCache.Values.Sum(r => r.Items.Count),
             _searchCache.Any() ? _searchCache.Values.Average(r => r.Items.Count) : 0);
+    }
+
+    private void EnsureCacheCurrent()
+    {
+        var version = _contextManager.ContextVersion;
+        if (_cacheVersion == version)
+            return;
+
+        lock (_cacheLock)
+        {
+            if (_cacheVersion == version)
+                return;
+
+            _searchCache.Clear();
+            _cacheVersion = version;
+        }
     }
 
     /// <summary>

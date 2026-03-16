@@ -49,7 +49,9 @@ public class SearchToolTests : ServiceTestBase
             var firstMember = items[0];
             Assert.Contains(firstMember.GetProperty("kind").GetString()!,
                 new[] { "Method", "Constructor", "Field", "Property", "Event" });
-            Assert.False(string.IsNullOrEmpty(firstMember.GetProperty("signature").GetString()));
+            Assert.True(firstMember.TryGetProperty("memberId", out _));
+            Assert.True(firstMember.TryGetProperty("fullName", out _));
+            Assert.False(firstMember.TryGetProperty("signature", out _));
         }
     }
 
@@ -153,7 +155,8 @@ public class SearchToolTests : ServiceTestBase
             var firstMember = items[0];
             Assert.Contains(firstMember.GetProperty("kind").GetString()!,
                 new[] { "Method", "Constructor", "Field", "Property", "Event" });
-            Assert.Equal(testType.FullName, firstMember.GetProperty("declaringType").GetString());
+            Assert.False(string.IsNullOrEmpty(firstMember.GetProperty("signature").GetString()));
+            Assert.False(firstMember.TryGetProperty("declaringType", out _));
         }
     }
 
@@ -183,6 +186,86 @@ public class SearchToolTests : ServiceTestBase
             var member = items[i];
             Assert.Equal("Method", member.GetProperty("kind").GetString());
         }
+    }
+
+    [Fact]
+    public void SearchTypes_WithIdsMode_ReturnsMinimalShape()
+    {
+        var result = SearchTypesTool.SearchTypes("Simple", mode: "ids");
+
+        Assert.NotNull(result);
+        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        Assert.Equal("ok", response.GetProperty("status").GetString());
+
+        var items = response.GetProperty("data").GetProperty("items");
+        Assert.True(items.GetArrayLength() > 0);
+
+        var firstType = items[0];
+        Assert.True(firstType.TryGetProperty("memberId", out _));
+        Assert.True(firstType.TryGetProperty("name", out _));
+        Assert.True(firstType.TryGetProperty("kind", out _));
+        Assert.False(firstType.TryGetProperty("fullName", out _));
+        Assert.False(firstType.TryGetProperty("signature", out _));
+    }
+
+    [Fact]
+    public void SearchMembers_WithSignaturesMode_ReturnsSignatureShape()
+    {
+        var result = SearchMembersTool.SearchMembers("Test", mode: "signatures");
+
+        Assert.NotNull(result);
+        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        Assert.Equal("ok", response.GetProperty("status").GetString());
+
+        var items = response.GetProperty("data").GetProperty("items");
+        Assert.True(items.GetArrayLength() >= 0);
+
+        if (items.GetArrayLength() > 0)
+        {
+            var firstMember = items[0];
+            Assert.True(firstMember.TryGetProperty("signature", out var signature));
+            Assert.False(string.IsNullOrEmpty(signature.GetString()));
+            Assert.True(firstMember.TryGetProperty("accessibility", out _));
+            Assert.False(firstMember.TryGetProperty("fullName", out _));
+        }
+    }
+
+    [Fact]
+    public void GetMembersOfType_WithFullMode_ReturnsLegacyRichShape()
+    {
+        var testType = ContextManager.GetAllTypes().FirstOrDefault(t => t.Methods.Any() || t.Fields.Any() || t.Properties.Any());
+        Assert.NotNull(testType);
+
+        var typeId = MemberResolver.GenerateMemberId(testType);
+        var result = GetMembersOfTypeTool.GetMembersOfType(typeId, mode: "full");
+
+        Assert.NotNull(result);
+        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        Assert.Equal("ok", response.GetProperty("status").GetString());
+
+        var items = response.GetProperty("data").GetProperty("items");
+        Assert.True(items.GetArrayLength() >= 0);
+
+        if (items.GetArrayLength() > 0)
+        {
+            var firstMember = items[0];
+            Assert.Equal(testType.FullName, firstMember.GetProperty("declaringType").GetString());
+            Assert.True(firstMember.TryGetProperty("fullName", out _));
+            Assert.True(firstMember.TryGetProperty("signature", out _));
+        }
+    }
+
+    [Fact]
+    public void SearchTypes_WithLargeLimit_IsClamped()
+    {
+        var result = SearchTypesTool.SearchTypes("", limit: 5000, mode: "ids");
+
+        Assert.NotNull(result);
+        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        Assert.Equal("ok", response.GetProperty("status").GetString());
+
+        var items = response.GetProperty("data").GetProperty("items");
+        Assert.True(items.GetArrayLength() <= MemberSummaryModes.MaxLimit);
     }
 
     [Fact]

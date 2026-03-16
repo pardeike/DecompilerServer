@@ -7,8 +7,8 @@ namespace DecompilerServer;
 [McpServerToolType]
 public static class SearchMembersTool
 {
-    [McpServerTool, Description("Search members (methods, ctors, properties, fields, events) with rich filters.")]
-    public static string SearchMembers(string query, bool regex = false, string? namespaceFilter = null, string? declaringTypeFilter = null, string? attributeFilter = null, string? returnTypeFilter = null, string[]? paramTypeFilters = null, string? kind = null, string? accessibility = null, bool? isStatic = null, bool? isAbstract = null, bool? isVirtual = null, int? genericArity = null, int limit = 50, string? cursor = null)
+    [McpServerTool, Description("Search members (methods, ctors, properties, fields, events) with rich filters. Modes: 'ids', 'discovery' (default), 'signatures', 'full'.")]
+    public static string SearchMembers(string query, bool regex = false, string? namespaceFilter = null, string? declaringTypeFilter = null, string? attributeFilter = null, string? returnTypeFilter = null, string[]? paramTypeFilters = null, string? kind = null, string? accessibility = null, bool? isStatic = null, bool? isAbstract = null, bool? isVirtual = null, int? genericArity = null, int limit = 50, string? cursor = null, string mode = "discovery")
     {
         return ResponseFormatter.TryExecute(() =>
         {
@@ -21,6 +21,8 @@ public static class SearchMembersTool
 
             // Create a SearchServiceBase instance to use the search functionality
             var searchService = new SearchService(contextManager, ServiceLocator.MemberResolver);
+            var normalizedLimit = MemberSummaryModes.ClampLimit(limit, 50);
+            var parsedMode = MemberSummaryModes.Parse(mode, MemberSummaryMode.Discovery);
 
             var result = searchService.SearchMembers(
                 query,
@@ -36,10 +38,10 @@ public static class SearchMembersTool
                 isAbstract,
                 isVirtual,
                 genericArity,
-                limit,
+                normalizedLimit,
                 cursor);
 
-            return result;
+            return MemberSummaryModes.Project(result, parsedMode);
         });
     }
 }

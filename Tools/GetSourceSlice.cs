@@ -7,7 +7,7 @@ namespace DecompilerServer;
 [McpServerToolType]
 public static class GetSourceSliceTool
 {
-    [McpServerTool, Description("Return a line range of the decompiled source for a member.")]
+    [McpServerTool, Description("Return a line range of source for a member, preferring original source when available and falling back to decompiled C#.")]
     public static string GetSourceSlice(string memberId, int startLine, int endLine, bool includeLineNumbers = false, int context = 0)
     {
         return ResponseFormatter.TryExecute(() =>

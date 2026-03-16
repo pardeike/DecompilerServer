@@ -7,7 +7,7 @@ namespace DecompilerServer;
 [McpServerToolType]
 public static class GetDecompiledSourceTool
 {
-    [McpServerTool, Description("Decompile a member to C#. Caches document and returns document metadata.")]
+    [McpServerTool, Description("Return source for a member, preferring embedded/local/SourceLink-backed original source when available; otherwise decompile to C#. Caches document metadata.")]
     public static string GetDecompiledSource(string memberId, bool includeHeader = true)
     {
         return ResponseFormatter.TryExecute(() =>

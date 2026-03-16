@@ -21,6 +21,8 @@ public class LoadAssemblyIntegrationTests : IDisposable
         var services = new ServiceCollection();
         services.AddSingleton<AssemblyContextManager>();
         services.AddSingleton<MemberResolver>();
+        services.AddSingleton<DecompilerService>();
+        services.AddSingleton<UsageAnalyzer>();
         services.AddSingleton<ResponseFormatter>();
 
         _serviceProvider = services.BuildServiceProvider();
