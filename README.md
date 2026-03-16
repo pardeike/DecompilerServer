@@ -15,24 +15,33 @@ A Model Context Protocol (MCP) server for decompiling and analyzing .NET assembl
 
 ### Prerequisites
 
-- .NET 10 SDK to build from source (`DecompilerServer.csproj` targets `net10.0`)
-- .NET 10 runtime if you run the framework-dependent build output with `dotnet`
+- .NET 10 runtime to run release downloads or framework-dependent published output
+- .NET 10 SDK only if you want to build from source (`DecompilerServer.csproj` targets `net10.0`)
 - Windows, macOS, or Linux
 
 ### Installation
 
-1. **Clone the repository**
+1. **Download a release asset** from the latest GitHub release
+   - macOS Apple Silicon: `decompilerserver-vX.Y.Z-osx-arm64.tar.gz`
+   - macOS Intel: `decompilerserver-vX.Y.Z-osx-x64.tar.gz`
+   - Linux x64: `decompilerserver-vX.Y.Z-linux-x64.tar.gz`
+   - Linux arm64: `decompilerserver-vX.Y.Z-linux-arm64.tar.gz`
+   - Windows x64: `decompilerserver-vX.Y.Z-win-x64.zip`
+
+2. **Extract the archive** and point your MCP client at the packaged executable
+   - macOS/Linux: `DecompilerServer`
+   - Windows: `DecompilerServer.exe`
+
+3. **Install the .NET 10 runtime first** if it is not already available on the target machine
+
+4. **Or build from source** if you prefer
    ```bash
    git clone https://github.com/pardeike/DecompilerServer.git
    cd DecompilerServer
-   ```
-
-2. **Build the server**
-   ```bash
    dotnet build DecompilerServer.sln -c Release
    ```
 
-3. **Run tests** (optional)
+5. **Run tests** (optional)
    ```bash
    dotnet test -c Release
    ```
@@ -50,11 +59,17 @@ args:
   - /absolute/path/to/DecompilerServer/bin/Release/net10.0/DecompilerServer.dll
 ```
 
-**Native app host produced by `dotnet build` or `dotnet publish`**
+**Release download or RID-specific publish output**
+- macOS/Linux: `/absolute/path/to/DecompilerServer`
+- Windows: `C:\\absolute\\path\\to\\DecompilerServer.exe`
+
+**Native app host produced by `dotnet build` or local `dotnet publish`**
 - macOS/Linux: `/absolute/path/to/DecompilerServer/bin/Release/net10.0/DecompilerServer`
 - Windows: `C:\\absolute\\path\\to\\DecompilerServer\\bin\\Release\\net10.0\\DecompilerServer.exe`
 
-Use whichever launch style your MCP client supports. If you publish the project, point your client at the published executable or published DLL instead of the `bin/Release/net10.0` build output shown above.
+Release assets are framework-dependent single-file bundles. They are easier to install than a source build, but they still require the .NET 10 runtime on the target machine.
+
+Use whichever launch style your MCP client supports. If you publish the project locally, point your client at the published executable or published DLL instead of the `bin/Release/net10.0` build output shown above.
 
 ### Basic Usage
 

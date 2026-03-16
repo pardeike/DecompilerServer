@@ -13,7 +13,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  release:
+  verify:
     runs-on: ubuntu-latest
 
     steps:
@@ -47,29 +47,124 @@ jobs:
       - name: Run tests
         run: dotnet test Tests/Tests.csproj -c Release --no-build
 
-      - name: Publish release output
-        run: dotnet publish DecompilerServer.csproj -c Release -o out/publish --no-build
+  create-release:
+    needs: verify
+    runs-on: ubuntu-latest
 
-      - name: Package release artifacts
-        shell: bash
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Ensure GitHub release exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          asset_base="DecompilerServer-${GITHUB_REF_NAME}"
-          tarball="${asset_base}.tar.gz"
-          zipfile="${asset_base}.zip"
+          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || \
+          gh release create "$GITHUB_REF_NAME" \
+            --verify-tag \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes
 
-          tar -C out -czf "$tarball" publish
-          (cd out && zip -qr "../$zipfile" publish)
+  publish-assets:
+    needs:
+      - verify
+      - create-release
+    runs-on: ubuntu-latest
 
-          sha256sum "$tarball" > "${tarball}.sha256"
-          sha256sum "$zipfile" > "${zipfile}.sha256"
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rid: osx-arm64
+            executable: DecompilerServer
+            archive_ext: tar.gz
+          - rid: osx-x64
+            executable: DecompilerServer
+            archive_ext: tar.gz
+          - rid: linux-x64
+            executable: DecompilerServer
+            archive_ext: tar.gz
+          - rid: linux-arm64
+            executable: DecompilerServer
+            archive_ext: tar.gz
+          - rid: win-x64
+            executable: DecompilerServer.exe
+            archive_ext: zip
 
-      - name: Create GitHub release
-        uses: softprops/action-gh-release@v2
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+
+      - name: Set up .NET 10
+        uses: actions/setup-dotnet@v4
         with:
-          files: |
-            DecompilerServer-${{ github.ref_name }}.tar.gz
-            DecompilerServer-${{ github.ref_name }}.tar.gz.sha256
-            DecompilerServer-${{ github.ref_name }}.zip
-            DecompilerServer-${{ github.ref_name }}.zip.sha256
-          generate_release_notes: true
-          fail_on_unmatched_files: true
+          dotnet-version: "10.0.x"
+
+      - name: Publish single-file bundle
+        run: >
+          dotnet publish DecompilerServer.csproj
+          -c Release
+          -r ${{ matrix.rid }}
+          --self-contained false
+          -p:PublishSingleFile=true
+          -p:DebugSymbols=false
+          -p:DebugType=None
+          -o out/publish/${{ matrix.rid }}
+
+      - name: Stage release payload
+        shell: bash
+        env:
+          ARCHIVE_EXT: ${{ matrix.archive_ext }}
+          EXECUTABLE: ${{ matrix.executable }}
+          RID: ${{ matrix.rid }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+
+          asset_base="decompilerserver-${RELEASE_TAG}-${RID}"
+          publish_dir="out/publish/${RID}"
+          stage_dir="dist/${asset_base}"
+
+          mkdir -p "$stage_dir"
+          cp "$publish_dir/${EXECUTABLE}" "$stage_dir/"
+          cp README.md LICENSE "$stage_dir/"
+
+          cat > "$stage_dir/INSTALL.txt" <<EOF
+          DecompilerServer ${RELEASE_TAG}
+
+          Platform: ${RID}
+          Package type: framework-dependent single-file
+
+          This build requires the .NET 10 runtime to be installed on the target machine.
+
+          Launch the MCP server by pointing your client at:
+          - ${EXECUTABLE}
+
+          See README.md for example MCP client launch configuration.
+          EOF
+
+          if [[ "$ARCHIVE_EXT" == "zip" ]]; then
+            (
+              cd dist
+              zip -qr "${asset_base}.zip" "${asset_base}"
+            )
+            sha256sum "dist/${asset_base}.zip" > "dist/${asset_base}.zip.sha256"
+          else
+            tar -C dist -czf "dist/${asset_base}.tar.gz" "${asset_base}"
+            sha256sum "dist/${asset_base}.tar.gz" > "dist/${asset_base}.tar.gz.sha256"
+          fi
+
+      - name: Upload release artifacts
+        env:
+          ARCHIVE_EXT: ${{ matrix.archive_ext }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RID: ${{ matrix.rid }}
+          RELEASE_TAG: ${{ github.ref_name }}
+        run: |
+          asset_base="decompilerserver-${RELEASE_TAG}-${RID}"
+
+          gh release upload \
+            "$RELEASE_TAG" \
+            "dist/${asset_base}.${ARCHIVE_EXT}" \
+            "dist/${asset_base}.${ARCHIVE_EXT}.sha256" \
+            --clobber
