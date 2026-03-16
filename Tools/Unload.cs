@@ -22,11 +22,8 @@ public static class UnloadTool
             memberResolver.ClearCache();
             usageAnalyzer.ClearCache();
 
-            // Dispose the assembly context which will:
-            // - Dispose PEFile and resolver
-            // - Clear all dictionaries and reset stats
-            // - Reset lazy indexes
-            contextManager.Dispose();
+            // Reset the current assembly context without disposing the singleton service.
+            contextManager.UnloadAssembly();
 
             return new { status = "ok" };
         });

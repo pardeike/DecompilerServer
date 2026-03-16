@@ -295,9 +295,13 @@ public class AdvancedAnalysisToolTests : ServiceTestBase
 
         var data = response.GetProperty("data");
         Assert.Equal("ok", data.GetProperty("status").GetString());
+        Assert.False(ContextManager.IsLoaded);
 
-        // Note: In our test, the context manager is disposed but our test base class
-        // maintains its own reference, so we can't test IsLoaded directly here
+        // The singleton context manager should remain reusable after unload.
+        var reloadResult = LoadAssemblyTool.LoadAssembly(assemblyPath: TestAssemblyPath, rebuildIndex: false);
+        var reloadResponse = JsonSerializer.Deserialize<JsonElement>(reloadResult);
+        Assert.Equal("ok", reloadResponse.GetProperty("status").GetString());
+        Assert.True(ContextManager.IsLoaded);
     }
 
     [Fact]

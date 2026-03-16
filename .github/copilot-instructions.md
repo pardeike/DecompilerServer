@@ -108,8 +108,10 @@ dotnet format DecompilerServer.sln
 
 ### Assembly Context Management
 - Maintain single in-memory context with PEFile, UniversalAssemblyResolver, DecompilerTypeSystem
+- Load assemblies with `PEStreamOptions.PrefetchEntireImage` (or equivalent in-memory loading) so the source DLL is not kept locked on disk
 - Configure resolver with appropriate search directories (Game*_Data/Managed, Unity directories)
 - Use proper decompiler settings (UsingDeclarations, ShowXmlDocumentation, NamedArguments)
+- `Unload` should clear the current assembly context and caches without disposing the singleton `AssemblyContextManager`; reserve `Dispose()` for service/provider shutdown
 
 ### Search & Pagination
 - Implement cursor-based pagination for all search endpoints

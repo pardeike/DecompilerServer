@@ -16,6 +16,8 @@ namespace DecompilerServer.Services;
 /// </summary>
 public class AssemblyContextManager : IDisposable
 {
+    private const PEStreamOptions AssemblyLoadOptions = PEStreamOptions.PrefetchEntireImage;
+
     private PEFile? _peFile;
     private ICompilation? _compilation;
     private CSharpDecompiler? _decompiler;
@@ -88,8 +90,8 @@ public class AssemblyContextManager : IDisposable
                 }
             }
 
-            // Load PEFile
-            _peFile = new PEFile(assemblyPath);
+            // Prefetch the image so the source DLL is not kept locked while loaded.
+            _peFile = CreatePEFile(assemblyPath);
 
             // Create TypeSystem
             _compilation = new DecompilerTypeSystem(_peFile, _resolver);
@@ -151,8 +153,8 @@ public class AssemblyContextManager : IDisposable
                 }
             }
 
-            // Load PEFile
-            _peFile = new PEFile(assemblyPath);
+            // Prefetch the image so the source DLL is not kept locked while loaded.
+            _peFile = CreatePEFile(assemblyPath);
 
             // Create TypeSystem
             _compilation = new DecompilerTypeSystem(_peFile, _resolver);
@@ -313,6 +315,25 @@ public class AssemblyContextManager : IDisposable
         {
             if (!IsLoaded) return;
             _decompiler = new CSharpDecompiler(_peFile!, _resolver!, settings);
+        }
+        finally
+        {
+            _lock.ExitWriteLock();
+        }
+    }
+
+    /// <summary>
+    /// Unload the current assembly without disposing the manager instance.
+    /// This keeps the singleton service reusable for subsequent loads.
+    /// </summary>
+    public void UnloadAssembly()
+    {
+        if (_disposed) throw new ObjectDisposedException(nameof(AssemblyContextManager));
+
+        _lock.EnterWriteLock();
+        try
+        {
+            DisposeContext();
         }
         finally
         {
@@ -481,6 +502,11 @@ public class AssemblyContextManager : IDisposable
     {
         if (!IsLoaded)
             throw new InvalidOperationException("No assembly is loaded. Call LoadAssembly first.");
+    }
+
+    private static PEFile CreatePEFile(string assemblyPath)
+    {
+        return new PEFile(assemblyPath, AssemblyLoadOptions, MetadataReaderOptions.Default);
     }
 
     private void DisposeContext()

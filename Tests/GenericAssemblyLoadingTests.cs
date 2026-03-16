@@ -135,6 +135,23 @@ public class GenericAssemblyLoadingTests : IDisposable
     }
 
     [Fact]
+    public void AssemblyContextManager_LoadAssemblyDirect_DoesNotLockAssemblyFile()
+    {
+        // Arrange
+        var contextManager = _serviceProvider.GetRequiredService<AssemblyContextManager>();
+        var loadedAssemblyPath = Path.Combine(_tempDir, "loaded-test.dll");
+        File.Copy(GetTestLibraryPath(), loadedAssemblyPath);
+
+        // Act
+        contextManager.LoadAssemblyDirect(loadedAssemblyPath);
+
+        // Assert
+        using var stream = new FileStream(loadedAssemblyPath, FileMode.Open, FileAccess.ReadWrite, FileShare.None);
+        Assert.True(stream.CanRead);
+        Assert.True(stream.CanWrite);
+    }
+
+    [Fact]
     public void LoadAssembly_WithBothGameDirAndAssemblyPath_ThrowsArgumentException()
     {
         // Arrange
