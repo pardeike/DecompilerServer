@@ -41,11 +41,15 @@ args:
   - /absolute/path/to/DecompilerServer/bin/Release/net10.0/DecompilerServer.dll
 ```
 
-Native app host from `dotnet build` or `dotnet publish`:
+Native app host from `dotnet build`:
 - macOS/Linux: `/absolute/path/to/DecompilerServer/bin/Release/net10.0/DecompilerServer`
 - Windows: `C:\\absolute\\path\\to\\DecompilerServer\\bin\\Release\\net10.0\\DecompilerServer.exe`
 
-Release assets are framework-dependent and still require the .NET 10 runtime.
+Native app host from `dotnet publish`:
+- macOS/Linux: `/absolute/path/to/DecompilerServer/bin/Release/net10.0/publish/DecompilerServer`
+- Windows: `C:\\absolute\\path\\to\\DecompilerServer\\bin\\Release\\net10.0\\publish\\DecompilerServer.exe`
+
+Release assets are packaged as framework-dependent single-file executables and still require the .NET 10 runtime.
 
 ## Basic Workflow
 
@@ -53,12 +57,12 @@ Load one or more assemblies:
 
 ```text
 load_assembly({
-  "assemblyPath": "/path/to/YourAssembly.dll",
-  "contextAlias": "libA"
+  "assemblyPath": "/path/to/rw14/Assembly-CSharp.dll",
+  "contextAlias": "rw14"
 })
 
 load_assembly({
-  "gameDir": "/path/to/unity/game",
+  "gameDir": "/path/to/rw16",
   "assemblyFile": "Assembly-CSharp.dll",
   "contextAlias": "rw16"
 })
@@ -77,7 +81,7 @@ Search and decompile:
 search_types({
   "query": "Pawn",
   "limit": 10,
-  "contextAlias": "rw14"
+  "contextAlias": "rw16"
 })
 
 get_decompiled_source({
@@ -118,6 +122,17 @@ compare_symbols({
 ```bash
 dotnet format DecompilerServer.sln
 dotnet test -c Release --no-restore
+```
+
+## Releasing
+
+The GitHub `Release` workflow is triggered by pushing a tag that starts with `v` and matches the project version in `DecompilerServer.csproj`.
+
+For example, if the project version is `1.3.3`:
+
+```bash
+git tag -a v1.3.3 -m "Release v1.3.3"
+git push origin v1.3.3
 ```
 
 If you are changing implementation details, tool-routing behavior, compare semantics, or test patterns, update [ARCHITECTURE.md](ARCHITECTURE.md) rather than creating a new standalone guide.
