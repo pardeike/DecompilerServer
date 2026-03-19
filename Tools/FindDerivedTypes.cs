@@ -8,12 +8,13 @@ namespace DecompilerServer;
 public static class FindDerivedTypesTool
 {
     [McpServerTool, Description("Find derived types of a base class. Optionally include indirect.")]
-    public static string FindDerivedTypes(string baseTypeId, bool transitive = true, int limit = 100, string? cursor = null)
+    public static string FindDerivedTypes(string baseTypeId, bool transitive = true, int limit = 100, string? cursor = null, string? contextAlias = null)
     {
         return ResponseFormatter.TryExecute(() =>
           {
-              var contextManager = ServiceLocator.ContextManager;
-              var inheritanceAnalyzer = ServiceLocator.GetRequiredService<InheritanceAnalyzer>();
+              var session = ToolSessionRouter.GetForMember(baseTypeId, contextAlias);
+              var contextManager = session.ContextManager;
+              var inheritanceAnalyzer = session.InheritanceAnalyzer;
 
               if (!contextManager.IsLoaded)
               {

@@ -10,12 +10,13 @@ namespace DecompilerServer;
 public static class GenerateDetourStubTool
 {
     [McpServerTool, Description("Generate a detour/stub method that calls the original, suitable for patch testing.")]
-    public static string GenerateDetourStub(string memberId)
+    public static string GenerateDetourStub(string memberId, string? contextAlias = null)
     {
         return ResponseFormatter.TryExecute(() =>
         {
-            var contextManager = ServiceLocator.ContextManager;
-            var memberResolver = ServiceLocator.MemberResolver;
+            var session = ToolSessionRouter.GetForMember(memberId, contextAlias);
+            var contextManager = session.ContextManager;
+            var memberResolver = session.MemberResolver;
 
             if (!contextManager.IsLoaded)
             {
@@ -36,7 +37,7 @@ public static class GenerateDetourStubTool
             var notes = new List<string>();
             var code = GenerateDetourMethod(method, notes);
 
-            var target = CreateMethodSummary(method);
+            var target = CreateMethodSummary(method, memberResolver);
 
             var result = new GeneratedCodeResult(target, code, notes);
 
@@ -322,17 +323,17 @@ public static class GenerateDetourStubTool
         return type.Name;
     }
 
-    private static MemberSummary CreateMethodSummary(IMethod method)
+    private static MemberSummary CreateMethodSummary(IMethod method, MemberResolver memberResolver)
     {
         return new MemberSummary
         {
-            MemberId = ServiceLocator.MemberResolver.GenerateMemberId(method),
+            MemberId = memberResolver.GenerateMemberId(method),
             Name = method.Name,
             FullName = method.FullName,
             Kind = method.IsConstructor ? "Constructor" : "Method",
             DeclaringType = method.DeclaringType?.FullName,
             Namespace = method.DeclaringType?.Namespace,
-            Signature = ServiceLocator.MemberResolver.GetMemberSignature(method),
+            Signature = memberResolver.GetMemberSignature(method),
             Accessibility = method.Accessibility.ToString(),
             IsStatic = method.IsStatic,
             IsAbstract = method.IsAbstract,

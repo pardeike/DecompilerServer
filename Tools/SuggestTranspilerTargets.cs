@@ -12,12 +12,13 @@ namespace DecompilerServer;
 public static class SuggestTranspilerTargetsTool
 {
     [McpServerTool, Description("Suggest candidate IL offsets and patterns for transpiler insertion points.")]
-    public static string SuggestTranspilerTargets(string memberId, int maxHints = 10)
+    public static string SuggestTranspilerTargets(string memberId, int maxHints = 10, string? contextAlias = null)
     {
         return ResponseFormatter.TryExecute(() =>
         {
-            var contextManager = ServiceLocator.ContextManager;
-            var memberResolver = ServiceLocator.MemberResolver;
+            var session = ToolSessionRouter.GetForMember(memberId, contextAlias);
+            var contextManager = session.ContextManager;
+            var memberResolver = session.MemberResolver;
 
             if (!contextManager.IsLoaded)
             {
@@ -40,7 +41,7 @@ public static class SuggestTranspilerTargetsTool
 
             var result = new
             {
-                target = CreateMethodSummary(method),
+                target = CreateMethodSummary(method, memberResolver),
                 hints = targets,
                 exampleTranspiler = exampleSnippet,
                 notes = new[]
@@ -199,17 +200,17 @@ public static class SuggestTranspilerTargetsTool
         };
     }
 
-    private static MemberSummary CreateMethodSummary(IMethod method)
+    private static MemberSummary CreateMethodSummary(IMethod method, MemberResolver memberResolver)
     {
         return new MemberSummary
         {
-            MemberId = ServiceLocator.MemberResolver.GenerateMemberId(method),
+            MemberId = memberResolver.GenerateMemberId(method),
             Name = method.Name,
             FullName = method.FullName,
             Kind = method.IsConstructor ? "Constructor" : "Method",
             DeclaringType = method.DeclaringType?.FullName,
             Namespace = method.DeclaringType?.Namespace,
-            Signature = ServiceLocator.MemberResolver.GetMemberSignature(method),
+            Signature = memberResolver.GetMemberSignature(method),
             Accessibility = method.Accessibility.ToString(),
             IsStatic = method.IsStatic,
             IsAbstract = method.IsAbstract,

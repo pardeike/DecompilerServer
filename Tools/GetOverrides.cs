@@ -8,13 +8,14 @@ namespace DecompilerServer;
 public static class GetOverridesTool
 {
     [McpServerTool, Description("Find override chain of a virtual method. Base definition and overrides.")]
-    public static string GetOverrides(string methodId)
+    public static string GetOverrides(string methodId, string? contextAlias = null)
     {
         return ResponseFormatter.TryExecute(() =>
         {
-            var contextManager = ServiceLocator.ContextManager;
-            var inheritanceAnalyzer = ServiceLocator.InheritanceAnalyzer;
-            var memberResolver = ServiceLocator.MemberResolver;
+            var session = ToolSessionRouter.GetForMember(methodId, contextAlias);
+            var contextManager = session.ContextManager;
+            var inheritanceAnalyzer = session.InheritanceAnalyzer;
+            var memberResolver = session.MemberResolver;
 
             if (!contextManager.IsLoaded)
             {

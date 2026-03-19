@@ -8,12 +8,13 @@ namespace DecompilerServer;
 public static class FindCalleesTool
 {
     [McpServerTool, Description("List direct callees invoked by a method.")]
-    public static string FindCallees(string methodId, int limit = 100, string? cursor = null)
+    public static string FindCallees(string methodId, int limit = 100, string? cursor = null, string? contextAlias = null)
     {
         return ResponseFormatter.TryExecute(() =>
         {
-            var contextManager = ServiceLocator.ContextManager;
-            var usageAnalyzer = ServiceLocator.UsageAnalyzer;
+            var session = ToolSessionRouter.GetForMember(methodId, contextAlias);
+            var contextManager = session.ContextManager;
+            var usageAnalyzer = session.UsageAnalyzer;
 
             if (!contextManager.IsLoaded)
             {

@@ -9,12 +9,13 @@ namespace DecompilerServer;
 public static class SetDecompileSettingsTool
 {
     [McpServerTool, Description("Update decompiler settings (e.g., UsingDeclarations, ShowXmlDocumentation).")]
-    public static string SetDecompileSettings(Dictionary<string, object> settings)
+    public static string SetDecompileSettings(Dictionary<string, object> settings, string? contextAlias = null)
     {
         return ResponseFormatter.TryExecute(() =>
         {
-            var contextManager = ServiceLocator.ContextManager;
-            var decompilerService = ServiceLocator.DecompilerService;
+            var session = ToolSessionRouter.GetForContext(contextAlias);
+            var contextManager = session.ContextManager;
+            var decompilerService = session.DecompilerService;
 
             if (!contextManager.IsLoaded)
             {

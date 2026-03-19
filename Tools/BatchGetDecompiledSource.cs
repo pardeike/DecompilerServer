@@ -8,32 +8,13 @@ namespace DecompilerServer;
 public static class BatchGetDecompiledSourceTool
 {
     [McpServerTool, Description("Fetch multiple members' decompiled source in one call with size caps.")]
-    public static string BatchGetDecompiledSource(string[] memberIds, int maxTotalChars = 200_000)
+    public static string BatchGetDecompiledSource(string[] memberIds, int maxTotalChars = 200_000, string? contextAlias = null)
     {
         return ResponseFormatter.TryExecute(() =>
         {
-            var contextManager = ServiceLocator.ContextManager;
-            var decompilerService = ServiceLocator.DecompilerService;
-            var memberResolver = ServiceLocator.MemberResolver;
-
-            if (!contextManager.IsLoaded)
-            {
-                throw new InvalidOperationException("No assembly loaded");
-            }
-
             if (memberIds == null || memberIds.Length == 0)
             {
                 throw new ArgumentException("Member IDs array cannot be null or empty");
-            }
-
-            // Validate all member IDs first
-            foreach (var memberId in memberIds)
-            {
-                var member = memberResolver.ResolveMember(memberId);
-                if (member == null)
-                {
-                    throw new ArgumentException($"Invalid member ID: {memberId}");
-                }
             }
 
             var results = new List<object>();
@@ -44,6 +25,22 @@ public static class BatchGetDecompiledSourceTool
             {
                 try
                 {
+                    var session = ToolSessionRouter.GetForMember(memberId, contextAlias);
+                    var contextManager = session.ContextManager;
+                    var decompilerService = session.DecompilerService;
+                    var memberResolver = session.MemberResolver;
+
+                    if (!contextManager.IsLoaded)
+                    {
+                        throw new InvalidOperationException("No assembly loaded");
+                    }
+
+                    var member = memberResolver.ResolveMember(memberId);
+                    if (member == null)
+                    {
+                        throw new ArgumentException($"Invalid member ID: {memberId}");
+                    }
+
                     var document = decompilerService.DecompileMember(memberId, includeHeader: true);
 
                     // Create first slice (typically the whole document or a reasonable portion)

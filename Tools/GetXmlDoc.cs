@@ -9,12 +9,13 @@ namespace DecompilerServer;
 public static class GetXmlDocTool
 {
     [McpServerTool, Description("Get raw XML doc for a member if available.")]
-    public static string GetXmlDoc(string memberId)
+    public static string GetXmlDoc(string memberId, string? contextAlias = null)
     {
         return ResponseFormatter.TryExecute(() =>
         {
-            var contextManager = ServiceLocator.ContextManager;
-            var memberResolver = ServiceLocator.MemberResolver;
+            var session = ToolSessionRouter.GetForMember(memberId, contextAlias);
+            var contextManager = session.ContextManager;
+            var memberResolver = session.MemberResolver;
 
             if (!contextManager.IsLoaded)
             {

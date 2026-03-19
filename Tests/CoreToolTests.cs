@@ -186,6 +186,28 @@ public class CoreToolTests : ServiceTestBase
     }
 
     [Fact]
+    public void GetDecompiledSource_WithValidMethod_ReturnsMemberScopedSource()
+    {
+        var testType = ContextManager.FindTypeByName("TestLibrary.SimpleClass");
+        Assert.NotNull(testType);
+
+        var method = testType.Methods.First(m => m.Name == "SimpleMethod");
+        var memberId = MemberResolver.GenerateMemberId(method);
+
+        var result = GetDecompiledSourceTool.GetDecompiledSource(memberId, includeHeader: false);
+
+        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        Assert.Equal("ok", response.GetProperty("status").GetString());
+
+        var lines = response.GetProperty("data").GetProperty("lines").EnumerateArray().Select(line => line.GetString()).ToArray();
+        var source = string.Join("\n", lines);
+
+        Assert.Contains("SimpleMethod", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("class SimpleClass", source, StringComparison.Ordinal);
+        Assert.DoesNotContain(lines, line => line != null && line.StartsWith("using ", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void GetSourceSlice_WithValidRange_ReturnsSourceCode()
     {
         // Arrange - find a type from the test assembly and decompile it first
@@ -239,6 +261,28 @@ public class CoreToolTests : ServiceTestBase
 
         // Should contain line numbers
         Assert.Contains("1:", code!);
+    }
+
+    [Fact]
+    public void GetSourceSlice_WithMethodMember_StartsAtMethodSource()
+    {
+        var testType = ContextManager.FindTypeByName("TestLibrary.SimpleClass");
+        Assert.NotNull(testType);
+
+        var method = testType.Methods.First(m => m.Name == "SimpleMethod");
+        var memberId = MemberResolver.GenerateMemberId(method);
+
+        GetDecompiledSourceTool.GetDecompiledSource(memberId, includeHeader: false);
+
+        var result = GetSourceSliceTool.GetSourceSlice(memberId, startLine: 1, endLine: 3);
+
+        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        Assert.Equal("ok", response.GetProperty("status").GetString());
+
+        var code = response.GetProperty("data").GetProperty("code").GetString();
+        Assert.NotNull(code);
+        Assert.Contains("SimpleMethod", code, StringComparison.Ordinal);
+        Assert.DoesNotContain("using System", code, StringComparison.Ordinal);
     }
 
     [Fact]

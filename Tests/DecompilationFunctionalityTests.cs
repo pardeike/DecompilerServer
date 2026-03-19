@@ -84,8 +84,8 @@ public class DecompilationFunctionalityTests : ServiceTestBase
         var methodSource = string.Join("\n", methodDocument.Lines);
 
         Assert.Equal(SourceKinds.Decompiled, methodDocument.SourceKind);
-        Assert.Contains("class NestedWorker", methodSource);
         Assert.Contains("Compute", methodSource);
+        Assert.DoesNotContain("class NestedWorker", methodSource);
     }
 
     [Fact]

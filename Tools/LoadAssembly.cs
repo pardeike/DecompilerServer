@@ -13,10 +13,40 @@ public static class LoadAssemblyTool
         string? assemblyPath = null,
         string assemblyFile = "Assembly-CSharp.dll",
         string[]? additionalSearchDirs = null,
-        bool rebuildIndex = true)
+        bool rebuildIndex = true,
+        string? contextAlias = null,
+        bool makeCurrent = true)
     {
         return ResponseFormatter.TryExecute(() =>
         {
+            var workspace = ServiceLocator.Workspace;
+
+            if (workspace != null)
+            {
+                var loadedContext = workspace.LoadAssembly(new WorkspaceLoadRequest
+                {
+                    GameDir = gameDir,
+                    AssemblyPath = assemblyPath,
+                    AssemblyFile = assemblyFile,
+                    AdditionalSearchDirs = additionalSearchDirs,
+                    RebuildIndex = rebuildIndex,
+                    ContextAlias = contextAlias,
+                    MakeCurrent = makeCurrent
+                });
+
+                return new AssemblyInfo
+                {
+                    ContextAlias = loadedContext.ContextAlias,
+                    Mvid = loadedContext.Mvid,
+                    AssemblyPath = loadedContext.AssemblyPath,
+                    TypeCount = loadedContext.TypeCount,
+                    MethodCount = loadedContext.MethodCount,
+                    NamespaceCount = loadedContext.NamespaceCount,
+                    Warmed = rebuildIndex,
+                    IsCurrent = loadedContext.IsCurrent
+                };
+            }
+
             var contextManager = ServiceLocator.ContextManager;
             var decompilerService = ServiceLocator.DecompilerService;
             var memberResolver = ServiceLocator.MemberResolver;
@@ -55,12 +85,14 @@ public static class LoadAssemblyTool
             // Get assembly info for response
             var assemblyInfo = new AssemblyInfo
             {
+                ContextAlias = contextAlias,
                 Mvid = contextManager.Mvid!,
                 AssemblyPath = contextManager.AssemblyPath!,
                 TypeCount = contextManager.TypeCount,
                 MethodCount = EstimateMethodCount(contextManager),
                 NamespaceCount = contextManager.NamespaceCount,
-                Warmed = rebuildIndex
+                Warmed = rebuildIndex,
+                IsCurrent = true
             };
 
             return assemblyInfo;

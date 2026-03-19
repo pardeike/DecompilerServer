@@ -9,12 +9,13 @@ namespace DecompilerServer;
 public static class ResolveMemberIdTool
 {
     [McpServerTool, Description("Resolve a memberId and return a one-line summary for quick validation.")]
-    public static string ResolveMemberId(string memberId)
+    public static string ResolveMemberId(string memberId, string? contextAlias = null)
     {
         return ResponseFormatter.TryExecute(() =>
         {
-            var memberResolver = ServiceLocator.MemberResolver;
-            var contextManager = ServiceLocator.ContextManager;
+            var session = ToolSessionRouter.GetForMember(memberId, contextAlias);
+            var memberResolver = session.MemberResolver;
+            var contextManager = session.ContextManager;
 
             if (!contextManager.IsLoaded)
             {

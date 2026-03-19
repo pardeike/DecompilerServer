@@ -8,13 +8,14 @@ namespace DecompilerServer;
 public static class GetImplementationsTool
 {
     [McpServerTool, Description("Find implementations of an interface or interface method.")]
-    public static string GetImplementations(string interfaceTypeOrMethodId, int limit = 100, string? cursor = null)
+    public static string GetImplementations(string interfaceTypeOrMethodId, int limit = 100, string? cursor = null, string? contextAlias = null)
     {
         return ResponseFormatter.TryExecute(() =>
         {
-            var contextManager = ServiceLocator.ContextManager;
-            var memberResolver = ServiceLocator.MemberResolver;
-            var inheritanceAnalyzer = ServiceLocator.InheritanceAnalyzer;
+            var session = ToolSessionRouter.GetForMember(interfaceTypeOrMethodId, contextAlias);
+            var contextManager = session.ContextManager;
+            var memberResolver = session.MemberResolver;
+            var inheritanceAnalyzer = session.InheritanceAnalyzer;
 
             if (!contextManager.IsLoaded)
             {

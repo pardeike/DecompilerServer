@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using ModelContextProtocol.Server;
 using DecompilerServer.Services;
+using ICSharpCode.Decompiler.TypeSystem;
 
 namespace DecompilerServer;
 
@@ -8,23 +9,32 @@ namespace DecompilerServer;
 public static class GetSourceSliceTool
 {
     [McpServerTool, Description("Return a line range of source for a member, preferring original source when available and falling back to decompiled C#.")]
-    public static string GetSourceSlice(string memberId, int startLine, int endLine, bool includeLineNumbers = false, int context = 0)
+    public static string GetSourceSlice(string memberId, int startLine, int endLine, bool includeLineNumbers = false, int context = 0, string? contextAlias = null)
     {
         return ResponseFormatter.TryExecute(() =>
         {
-            var contextManager = ServiceLocator.ContextManager;
-            var decompilerService = ServiceLocator.DecompilerService;
+            var session = ToolSessionRouter.GetForMember(memberId, contextAlias);
+            var contextManager = session.ContextManager;
+            var decompilerService = session.DecompilerService;
+            var memberResolver = session.MemberResolver;
 
             if (!contextManager.IsLoaded)
             {
                 throw new InvalidOperationException("No assembly loaded");
             }
 
+            var member = memberResolver.ResolveMember(memberId);
+            if (member == null)
+            {
+                throw new ArgumentException($"Invalid member ID: {memberId}");
+            }
+
             // Apply context to expand the range
             var expandedStartLine = Math.Max(1, startLine - context);
             var expandedEndLine = endLine + context; // Will be capped by the service
 
-            var slice = decompilerService.GetSourceSlice(memberId, expandedStartLine, expandedEndLine);
+            var includeHeader = member is ITypeDefinition;
+            var slice = decompilerService.GetSourceSlice(memberId, expandedStartLine, expandedEndLine, includeHeader);
 
             // Apply line numbers if requested
             if (includeLineNumbers)

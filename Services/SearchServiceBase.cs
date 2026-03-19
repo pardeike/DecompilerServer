@@ -156,7 +156,7 @@ public abstract class SearchServiceBase
         return members.Where(member =>
         {
             // Declaring type filter
-            if (!string.IsNullOrEmpty(declaringTypeFilter) && !MatchesQuery(member.DeclaringType?.Name ?? "", declaringTypeFilter, false))
+            if (!string.IsNullOrEmpty(declaringTypeFilter) && !MatchesDeclaringType(member, declaringTypeFilter))
                 return false;
 
             // Kind filter
@@ -289,6 +289,19 @@ public abstract class SearchServiceBase
         }
 
         return text.Contains(query, StringComparison.OrdinalIgnoreCase);
+    }
+
+    protected bool MatchesDeclaringType(IMember member, string declaringTypeFilter)
+    {
+        var declaringType = member.DeclaringType;
+        if (declaringType == null)
+            return false;
+
+        return string.Equals(declaringType.Name, declaringTypeFilter, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(declaringType.FullName, declaringTypeFilter, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(declaringType.ReflectionName, declaringTypeFilter, StringComparison.OrdinalIgnoreCase)
+            || declaringType.FullName.EndsWith("." + declaringTypeFilter, StringComparison.OrdinalIgnoreCase)
+            || declaringType.ReflectionName.EndsWith("+" + declaringTypeFilter, StringComparison.OrdinalIgnoreCase);
     }
 
     protected IEnumerable<IMember> GetAllMembers(ITypeDefinition type)

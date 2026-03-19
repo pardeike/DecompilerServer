@@ -103,6 +103,28 @@ public class DecompilerService
     }
 
     /// <summary>
+    /// Decompile a specific entity directly rather than its containing type.
+    /// This is useful for focused compare workflows where the caller wants a single member body.
+    /// </summary>
+    public string DecompileEntitySnippet(string memberId, bool includeHeader = false)
+    {
+        EnsureCacheCurrent();
+
+        var entity = _memberResolver.ResolveMember(memberId);
+        if (entity == null)
+            throw new ArgumentException($"Cannot resolve member: {memberId}");
+
+        string code;
+        lock (_decompileLock)
+        {
+            var decompiler = _contextManager.GetDecompiler();
+            code = NormalizeLineEndings(decompiler.DecompileAsString(new[] { entity.MetadataToken }));
+        }
+
+        return includeHeader ? code : StripHeader(code);
+    }
+
+    /// <summary>
     /// Clear the source cache
     /// </summary>
     public void ClearCache()
@@ -142,17 +164,20 @@ public class DecompilerService
         if (_memberContentKeyCache.TryGetValue(memberId, out var cachedContentKey))
             return cachedContentKey;
 
-        var originalSource = _originalSourceResolver.TryResolve(entity);
-        if (originalSource != null)
+        if (entity is ITypeDefinition)
         {
-            _contentCache.TryAdd(originalSource.CacheKey, new RawSourceContent(
-                originalSource.Language,
-                NormalizeLineEndings(originalSource.Code),
-                originalSource.SourceKind,
-                originalSource.SourcePath,
-                originalSource.SourceUri));
-            _memberContentKeyCache[memberId] = originalSource.CacheKey;
-            return originalSource.CacheKey;
+            var originalSource = _originalSourceResolver.TryResolve(entity);
+            if (originalSource != null)
+            {
+                _contentCache.TryAdd(originalSource.CacheKey, new RawSourceContent(
+                    originalSource.Language,
+                    NormalizeLineEndings(originalSource.Code),
+                    originalSource.SourceKind,
+                    originalSource.SourcePath,
+                    originalSource.SourceUri));
+                _memberContentKeyCache[memberId] = originalSource.CacheKey;
+                return originalSource.CacheKey;
+            }
         }
 
         var decompiledContentKey = CreateDecompiledContentKey(entity);
@@ -261,35 +286,42 @@ public class DecompilerService
 
     private string DecompileMethod(IMethod method, CSharpDecompiler decompiler)
     {
-        // For members, we decompile the containing type and extract the member
-        if (method.DeclaringType == null)
-            return $"// Error: Method '{method.Name}' has no declaring type and cannot be decompiled";
-
-        return DecompileType(method.DeclaringType, decompiler);
+        return DecompileSingleEntityOrFallback(
+            method,
+            decompiler,
+            () => method.DeclaringType != null
+                ? DecompileType(method.DeclaringType, decompiler)
+                : $"// Error: Method '{method.Name}' has no declaring type and cannot be decompiled");
     }
 
     private string DecompileField(IField field, CSharpDecompiler decompiler)
     {
-        if (field.DeclaringType == null)
-            return $"// Error: Field '{field.Name}' has no declaring type and cannot be decompiled";
-
-        return DecompileType(field.DeclaringType, decompiler);
+        return DecompileSingleEntityOrFallback(
+            field,
+            decompiler,
+            () => field.DeclaringType != null
+                ? DecompileType(field.DeclaringType, decompiler)
+                : $"// Error: Field '{field.Name}' has no declaring type and cannot be decompiled");
     }
 
     private string DecompileProperty(IProperty property, CSharpDecompiler decompiler)
     {
-        if (property.DeclaringType == null)
-            return $"// Error: Property '{property.Name}' has no declaring type and cannot be decompiled";
-
-        return DecompileType(property.DeclaringType, decompiler);
+        return DecompileSingleEntityOrFallback(
+            property,
+            decompiler,
+            () => property.DeclaringType != null
+                ? DecompileType(property.DeclaringType, decompiler)
+                : $"// Error: Property '{property.Name}' has no declaring type and cannot be decompiled");
     }
 
     private string DecompileEvent(IEvent evt, CSharpDecompiler decompiler)
     {
-        if (evt.DeclaringType == null)
-            return $"// Error: Event '{evt.Name}' has no declaring type and cannot be decompiled";
-
-        return DecompileType(evt.DeclaringType, decompiler);
+        return DecompileSingleEntityOrFallback(
+            evt,
+            decompiler,
+            () => evt.DeclaringType != null
+                ? DecompileType(evt.DeclaringType, decompiler)
+                : $"// Error: Event '{evt.Name}' has no declaring type and cannot be decompiled");
     }
 
     private string ComputeHash(string content)
@@ -307,15 +339,25 @@ public class DecompilerService
 
     private string CreateDecompiledContentKey(IEntity entity)
     {
-        var canonicalEntity = entity switch
-        {
-            ITypeDefinition typeDefinition => typeDefinition,
-            IMember member when member.DeclaringTypeDefinition != null => member.DeclaringTypeDefinition,
-            IMember member when member.DeclaringType != null => member.DeclaringType.GetDefinition(),
-            _ => entity
-        };
+        return $"decompiled:{_memberResolver.GenerateMemberId(entity)}";
+    }
 
-        return $"decompiled:{_memberResolver.GenerateMemberId(canonicalEntity ?? entity)}";
+    private static string DecompileSingleEntityOrFallback(
+        IEntity entity,
+        CSharpDecompiler decompiler,
+        Func<string> fallback)
+    {
+        try
+        {
+            if (entity.MetadataToken.IsNil)
+                return fallback();
+
+            return decompiler.DecompileAsString(new[] { entity.MetadataToken });
+        }
+        catch
+        {
+            return fallback();
+        }
     }
 
     private void EnsureCacheCurrent()

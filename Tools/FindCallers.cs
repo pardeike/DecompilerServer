@@ -8,13 +8,14 @@ namespace DecompilerServer;
 public static class FindCallersTool
 {
     [McpServerTool, Description("List direct callers of a method.")]
-    public static string FindCallers(string methodId, int limit = 100, string? cursor = null)
+    public static string FindCallers(string methodId, int limit = 100, string? cursor = null, string? contextAlias = null)
     {
         return ResponseFormatter.TryExecute(() =>
         {
-            var contextManager = ServiceLocator.ContextManager;
-            var usageAnalyzer = ServiceLocator.UsageAnalyzer;
-            var memberResolver = ServiceLocator.MemberResolver;
+            var session = ToolSessionRouter.GetForMember(methodId, contextAlias);
+            var contextManager = session.ContextManager;
+            var usageAnalyzer = session.UsageAnalyzer;
+            var memberResolver = session.MemberResolver;
 
             if (!contextManager.IsLoaded)
             {

@@ -280,11 +280,51 @@ public class CodeGenerationToolTests : ServiceTestBase
         Assert.NotNull(data);
         Assert.Equal(memberId, data.MemberId);
         Assert.NotNull(data.Chunks);
+        var typeId = MemberResolver.GenerateMemberId(testType);
+        var typeDocument = new DecompilerService(ContextManager, MemberResolver).DecompileMember(typeId);
+        Assert.True(data.TotalLines < typeDocument.TotalLines);
         Assert.All(data.Chunks, c =>
         {
             Assert.True(c.StartLine <= c.EndLine);
             Assert.True(c.EstimatedChars > 0);
         });
+    }
+
+    [Fact]
+    public void PlanChunking_WhenFinalChunkReachesEnd_DoesNotEmitRedundantTailChunks()
+    {
+        // Arrange
+        var types = ContextManager.GetAllTypes();
+        var testType = types.FirstOrDefault(t => t.Methods.Any(m => !m.IsConstructor));
+        Assert.NotNull(testType);
+
+        var method = testType.Methods.First(m => !m.IsConstructor);
+        var memberId = MemberResolver.GenerateMemberId(method);
+        var decompilerService = new DecompilerService(ContextManager, MemberResolver);
+        var document = decompilerService.DecompileMember(memberId, includeHeader: false);
+        Assert.True(document.TotalLines > 2);
+
+        var sampleLines = Math.Min(document.TotalLines, 10);
+        var sampleSlice = decompilerService.GetSourceSlice(memberId, 1, sampleLines, includeHeader: false);
+        var avgCharsPerLine = Math.Max(1, sampleSlice.Code.Length / sampleLines);
+        var targetChunkSize = avgCharsPerLine * (document.TotalLines - 1);
+
+        // Act
+        var result = PlanChunkingTool.PlanChunking(memberId, targetChunkSize, overlap: 1);
+
+        // Assert
+        Assert.NotNull(result);
+        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        Assert.Equal("ok", response.GetProperty("status").GetString());
+
+        var data = JsonSerializer.Deserialize<ChunkPlanResult>(
+            response.GetProperty("data").GetRawText(),
+            new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+
+        Assert.NotNull(data);
+        Assert.NotEmpty(data.Chunks);
+        Assert.Equal(1, data.Chunks.Count(chunk => chunk.EndLine == data.TotalLines));
+        Assert.Equal(data.TotalLines, data.Chunks[^1].EndLine);
     }
 
     [Fact]

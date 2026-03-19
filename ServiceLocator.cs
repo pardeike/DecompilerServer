@@ -44,10 +44,27 @@ public static class ServiceLocator
         return provider.GetRequiredService<T>();
     }
 
-    public static AssemblyContextManager ContextManager => GetRequiredService<AssemblyContextManager>();
-    public static MemberResolver MemberResolver => GetRequiredService<MemberResolver>();
-    public static DecompilerService DecompilerService => GetRequiredService<DecompilerService>();
-    public static UsageAnalyzer UsageAnalyzer => GetRequiredService<UsageAnalyzer>();
-    public static InheritanceAnalyzer InheritanceAnalyzer => GetRequiredService<InheritanceAnalyzer>();
+    public static T? GetService<T>() where T : class
+    {
+        var provider = _threadLocalProvider.Value ?? _globalProvider;
+        return provider?.GetService<T>();
+    }
+
+    public static DecompilerWorkspace? Workspace => GetService<DecompilerWorkspace>();
+
+    public static AssemblyContextManager ContextManager => TryGetCurrentSession()?.ContextManager ?? GetRequiredService<AssemblyContextManager>();
+    public static MemberResolver MemberResolver => TryGetCurrentSession()?.MemberResolver ?? GetRequiredService<MemberResolver>();
+    public static DecompilerService DecompilerService => TryGetCurrentSession()?.DecompilerService ?? GetRequiredService<DecompilerService>();
+    public static UsageAnalyzer UsageAnalyzer => TryGetCurrentSession()?.UsageAnalyzer ?? GetRequiredService<UsageAnalyzer>();
+    public static InheritanceAnalyzer InheritanceAnalyzer => TryGetCurrentSession()?.InheritanceAnalyzer ?? GetRequiredService<InheritanceAnalyzer>();
     public static ResponseFormatter ResponseFormatter => GetRequiredService<ResponseFormatter>();
+
+    private static DecompilerSession? TryGetCurrentSession()
+    {
+        var workspace = GetService<DecompilerWorkspace>();
+        if (workspace != null && workspace.TryGetCurrentSession(out var session))
+            return session;
+
+        return null;
+    }
 }

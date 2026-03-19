@@ -283,6 +283,8 @@ public class ResponseFormatter
 public record ServerStatus
 {
     public bool Loaded { get; init; }
+    public string? CurrentContextAlias { get; init; }
+    public List<WorkspaceContextInfo>? LoadedContexts { get; init; }
     public string? Mvid { get; init; }
     public string? AssemblyPath { get; init; }
     public long? StartedAtUnix { get; init; }
@@ -307,12 +309,23 @@ public record IndexStatus
 /// </summary>
 public record AssemblyInfo
 {
+    public string? ContextAlias { get; init; }
     public required string Mvid { get; init; }
     public required string AssemblyPath { get; init; }
     public int TypeCount { get; init; }
     public int MethodCount { get; init; }
     public int NamespaceCount { get; init; }
     public bool Warmed { get; init; }
+    public bool IsCurrent { get; init; }
+}
+
+/// <summary>
+/// Loaded workspace context list
+/// </summary>
+public record WorkspaceContextsResult
+{
+    public string? CurrentContextAlias { get; init; }
+    public required List<WorkspaceContextInfo> Items { get; init; }
 }
 
 /// <summary>

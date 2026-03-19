@@ -10,12 +10,13 @@ namespace DecompilerServer;
 public static class GenerateHarmonyPatchSkeletonTool
 {
     [McpServerTool, Description("Generate a Harmony patch skeleton for a given member.")]
-    public static string GenerateHarmonyPatchSkeleton(string memberId, string patchKinds = "Prefix,Postfix,Transpiler,Finalizer", bool includeReflectionTargeting = true)
+    public static string GenerateHarmonyPatchSkeleton(string memberId, string patchKinds = "Prefix,Postfix,Transpiler,Finalizer", bool includeReflectionTargeting = true, string? contextAlias = null)
     {
         return ResponseFormatter.TryExecute(() =>
         {
-            var contextManager = ServiceLocator.ContextManager;
-            var memberResolver = ServiceLocator.MemberResolver;
+            var session = ToolSessionRouter.GetForMember(memberId, contextAlias);
+            var contextManager = session.ContextManager;
+            var memberResolver = session.MemberResolver;
 
             if (!contextManager.IsLoaded)
             {
@@ -37,7 +38,7 @@ public static class GenerateHarmonyPatchSkeletonTool
             var notes = new List<string>();
             var code = GenerateHarmonyPatch(method, kinds, includeReflectionTargeting, notes);
 
-            var target = CreateMethodSummary(method);
+            var target = CreateMethodSummary(method, memberResolver);
 
             var result = new GeneratedCodeResult(target, code, notes);
 
@@ -375,17 +376,17 @@ public static class GenerateHarmonyPatchSkeletonTool
         return result.Length > 0 ? result.ToString() : "Unknown";
     }
 
-    private static MemberSummary CreateMethodSummary(IMethod method)
+    private static MemberSummary CreateMethodSummary(IMethod method, MemberResolver memberResolver)
     {
         return new MemberSummary
         {
-            MemberId = ServiceLocator.MemberResolver.GenerateMemberId(method),
+            MemberId = memberResolver.GenerateMemberId(method),
             Name = method.Name,
             FullName = method.FullName,
             Kind = method.IsConstructor ? "Constructor" : "Method",
             DeclaringType = method.DeclaringType?.FullName,
             Namespace = method.DeclaringType?.Namespace,
-            Signature = ServiceLocator.MemberResolver.GetMemberSignature(method),
+            Signature = memberResolver.GetMemberSignature(method),
             Accessibility = method.Accessibility.ToString(),
             IsStatic = method.IsStatic,
             IsAbstract = method.IsAbstract,

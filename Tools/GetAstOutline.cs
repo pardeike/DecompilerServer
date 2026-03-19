@@ -8,13 +8,14 @@ namespace DecompilerServer;
 [McpServerToolType]
 public static class GetAstOutlineTool
 {
-    [McpServerTool, Description("AST outline: lightweight tree summary for a member for quick orientation.")]
-    public static string GetAstOutline(string memberId, int maxDepth = 2)
+    [McpServerTool, Description("Metadata-based outline for quick orientation. This is not a full statement-level AST.")]
+    public static string GetAstOutline(string memberId, int maxDepth = 2, string? contextAlias = null)
     {
         return ResponseFormatter.TryExecute(() =>
         {
-            var contextManager = ServiceLocator.ContextManager;
-            var memberResolver = ServiceLocator.MemberResolver;
+            var session = ToolSessionRouter.GetForMember(memberId, contextAlias);
+            var contextManager = session.ContextManager;
+            var memberResolver = session.MemberResolver;
 
             if (!contextManager.IsLoaded)
             {
@@ -38,7 +39,8 @@ public static class GetAstOutlineTool
                 memberKind = GetMemberKind(member),
                 outline = outline,
                 maxDepth = maxDepth,
-                note = "Simplified outline based on metadata - full AST parsing would require additional implementation"
+                isFullAst = false,
+                note = "Simplified outline based on metadata. This endpoint does not currently expose a full statement-level AST."
             };
 
             return result;

@@ -231,6 +231,68 @@ public class SearchToolTests : ServiceTestBase
     }
 
     [Fact]
+    public void SearchMembers_WithDeclaringTypeFilter_MatchesTypeIdentityNotSubstring()
+    {
+        var tempDir = Path.Combine(Path.GetTempPath(), $"SearchMembersDeclaringType_{Guid.NewGuid():N}");
+        Directory.CreateDirectory(tempDir);
+
+        try
+        {
+            var assemblyPath = TemporaryAssemblyBuilder.BuildLibrary(tempDir, "DeclaringTypeFilterAssembly",
+                """
+                namespace FilterApi;
+
+                public class Pawn
+                {
+                    public void Kill()
+                    {
+                    }
+                }
+
+                public class PawnColumnWorker
+                {
+                    public void Kill()
+                    {
+                    }
+                }
+                """);
+
+            ContextManager.LoadAssemblyDirect(assemblyPath);
+
+            var result = SearchMembersTool.SearchMembers(
+                "Kill",
+                declaringTypeFilter: "Pawn",
+                kind: "method",
+                mode: "full",
+                limit: 20);
+
+            var response = JsonSerializer.Deserialize<JsonElement>(result);
+            Assert.Equal("ok", response.GetProperty("status").GetString());
+
+            var items = response.GetProperty("data").GetProperty("items");
+            Assert.Single(items.EnumerateArray());
+
+            var item = items[0];
+            Assert.Equal("Kill", item.GetProperty("name").GetString());
+            Assert.Equal("FilterApi.Pawn", item.GetProperty("declaringType").GetString());
+        }
+        finally
+        {
+            if (Directory.Exists(tempDir))
+            {
+                try
+                {
+                    Directory.Delete(tempDir, recursive: true);
+                }
+                catch
+                {
+                    // Ignore cleanup errors.
+                }
+            }
+        }
+    }
+
+    [Fact]
     public void GetMembersOfType_WithFullMode_ReturnsLegacyRichShape()
     {
         var testType = ContextManager.GetAllTypes().FirstOrDefault(t => t.Methods.Any() || t.Fields.Any() || t.Properties.Any());

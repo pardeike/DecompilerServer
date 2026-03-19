@@ -15,9 +15,10 @@ public partial class Program
         builder.Logging.SetMinimumLevel(LogLevel.Information);
         // builder.Logging.AddFilter("Microsoft.Hosting.Lifetime", LogLevel.Warning);
         // builder.Logging.AddFilter("ModelContextProtocol", LogLevel.Warning);
-        builder.Services.AddHostedService<StartupLogService>();
+        builder.Services.AddHostedService<WorkspaceBootstrapService>();
 
         // Register DecompilerServer services as singletons for state persistence
+        builder.Services.AddSingleton<DecompilerWorkspace>();
         builder.Services.AddSingleton<AssemblyContextManager>();
         builder.Services.AddSingleton<MemberResolver>();
         builder.Services.AddSingleton<DecompilerService>();

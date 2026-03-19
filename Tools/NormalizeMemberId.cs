@@ -10,12 +10,13 @@ namespace DecompilerServer;
 public static class NormalizeMemberIdTool
 {
     [McpServerTool, Description("Normalize a possibly partial or human-entered identifier into a canonical memberId.")]
-    public static string NormalizeMemberId(string input)
+    public static string NormalizeMemberId(string input, string? contextAlias = null)
     {
         return ResponseFormatter.TryExecute(() =>
         {
-            var contextManager = ServiceLocator.ContextManager;
-            var memberResolver = ServiceLocator.MemberResolver;
+            var session = ToolSessionRouter.GetForContext(contextAlias);
+            var contextManager = session.ContextManager;
+            var memberResolver = session.MemberResolver;
 
             if (!contextManager.IsLoaded)
             {

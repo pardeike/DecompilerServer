@@ -9,12 +9,13 @@ namespace DecompilerServer;
 public static class SearchAttributesTool
 {
     [McpServerTool, Description("Find members decorated with a specific attribute type.")]
-    public static string SearchAttributes(string attributeFullName, string? kind = null, int limit = 100, string? cursor = null)
+    public static string SearchAttributes(string attributeFullName, string? kind = null, int limit = 100, string? cursor = null, string? contextAlias = null)
     {
         return ResponseFormatter.TryExecute(() =>
         {
-            var contextManager = ServiceLocator.ContextManager;
-            var memberResolver = ServiceLocator.MemberResolver;
+            var session = ToolSessionRouter.GetForContext(contextAlias);
+            var contextManager = session.ContextManager;
+            var memberResolver = session.MemberResolver;
 
             if (!contextManager.IsLoaded)
             {

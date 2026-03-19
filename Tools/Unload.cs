@@ -8,10 +8,24 @@ namespace DecompilerServer;
 public static class UnloadTool
 {
     [McpServerTool, Description("Unload assembly and free all caches and indexes.")]
-    public static string Unload()
+    public static string Unload(string? contextAlias = null, bool all = false)
     {
-        return ResponseFormatter.TryExecute(() =>
+        return ResponseFormatter.TryExecute<object>(() =>
         {
+            var workspace = ServiceLocator.Workspace;
+            if (workspace != null)
+            {
+                if (all)
+                {
+                    workspace.UnloadAllContexts();
+                    return new { status = "ok", unloaded = "all" };
+                }
+
+                var unloadedAlias = contextAlias ?? workspace.CurrentContextAlias ?? "current";
+                workspace.UnloadContext(contextAlias);
+                return new { status = "ok", unloaded = unloadedAlias };
+            }
+
             var contextManager = ServiceLocator.ContextManager;
             var decompilerService = ServiceLocator.DecompilerService;
             var memberResolver = ServiceLocator.MemberResolver;

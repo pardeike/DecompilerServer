@@ -8,11 +8,12 @@ namespace DecompilerServer;
 public static class ListNamespacesTool
 {
     [McpServerTool, Description("List namespaces. Optional prefix filter and pagination.")]
-    public static string ListNamespaces(string? prefix = null, int limit = 100, string? cursor = null)
+    public static string ListNamespaces(string? prefix = null, int limit = 100, string? cursor = null, string? contextAlias = null)
     {
         return ResponseFormatter.TryExecute(() =>
         {
-            var contextManager = ServiceLocator.ContextManager;
+            var session = ToolSessionRouter.GetForContext(contextAlias);
+            var contextManager = session.ContextManager;
 
             if (!contextManager.IsLoaded)
             {
@@ -59,4 +60,3 @@ public static class ListNamespacesTool
 /// Simple handle for members that don't need full summary information
 /// </summary>
 public record MemberHandle(string MemberId, string Name, string Kind);
-

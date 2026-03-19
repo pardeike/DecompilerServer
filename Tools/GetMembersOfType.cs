@@ -9,12 +9,13 @@ namespace DecompilerServer;
 public static class GetMembersOfTypeTool
 {
     [McpServerTool, Description("List members of a given type with filters and pagination. Modes: 'ids', 'discovery', 'signatures' (default), 'full'.")]
-    public static string GetMembersOfType(string typeId, string? kind = null, string? accessibility = null, bool? isStatic = null, bool includeInherited = false, int limit = 100, string? cursor = null, string mode = "signatures")
+    public static string GetMembersOfType(string typeId, string? kind = null, string? accessibility = null, bool? isStatic = null, bool includeInherited = false, int limit = 100, string? cursor = null, string mode = "signatures", string? contextAlias = null)
     {
         return ResponseFormatter.TryExecute(() =>
         {
-            var contextManager = ServiceLocator.ContextManager;
-            var memberResolver = ServiceLocator.MemberResolver;
+            var session = ToolSessionRouter.GetForMember(typeId, contextAlias);
+            var contextManager = session.ContextManager;
+            var memberResolver = session.MemberResolver;
             var normalizedLimit = MemberSummaryModes.ClampLimit(limit, 100);
             var parsedMode = MemberSummaryModes.Parse(mode, MemberSummaryMode.Signatures);
 

@@ -15,11 +15,13 @@ public static class SearchTypesTool
         bool includeNested = true,
         int limit = 50,
         string? cursor = null,
-        string mode = "discovery")
+        string mode = "discovery",
+        string? contextAlias = null)
     {
         return ResponseFormatter.TryExecute(() =>
         {
-            var contextManager = ServiceLocator.ContextManager;
+            var session = ToolSessionRouter.GetForContext(contextAlias);
+            var contextManager = session.ContextManager;
 
             if (!contextManager.IsLoaded)
             {
@@ -27,7 +29,7 @@ public static class SearchTypesTool
             }
 
             // Create a SearchServiceBase instance to use the search functionality
-            var searchService = new SearchService(contextManager, ServiceLocator.MemberResolver);
+            var searchService = new SearchService(contextManager, session.MemberResolver);
             var normalizedLimit = MemberSummaryModes.ClampLimit(limit, 50);
             var parsedMode = MemberSummaryModes.Parse(mode, MemberSummaryMode.Discovery);
 

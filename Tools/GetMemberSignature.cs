@@ -9,12 +9,13 @@ namespace DecompilerServer;
 public static class GetMemberSignatureTool
 {
     [McpServerTool, Description("Quick signature preview for any member.")]
-    public static string GetMemberSignature(string memberId)
+    public static string GetMemberSignature(string memberId, string? contextAlias = null)
     {
         return ResponseFormatter.TryExecute(() =>
         {
-            var contextManager = ServiceLocator.ContextManager;
-            var memberResolver = ServiceLocator.MemberResolver;
+            var session = ToolSessionRouter.GetForMember(memberId, contextAlias);
+            var contextManager = session.ContextManager;
+            var memberResolver = session.MemberResolver;
 
             if (!contextManager.IsLoaded)
             {

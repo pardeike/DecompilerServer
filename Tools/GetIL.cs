@@ -12,13 +12,14 @@ namespace DecompilerServer;
 [McpServerToolType]
 public static class GetILTool
 {
-    [McpServerTool, Description("Get IL for a method or constructor. Format: IL or ILAst.")]
-    public static string GetIL(string memberId, string format = "IL")
+    [McpServerTool, Description("Get an IL metadata summary for a method or constructor. Only format 'IL' is supported, and full body disassembly is not yet implemented.")]
+    public static string GetIL(string memberId, string format = "IL", string? contextAlias = null)
     {
         return ResponseFormatter.TryExecute(() =>
         {
-            var contextManager = ServiceLocator.ContextManager;
-            var memberResolver = ServiceLocator.MemberResolver;
+            var session = ToolSessionRouter.GetForMember(memberId, contextAlias);
+            var contextManager = session.ContextManager;
+            var memberResolver = session.MemberResolver;
 
             if (!contextManager.IsLoaded)
             {
@@ -28,7 +29,7 @@ public static class GetILTool
             // Only support IL format for now, ILAst would require additional implementation
             if (format != "IL")
             {
-                throw new NotSupportedException($"Format '{format}' is not supported. Only 'IL' format is currently supported.");
+                throw new NotSupportedException($"Format '{format}' is not supported. Only 'IL' format is currently supported, and it currently returns metadata summary output rather than full body disassembly.");
             }
 
             var entity = memberResolver.ResolveMember(memberId);
@@ -44,7 +45,9 @@ public static class GetILTool
                 memberId = memberId,
                 format = format,
                 text = ilText,
-                totalLines = ilText.Split('\n').Length
+                totalLines = ilText.Split('\n').Length,
+                isFullDisassembly = false,
+                note = "This endpoint currently returns IL metadata summary output, not full opcode/body disassembly."
             };
 
             return result;

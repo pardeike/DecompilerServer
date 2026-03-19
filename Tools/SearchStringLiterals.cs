@@ -8,12 +8,13 @@ namespace DecompilerServer;
 public static class SearchStringLiteralsTool
 {
     [McpServerTool, Description("Search string literals across code. Regex optional.")]
-    public static string SearchStringLiterals(string pattern, bool regex = false, int limit = 100, string? cursor = null)
+    public static string SearchStringLiterals(string pattern, bool regex = false, int limit = 100, string? cursor = null, string? contextAlias = null)
     {
         return ResponseFormatter.TryExecute(() =>
         {
-            var contextManager = ServiceLocator.ContextManager;
-            var usageAnalyzer = ServiceLocator.UsageAnalyzer;
+            var session = ToolSessionRouter.GetForContext(contextAlias);
+            var contextManager = session.ContextManager;
+            var usageAnalyzer = session.UsageAnalyzer;
 
             if (!contextManager.IsLoaded)
             {

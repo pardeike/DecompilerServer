@@ -12,29 +12,59 @@ public static class StatusTool
     {
         return ResponseFormatter.TryExecute(() =>
         {
-            var contextManager = ServiceLocator.ContextManager;
+            var workspace = ServiceLocator.Workspace;
+            if (workspace != null)
+            {
+                var loadedContexts = workspace.ListContexts().ToList();
+                var hasCurrent = workspace.TryGetCurrentSession(out var currentSession);
+                var contextManager = hasCurrent ? currentSession.ContextManager : null;
+                var status = new ServerStatus
+                {
+                    Loaded = loadedContexts.Count > 0,
+                    CurrentContextAlias = workspace.CurrentContextAlias,
+                    LoadedContexts = loadedContexts,
+                    Mvid = contextManager?.Mvid,
+                    AssemblyPath = contextManager?.AssemblyPath,
+                    StartedAtUnix = contextManager?.LoadedAtUtc?.Ticks,
+                    Settings = hasCurrent ? GetDecompilerSettings() : null,
+                    Stats = hasCurrent ? GetCacheStats(currentSession.DecompilerService, currentSession.MemberResolver) : null,
+                    Indexes = hasCurrent ? new IndexStatus
+                    {
+                        Namespaces = contextManager!.NamespaceCount,
+                        Types = contextManager.TypeCount,
+                        NameIndexReady = contextManager.TypeIndexReady,
+                        StringLiteralIndexReady = GetStringLiteralIndexStatus(currentSession.UsageAnalyzer)
+                    } : null
+                };
+
+                return status;
+            }
+
+            var legacyContextManager = ServiceLocator.ContextManager;
             var decompilerService = ServiceLocator.DecompilerService;
             var memberResolver = ServiceLocator.MemberResolver;
             var usageAnalyzer = ServiceLocator.UsageAnalyzer;
 
-            var status = new ServerStatus
+            var legacyStatus = new ServerStatus
             {
-                Loaded = contextManager.IsLoaded,
-                Mvid = contextManager.Mvid,
-                AssemblyPath = contextManager.AssemblyPath,
-                StartedAtUnix = contextManager.LoadedAtUtc?.Ticks,
-                Settings = contextManager.IsLoaded ? GetDecompilerSettings() : null,
+                Loaded = legacyContextManager.IsLoaded,
+                CurrentContextAlias = null,
+                LoadedContexts = null,
+                Mvid = legacyContextManager.Mvid,
+                AssemblyPath = legacyContextManager.AssemblyPath,
+                StartedAtUnix = legacyContextManager.LoadedAtUtc?.Ticks,
+                Settings = legacyContextManager.IsLoaded ? GetDecompilerSettings() : null,
                 Stats = GetCacheStats(decompilerService, memberResolver),
-                Indexes = contextManager.IsLoaded ? new IndexStatus
+                Indexes = legacyContextManager.IsLoaded ? new IndexStatus
                 {
-                    Namespaces = contextManager.NamespaceCount,
-                    Types = contextManager.TypeCount,
-                    NameIndexReady = contextManager.TypeIndexReady,
+                    Namespaces = legacyContextManager.NamespaceCount,
+                    Types = legacyContextManager.TypeCount,
+                    NameIndexReady = legacyContextManager.TypeIndexReady,
                     StringLiteralIndexReady = GetStringLiteralIndexStatus(usageAnalyzer)
                 } : null
             };
 
-            return status;
+            return legacyStatus;
         });
     }
 

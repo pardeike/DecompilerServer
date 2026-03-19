@@ -1,20 +1,22 @@
 using System.ComponentModel;
 using ModelContextProtocol.Server;
 using DecompilerServer.Services;
+using ICSharpCode.Decompiler.TypeSystem;
 
 namespace DecompilerServer;
 
 [McpServerToolType]
 public static class PlanChunkingTool
 {
-    [McpServerTool, Description("Plan line-range chunks for a member's source for LLM-friendly paging.")]
-    public static string PlanChunking(string memberId, int targetChunkSize = 6000, int overlap = 2)
+    [McpServerTool, Description("Plan line-range chunks for a member's source for LLM-friendly paging. targetChunkSize is an estimated character budget per chunk; overlap is measured in lines.")]
+    public static string PlanChunking(string memberId, int targetChunkSize = 6000, int overlap = 2, string? contextAlias = null)
     {
         return ResponseFormatter.TryExecute(() =>
         {
-            var contextManager = ServiceLocator.ContextManager;
-            var memberResolver = ServiceLocator.MemberResolver;
-            var decompilerService = ServiceLocator.DecompilerService;
+            var session = ToolSessionRouter.GetForMember(memberId, contextAlias);
+            var contextManager = session.ContextManager;
+            var memberResolver = session.MemberResolver;
+            var decompilerService = session.DecompilerService;
 
             if (!contextManager.IsLoaded)
             {
@@ -37,8 +39,10 @@ public static class PlanChunkingTool
                 throw new ArgumentException("overlap must be positive", nameof(overlap));
             }
 
+            var includeHeader = member is ITypeDefinition;
+
             // Get the source document to analyze
-            var document = decompilerService.DecompileMember(memberId, includeHeader: true);
+            var document = decompilerService.DecompileMember(memberId, includeHeader);
             var totalLines = document.TotalLines;
 
             ChunkPlanResult result;
@@ -61,7 +65,7 @@ public static class PlanChunkingTool
                 int avgCharsPerLine;
                 try
                 {
-                    var sampleSlice = decompilerService.GetSourceSlice(memberId, 1, divisor);
+                    var sampleSlice = decompilerService.GetSourceSlice(memberId, 1, divisor, includeHeader);
                     avgCharsPerLine = sampleSlice.Code.Length / divisor;
                 }
                 catch
@@ -80,7 +84,7 @@ public static class PlanChunkingTool
                 if (overlap >= targetLinesPerChunk)
                 {
                     throw new ArgumentException(
-                        $"Overlap must be less than {targetLinesPerChunk}",
+                        $"Overlap must be less than the computed target lines per chunk ({targetLinesPerChunk}). Increase targetChunkSize or reduce overlap.",
                         nameof(overlap));
                 }
 
@@ -95,6 +99,11 @@ public static class PlanChunkingTool
                         currentStart,
                         currentEnd,
                         (currentEnd - currentStart + 1) * avgCharsPerLine));
+
+                    if (currentEnd >= totalLines)
+                    {
+                        break;
+                    }
 
                     // Move to next chunk with overlap consideration
                     var nextStart = currentEnd + 1 - overlap;

@@ -9,13 +9,14 @@ namespace DecompilerServer;
 public static class GetMemberDetailsTool
 {
     [McpServerTool, Description("Detailed metadata for a member: attributes, docs, inheritance links.")]
-    public static string GetMemberDetails(string memberId)
+    public static string GetMemberDetails(string memberId, string? contextAlias = null)
     {
         return ResponseFormatter.TryExecute(() =>
         {
-            var contextManager = ServiceLocator.ContextManager;
-            var memberResolver = ServiceLocator.MemberResolver;
-            var inheritanceAnalyzer = ServiceLocator.InheritanceAnalyzer;
+            var session = ToolSessionRouter.GetForMember(memberId, contextAlias);
+            var contextManager = session.ContextManager;
+            var memberResolver = session.MemberResolver;
+            var inheritanceAnalyzer = session.InheritanceAnalyzer;
 
             if (!contextManager.IsLoaded)
             {

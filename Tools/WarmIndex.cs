@@ -9,12 +9,13 @@ namespace DecompilerServer;
 public static class WarmIndexTool
 {
     [McpServerTool, Description("Optionally precompute heavier indexes (string literals, attribute hits). Time-boxed.")]
-    public static string WarmIndex(bool deep = false, double maxSeconds = 5.0)
+    public static string WarmIndex(bool deep = false, double maxSeconds = 5.0, string? contextAlias = null)
     {
         return ResponseFormatter.TryExecute(() =>
         {
             var stopwatch = Stopwatch.StartNew();
-            var contextManager = ServiceLocator.ContextManager;
+            var session = ToolSessionRouter.GetForContext(contextAlias);
+            var contextManager = session.ContextManager;
             var built = new List<string>();
 
             if (!contextManager.IsLoaded)
@@ -27,7 +28,7 @@ public static class WarmIndexTool
             if (deep && stopwatch.Elapsed.TotalSeconds < maxSeconds)
             {
                 // Implement deep indexing for string literals and attributes
-                var usageAnalyzer = ServiceLocator.UsageAnalyzer;
+                var usageAnalyzer = session.UsageAnalyzer;
 
                 // Pre-warm string literal searches by running a quick search
                 try
@@ -48,7 +49,7 @@ public static class WarmIndexTool
                     {
                         if (stopwatch.Elapsed.TotalSeconds >= maxSeconds) break;
 
-                        var memberId = ServiceLocator.MemberResolver.GenerateMemberId(type);
+                        var memberId = session.MemberResolver.GenerateMemberId(type);
                         usageAnalyzer.FindUsages(memberId, limit: 1);
                     }
                     built.Add("usage-analysis");

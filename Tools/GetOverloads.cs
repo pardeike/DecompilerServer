@@ -8,12 +8,13 @@ namespace DecompilerServer;
 public static class GetOverloadsTool
 {
     [McpServerTool, Description("Find overloads for a method name within its declaring type.")]
-    public static string GetOverloads(string memberId)
+    public static string GetOverloads(string memberId, string? contextAlias = null)
     {
         return ResponseFormatter.TryExecute(() =>
         {
-            var contextManager = ServiceLocator.ContextManager;
-            var inheritanceAnalyzer = ServiceLocator.InheritanceAnalyzer;
+            var session = ToolSessionRouter.GetForMember(memberId, contextAlias);
+            var contextManager = session.ContextManager;
+            var inheritanceAnalyzer = session.InheritanceAnalyzer;
 
             if (!contextManager.IsLoaded)
             {
