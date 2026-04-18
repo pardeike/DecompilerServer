@@ -1,6 +1,8 @@
 # DecompilerServer
 
-DecompilerServer is an MCP server that decompiles and analyzes .NET assemblies. You connect it to your AI coding tool (Claude Desktop, Cursor, VS Code, etc.) and it lets the AI read, search, and compare .NET code — even across different versions of an assembly.
+DecompilerServer is an MCP server that decompiles and analyzes .NET assemblies. You connect it to your AI coding tool (Claude Desktop, Cursor, VS Code, Codex, etc.) and it lets the AI read, search, and compare .NET code — even across different versions of an assembly.
+
+This is a particularly strong LLM use case because so much real-world .NET behavior lives in binaries the model cannot inspect on its own: third-party libraries, game assemblies, internal builds, and older releases. By giving the model direct decompiler-backed access to those assemblies, you turn "I only see the source in this repo" into "I can inspect the actual code that runs", which makes reverse engineering, migration work, debugging, and version-to-version analysis much more effective.
 
 Common use cases: general .NET assembly inspection, Unity `Assembly-CSharp.dll` workflows, and multi-version browsing such as RimWorld mod porting.
 
@@ -118,6 +120,28 @@ Add an entry to your `.vscode/mcp.json` (or workspace settings):
     }
   }
 }
+```
+
+On Windows, use the `.exe` extension and escaped backslashes.
+
+</details>
+
+<details>
+<summary><strong>Codex</strong></summary>
+
+Add an entry to `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.decompiler]
+command = "/absolute/path/to/DecompilerServer"
+```
+
+If you run a framework-dependent build instead of the native app host, configure Codex like this:
+
+```toml
+[mcp_servers.decompiler]
+command = "dotnet"
+args = ["/absolute/path/to/DecompilerServer/bin/Release/net10.0/DecompilerServer.dll"]
 ```
 
 On Windows, use the `.exe` extension and escaped backslashes.
