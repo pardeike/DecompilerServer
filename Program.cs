@@ -2,11 +2,23 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using DecompilerServer.Services;
+using ModelContextProtocol.Server;
 
 namespace DecompilerServer;
 
 public partial class Program
 {
+    internal const string ServerInstructions = """
+        DecompilerServer inspects loaded .NET assemblies. Use search_symbols first when you have a partial, qualified, or guessed name.
+        Common parameter names: search_types/search_members use query, not pattern; resolve_member_id/get_decompiled_source/find_usages use memberId; find_callers/find_callees/get_overrides use methodId; get_types_in_namespace uses ns.
+        After resolving a type, use list_members or get_members_of_type before guessing method names. If a lookup fails, inspect structured error.details, candidates, and hints before retrying.
+        """;
+
+    internal static void ConfigureMcpServerOptions(McpServerOptions options)
+    {
+        options.ServerInstructions = ServerInstructions;
+    }
+
     public static async Task Main(string[] args)
     {
         var builder = Host.CreateApplicationBuilder(args);
@@ -27,7 +39,7 @@ public partial class Program
         builder.Services.AddSingleton<ResponseFormatter>();
 
         builder.Services
-            .AddMcpServer()             // core MCP server services
+            .AddMcpServer(ConfigureMcpServerOptions) // core MCP server services
             .WithStdioServerTransport() // Codex talks to STDIO servers
             .WithToolsFromAssembly();   // auto-discover [McpServerTool]s in this assembly
 

@@ -14,6 +14,20 @@ namespace Tests;
 public class McpProtocolTests
 {
     [Fact]
+    public void McpServer_Should_Expose_Concise_ServerInstructions()
+    {
+        var options = new McpServerOptions();
+
+        DecompilerServer.Program.ConfigureMcpServerOptions(options);
+
+        Assert.Equal(DecompilerServer.Program.ServerInstructions, options.ServerInstructions);
+        Assert.Contains("search_symbols", options.ServerInstructions, StringComparison.Ordinal);
+        Assert.Contains("query, not pattern", options.ServerInstructions, StringComparison.Ordinal);
+        Assert.Contains("methodId", options.ServerInstructions, StringComparison.Ordinal);
+        Assert.Contains("structured error.details", options.ServerInstructions, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void McpServer_Should_Have_ListToolsHandler_Registered()
     {
         // Arrange

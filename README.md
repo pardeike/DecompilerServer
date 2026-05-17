@@ -319,11 +319,11 @@ The repo includes a portable skill at [skills/decompiler-mcp/SKILL.md](skills/de
 
 The GitHub `Release` workflow is triggered by pushing a tag that starts with `v` and matches the project version in `DecompilerServer.csproj`.
 
-For example, if the project version is `1.3.3`:
+For example, if the project version is `1.3.4`:
 
 ```bash
-git tag -a v1.3.3 -m "Release v1.3.3"
-git push origin v1.3.3
+git tag -a v1.3.4 -m "Release v1.3.4"
+git push origin v1.3.4
 ```
 
 ### Documentation
