@@ -23,16 +23,7 @@ public static class GenerateExtensionMethodWrapperTool
                 throw new InvalidOperationException("No assembly loaded");
             }
 
-            var member = memberResolver.ResolveMember(memberId);
-            if (member == null)
-            {
-                throw new ArgumentException($"Invalid member ID: {memberId}");
-            }
-
-            if (member is not IMethod method)
-            {
-                throw new ArgumentException($"Member must be a method: {memberId}");
-            }
+            var method = ToolValidation.ResolveMethodOrThrow(session, memberId);
 
             if (method.IsStatic)
             {

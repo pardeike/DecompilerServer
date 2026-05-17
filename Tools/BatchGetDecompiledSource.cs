@@ -35,11 +35,7 @@ public static class BatchGetDecompiledSourceTool
                         throw new InvalidOperationException("No assembly loaded");
                     }
 
-                    var member = memberResolver.ResolveMember(memberId);
-                    if (member == null)
-                    {
-                        throw new ArgumentException($"Invalid member ID: {memberId}");
-                    }
+                    _ = ToolValidation.ResolveMemberOrThrow(session, memberId);
 
                     var document = decompilerService.DecompileMember(memberId, includeHeader: true);
 

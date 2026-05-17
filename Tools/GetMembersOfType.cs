@@ -24,12 +24,7 @@ public static class GetMembersOfTypeTool
                 throw new InvalidOperationException("No assembly loaded");
             }
 
-            // Resolve the type
-            var entity = memberResolver.ResolveMember(typeId);
-            if (entity is not ITypeDefinition type)
-            {
-                throw new ArgumentException($"Type ID '{typeId}' could not be resolved to a type");
-            }
+            var type = ToolValidation.ResolveTypeOrThrow(session, typeId);
 
             // Get members
             IEnumerable<IMember> members;

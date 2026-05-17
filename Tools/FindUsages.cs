@@ -21,20 +21,9 @@ public static class FindUsagesTool
                 throw new InvalidOperationException("No assembly loaded");
             }
 
-            var usages = usageAnalyzer.FindUsages(memberId, limit, cursor);
-            var usageList = usages.ToList();
-
-            // Calculate pagination info
-            var startIndex = 0;
-            if (!string.IsNullOrEmpty(cursor) && int.TryParse(cursor, out var cursorIndex))
-            {
-                startIndex = cursorIndex;
-            }
-
-            var hasMore = usageList.Count >= limit;
-            var nextCursor = hasMore ? (startIndex + limit).ToString() : null;
-
-            var result = new SearchResult<UsageReference>(usageList, hasMore, nextCursor, usageList.Count);
+            _ = ToolValidation.ResolveMemberOrThrow(session, memberId);
+            var page = usageAnalyzer.FindUsagesPage(memberId, limit, cursor);
+            var result = new SearchResult<UsageReference>(page.Items, page.HasMore, page.NextCursor, page.TotalEstimate);
 
             return result;
         });

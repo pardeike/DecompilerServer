@@ -251,7 +251,7 @@ public sealed class DecompilerWorkspace : IDisposable
         return results;
     }
 
-    public void UnloadContext(string? contextAlias = null)
+    public void UnloadContext(string? contextAlias = null, bool preserveRegistration = false)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
@@ -268,6 +268,11 @@ public sealed class DecompilerWorkspace : IDisposable
             RemoveSessionMappings(session);
             session.Dispose();
 
+            if (!preserveRegistration)
+            {
+                _registryState.Contexts.RemoveAll(entry => string.Equals(entry.ContextAlias, aliasToUnload, StringComparison.OrdinalIgnoreCase));
+            }
+
             if (CurrentContextAlias == null && _sessionsByAlias.Count > 0)
             {
                 CurrentContextAlias = _sessionsByAlias.Keys.OrderBy(alias => alias, StringComparer.OrdinalIgnoreCase).First();
@@ -281,7 +286,7 @@ public sealed class DecompilerWorkspace : IDisposable
         }
     }
 
-    public void UnloadAllContexts()
+    public void UnloadAllContexts(bool preserveRegistration = false)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
 
@@ -296,6 +301,8 @@ public sealed class DecompilerWorkspace : IDisposable
             _sessionsByAlias.Clear();
             _aliasByMvid.Clear();
             CurrentContextAlias = null;
+            if (!preserveRegistration)
+                _registryState.Contexts.Clear();
             SaveRegistryState();
         }
         finally

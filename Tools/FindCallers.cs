@@ -22,27 +22,10 @@ public static class FindCallersTool
                 throw new InvalidOperationException("No assembly loaded");
             }
 
-            // Validate that the memberId is indeed a method
-            var method = memberResolver.ResolveMethod(methodId);
-            if (method == null)
-            {
-                throw new ArgumentException($"Invalid method ID or member is not a method: {methodId}");
-            }
+            _ = ToolValidation.ResolveMethodOrThrow(session, methodId);
 
-            var callers = usageAnalyzer.FindCallers(methodId, limit, cursor);
-            var callersList = callers.ToList();
-
-            // Calculate pagination info
-            var startIndex = 0;
-            if (!string.IsNullOrEmpty(cursor) && int.TryParse(cursor, out var cursorIndex))
-            {
-                startIndex = cursorIndex;
-            }
-
-            var hasMore = callersList.Count >= limit;
-            var nextCursor = hasMore ? (startIndex + limit).ToString() : null;
-
-            var result = new SearchResult<UsageReference>(callersList, hasMore, nextCursor, callersList.Count);
+            var page = usageAnalyzer.FindCallersPage(methodId, limit, cursor);
+            var result = new SearchResult<UsageReference>(page.Items, page.HasMore, page.NextCursor, page.TotalEstimate);
 
             return result;
         });

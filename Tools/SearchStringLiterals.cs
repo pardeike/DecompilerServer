@@ -21,21 +21,10 @@ public static class SearchStringLiteralsTool
                 throw new InvalidOperationException("No assembly loaded");
             }
 
-            var stringLiterals = usageAnalyzer.FindStringLiterals(pattern, regex, limit, cursor);
-            var literalsList = stringLiterals.ToList();
-
-            // Calculate pagination info
-            var startIndex = 0;
-            if (!string.IsNullOrEmpty(cursor) && int.TryParse(cursor, out var cursorIndex))
-            {
-                startIndex = cursorIndex;
-            }
-
-            var hasMore = literalsList.Count >= limit;
-            var nextCursor = hasMore ? (startIndex + limit).ToString() : null;
+            var page = usageAnalyzer.FindStringLiteralsPage(pattern, regex, limit, cursor);
 
             // Convert StringLiteralReference to UsageRef-like format for consistency
-            var usageRefs = literalsList.Select(lit => new
+            var usageRefs = page.Items.Select(lit => new
             {
                 value = lit.Value,
                 inMember = lit.ContainingMember,
@@ -45,7 +34,7 @@ public static class SearchStringLiteralsTool
                 snippet = $"\"{lit.Value}\""
             }).ToList();
 
-            var result = new SearchResult<object>(usageRefs.Cast<object>().ToList(), hasMore, nextCursor, usageRefs.Count);
+            var result = new SearchResult<object>(usageRefs.Cast<object>().ToList(), page.HasMore, page.NextCursor, page.TotalEstimate);
 
             return result;
         });

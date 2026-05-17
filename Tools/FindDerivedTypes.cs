@@ -21,6 +21,7 @@ public static class FindDerivedTypesTool
                   throw new InvalidOperationException("No assembly loaded");
               }
 
+              _ = ToolValidation.ResolveTypeOrThrow(session, baseTypeId);
               var derivedTypes = inheritanceAnalyzer.FindDerivedTypes(baseTypeId, limit, cursor, transitive);
 
               // Calculate pagination info

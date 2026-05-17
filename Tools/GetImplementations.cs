@@ -23,11 +23,7 @@ public static class GetImplementationsTool
             }
 
             // Try to resolve as a member first to determine what we're dealing with
-            var member = memberResolver.ResolveMember(interfaceTypeOrMethodId);
-            if (member == null)
-            {
-                throw new ArgumentException($"Invalid member ID: {interfaceTypeOrMethodId}");
-            }
+            var member = ToolValidation.ResolveMemberOrThrow(session, interfaceTypeOrMethodId);
 
             IEnumerable<MemberSummary> implementations;
 

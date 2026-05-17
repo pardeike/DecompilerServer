@@ -21,6 +21,7 @@ public static class GetDecompiledSourceTool
                 throw new InvalidOperationException("No assembly loaded");
             }
 
+            _ = ToolValidation.ResolveMemberOrThrow(session, memberId);
             var document = decompilerService.DecompileMember(memberId, includeHeader);
             return document;
         });

@@ -21,20 +21,9 @@ public static class FindCalleesTool
                 throw new InvalidOperationException("No assembly loaded");
             }
 
-            var callees = usageAnalyzer.FindCallees(methodId, limit, cursor);
-            var calleeList = callees.ToList();
-
-            // Calculate pagination info
-            var startIndex = 0;
-            if (!string.IsNullOrEmpty(cursor) && int.TryParse(cursor, out var cursorIndex))
-            {
-                startIndex = cursorIndex;
-            }
-
-            var hasMore = calleeList.Count >= limit;
-            var nextCursor = hasMore ? (startIndex + limit).ToString() : null;
-
-            var result = new SearchResult<UsageReference>(calleeList, hasMore, nextCursor, calleeList.Count);
+            _ = ToolValidation.ResolveMethodOrThrow(session, methodId);
+            var page = usageAnalyzer.FindCalleesPage(methodId, limit, cursor);
+            var result = new SearchResult<UsageReference>(page.Items, page.HasMore, page.NextCursor, page.TotalEstimate);
 
             return result;
         });

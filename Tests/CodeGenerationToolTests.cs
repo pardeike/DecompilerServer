@@ -213,6 +213,11 @@ public class CodeGenerationToolTests : ServiceTestBase
 
         // Verify hints structure
         Assert.True(hints.ValueKind == JsonValueKind.Array);
+        Assert.All(hints.EnumerateArray(), hint =>
+        {
+            Assert.DoesNotContain("Synthetic", hint.GetProperty("operandSummary").GetString() ?? "", StringComparison.OrdinalIgnoreCase);
+            Assert.True(hint.GetProperty("nearbyOps").GetArrayLength() > 0);
+        });
         Assert.True(hints.GetArrayLength() > 0);
 
         for (int i = 0; i < hints.GetArrayLength(); i++)

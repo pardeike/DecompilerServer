@@ -9,7 +9,7 @@ namespace DecompilerServer;
 [McpServerToolType]
 public static class NormalizeMemberIdTool
 {
-    [McpServerTool, Description("Normalize a possibly partial or human-entered identifier into a canonical memberId.")]
+    [McpServerTool, Description("Normalize partial or human-entered identifiers such as Namespace.Type.Member or XML-doc-like symbols into canonical memberIds.")]
     public static string NormalizeMemberId(string input, string? contextAlias = null)
     {
         return ResponseFormatter.TryExecute(() =>
@@ -42,18 +42,32 @@ public static class NormalizeMemberIdTool
                 // Continue with normalization attempts
             }
 
+            var normalizedInput = NormalizeHumanInput(input);
+
             // Try different normalization approaches
             var candidates = new List<MemberSummary>();
 
             // Pattern: "Type:Member" or "Namespace.Type:Member"
-            if (input.Contains(':'))
+            if (normalizedInput.Contains(':'))
             {
-                var parts = input.Split(':', 2);
+                var parts = normalizedInput.Split(':', 2);
                 if (parts.Length == 2)
                 {
                     var typePart = parts[0].Trim();
                     var memberPart = parts[1].Trim();
 
+                    candidates.AddRange(FindMembersByTypeAndName(typePart, memberPart, contextManager, memberResolver));
+                }
+            }
+
+            // Pattern: "Namespace.Type.Member"
+            if (candidates.Count == 0)
+            {
+                var lastDot = normalizedInput.LastIndexOf('.');
+                if (lastDot > 0 && lastDot < normalizedInput.Length - 1)
+                {
+                    var typePart = normalizedInput[..lastDot].Trim();
+                    var memberPart = normalizedInput[(lastDot + 1)..].Trim();
                     candidates.AddRange(FindMembersByTypeAndName(typePart, memberPart, contextManager, memberResolver));
                 }
             }
@@ -71,7 +85,16 @@ public static class NormalizeMemberIdTool
             // Pattern: Simple name search
             if (candidates.Count == 0)
             {
-                candidates.AddRange(FindMembersByName(input, contextManager, memberResolver));
+                candidates.AddRange(FindMembersByName(normalizedInput, contextManager, memberResolver));
+            }
+
+            if (candidates.Count == 0)
+            {
+                candidates.AddRange(SymbolResolutionDiagnostics.SearchSymbols(
+                    normalizedInput,
+                    contextManager,
+                    memberResolver,
+                    limit: 10));
             }
 
             // Limit results to avoid overwhelming response
@@ -95,14 +118,31 @@ public static class NormalizeMemberIdTool
             }
             else
             {
-                throw new ArgumentException($"Could not normalize input '{input}' to any known member");
+                throw SymbolResolutionDiagnostics.CreateUnresolvedMemberError(input, contextManager, memberResolver);
             }
         });
+    }
+
+    private static string NormalizeHumanInput(string input)
+    {
+        var value = input.Trim();
+
+        if (value.Length > 2 && value[1] == ':' && "TMFPE".Contains(value[0]))
+            value = value[2..];
+
+        var parenIndex = value.IndexOf('(');
+        if (parenIndex >= 0)
+            value = value[..parenIndex];
+
+        return value;
     }
 
     private static IEnumerable<MemberSummary> FindMembersByTypeAndName(string typePart, string memberPart, AssemblyContextManager contextManager, MemberResolver memberResolver)
     {
         var candidates = new List<MemberSummary>();
+
+        if (typePart.Length == 1 && "TMFPE".Contains(typePart[0]))
+            return candidates;
 
         // Find types that match the type part
         var allTypes = contextManager.GetAllTypes();

@@ -106,6 +106,41 @@ public class AnalysisToolTests : ServiceTestBase
     }
 
     [Fact]
+    public void NormalizeMemberId_WithQualifiedMemberName_ReturnsCanonicalId()
+    {
+        var result = NormalizeMemberIdTool.NormalizeMemberId("TestLibrary.SimpleClass.SimpleMethod");
+
+        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        Assert.Equal("ok", response.GetProperty("status").GetString());
+
+        var data = response.GetProperty("data");
+        Assert.False(string.IsNullOrWhiteSpace(data.GetProperty("normalizedId").GetString()));
+    }
+
+    [Fact]
+    public void GetSourceSlice_WithStaleMethodGuess_ReturnsStructuredSuggestions()
+    {
+        var result = GetSourceSliceTool.GetSourceSlice(
+            "M:TestLibrary.JobDriver_PlayMusicalInstrument.MakeNewToils",
+            startLine: 1,
+            endLine: 5);
+
+        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        Assert.Equal("error", response.GetProperty("status").GetString());
+
+        var error = response.GetProperty("error");
+        Assert.Equal("member_not_found", error.GetProperty("code").GetString());
+
+        var candidates = error.GetProperty("details").GetProperty("candidates");
+        Assert.Contains(candidates.EnumerateArray(), candidate =>
+            candidate.GetProperty("name").GetString() == "ModifyPlayToil");
+
+        var hints = error.GetProperty("hints");
+        Assert.Contains(hints.EnumerateArray(), hint =>
+            hint.GetProperty("tool").GetString() == "get_members_of_type");
+    }
+
+    [Fact]
     public void FindBaseTypes_WithValidType_ReturnsBaseTypes()
     {
         // Arrange - find a type that has base types
@@ -204,11 +239,10 @@ public class AnalysisToolTests : ServiceTestBase
     public void GetIL_WithValidMethod_ReturnsILSummary()
     {
         // Arrange - find a method from the test assembly
-        var types = ContextManager.GetAllTypes();
-        var testType = types.FirstOrDefault(t => t.Name.Contains("Test"));
+        var testType = ContextManager.FindTypeByName("TestLibrary.SimpleClass");
         Assert.NotNull(testType);
 
-        var method = testType.Methods.FirstOrDefault(m => !m.IsConstructor);
+        var method = testType.Methods.FirstOrDefault(m => m.Name == "SimpleMethod");
         if (method != null)
         {
             var memberId = MemberResolver.GenerateMemberId(method);
@@ -226,6 +260,9 @@ public class AnalysisToolTests : ServiceTestBase
             Assert.Equal("IL", data.GetProperty("format").GetString());
             Assert.True(data.GetProperty("totalLines").GetInt32() > 0);
             Assert.NotNull(data.GetProperty("text").GetString());
+            Assert.True(data.GetProperty("isFullDisassembly").GetBoolean());
+            Assert.Contains("IL_", data.GetProperty("text").GetString(), StringComparison.Ordinal);
+            Assert.True(data.GetProperty("instructions").GetArrayLength() > 0);
         }
     }
 

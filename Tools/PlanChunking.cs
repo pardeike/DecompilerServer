@@ -23,11 +23,7 @@ public static class PlanChunkingTool
                 throw new InvalidOperationException("No assembly loaded");
             }
 
-            var member = memberResolver.ResolveMember(memberId);
-            if (member == null)
-            {
-                throw new ArgumentException($"Invalid member ID: {memberId}");
-            }
+            var member = ToolValidation.ResolveMemberOrThrow(session, memberId);
 
             if (targetChunkSize <= 0)
             {

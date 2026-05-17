@@ -1,18 +1,14 @@
 using System.ComponentModel;
 using ModelContextProtocol.Server;
 using DecompilerServer.Services;
-using ICSharpCode.Decompiler.TypeSystem;
-using ICSharpCode.Decompiler.Disassembler;
-using ICSharpCode.Decompiler.Metadata;
 using System.Text;
-using System.Reflection.Metadata;
 
 namespace DecompilerServer;
 
 [McpServerToolType]
 public static class GetILTool
 {
-    [McpServerTool, Description("Get an IL metadata summary for a method or constructor. Only format 'IL' is supported, and full body disassembly is not yet implemented.")]
+    [McpServerTool, Description("Get real IL instructions for a method or constructor. Only format 'IL' is supported; methods without bodies report no_il_body.")]
     public static string GetIL(string memberId, string format = "IL", string? contextAlias = null)
     {
         return ResponseFormatter.TryExecute(() =>
@@ -32,13 +28,10 @@ public static class GetILTool
                 throw new NotSupportedException($"Format '{format}' is not supported. Only 'IL' format is currently supported, and it currently returns metadata summary output rather than full body disassembly.");
             }
 
-            var entity = memberResolver.ResolveMember(memberId);
-            if (entity is not IMethod method)
-            {
-                throw new ArgumentException($"Member ID '{memberId}' could not be resolved to a method or constructor");
-            }
+            var method = ToolValidation.ResolveMethodOrThrow(session, memberId);
 
-            var ilText = GenerateILDisassembly(method, contextManager);
+            var body = IlAnalysisService.ReadMethodBody(method, contextManager);
+            var ilText = GenerateILDisassembly(method, body);
 
             var result = new
             {
@@ -46,85 +39,53 @@ public static class GetILTool
                 format = format,
                 text = ilText,
                 totalLines = ilText.Split('\n').Length,
-                isFullDisassembly = false,
-                note = "This endpoint currently returns IL metadata summary output, not full opcode/body disassembly."
+                isFullDisassembly = body.HasBody,
+                noBodyReason = body.NoBodyReason,
+                body = body.HasBody ? new
+                {
+                    body.RelativeVirtualAddress,
+                    body.MaxStack,
+                    body.LocalVariablesInitialized,
+                    body.LocalSignatureToken,
+                    body.CodeSize,
+                    instructionCount = body.Instructions.Count
+                } : null,
+                instructions = body.Instructions
             };
 
             return result;
         });
     }
 
-    private static string GenerateILDisassembly(IMethod method, AssemblyContextManager contextManager)
+    private static string GenerateILDisassembly(ICSharpCode.Decompiler.TypeSystem.IMethod method, MethodIlBody body)
     {
-        try
+        var output = new StringBuilder();
+        output.AppendLine($"// Method: {method.FullName}");
+        output.AppendLine($"// Metadata Token: {method.MetadataToken:X8}");
+        output.AppendLine($"// Has Body: {body.HasBody}");
+
+        if (!body.HasBody)
         {
-            var peFile = contextManager.GetPEFile();
-
-            if (peFile == null)
-            {
-                return GenerateMethodSummary(method);
-            }
-
-            var metadataReader = peFile.Metadata;
-            var methodHandle = method.MetadataToken;
-
-            if (methodHandle.IsNil)
-            {
-                return GenerateMethodSummary(method) + "\n\n// No metadata token available for IL disassembly";
-            }
-
-            var output = new StringBuilder();
-
-            // Add method header information
-            output.AppendLine($"// Method: {method.FullName}");
-            output.AppendLine($"// Token: {methodHandle:X8}");
+            output.AppendLine($"// No Body Reason: {body.NoBodyReason}");
             output.AppendLine();
-
-            try
-            {
-                // Try to get method definition from handle
-                if (methodHandle.Kind == HandleKind.MethodDefinition)
-                {
-                    var methodDef = (MethodDefinitionHandle)methodHandle;
-                    var methodDefinition = metadataReader.GetMethodDefinition(methodDef);
-
-                    output.AppendLine($"// RVA: 0x{methodDefinition.RelativeVirtualAddress:X}");
-                    output.AppendLine($"// Implementation Flags: {methodDefinition.ImplAttributes}");
-                    output.AppendLine($"// Attributes: {methodDefinition.Attributes}");
-
-                    // Basic method body information
-                    if (methodDefinition.RelativeVirtualAddress != 0)
-                    {
-                        output.AppendLine("// Method has IL body");
-                        output.AppendLine("// Note: Full IL disassembly would require additional implementation");
-                        output.AppendLine("// This is a simplified version showing method metadata");
-                    }
-                    else
-                    {
-                        output.AppendLine("// Method has no IL body (abstract, extern, or interface method)");
-                    }
-                }
-                else
-                {
-                    output.AppendLine("// Method handle is not a method definition");
-                }
-            }
-            catch (Exception ex)
-            {
-                output.AppendLine($"// Error during IL analysis: {ex.Message}");
-            }
-
-            output.AppendLine();
-            output.AppendLine(GenerateMethodSummary(method));
+            output.Append(GenerateMethodSummary(method));
             return output.ToString();
         }
-        catch (Exception ex)
+
+        output.AppendLine($"// RVA: 0x{body.RelativeVirtualAddress!.Value:X}");
+        output.AppendLine($"// Max Stack: {body.MaxStack}");
+        output.AppendLine($"// Code Size: {body.CodeSize}");
+        output.AppendLine();
+
+        foreach (var instruction in body.Instructions)
         {
-            return GenerateMethodSummary(method) + $"\n\n// Error generating IL: {ex.Message}";
+            output.AppendLine(IlAnalysisService.FormatInstruction(instruction));
         }
+
+        return output.ToString();
     }
 
-    private static string GenerateMethodSummary(IMethod method)
+    private static string GenerateMethodSummary(ICSharpCode.Decompiler.TypeSystem.IMethod method)
     {
         var summary = $"// Method: {method.FullName}\n";
         summary += $"// Declaring Type: {method.DeclaringType?.FullName}\n";

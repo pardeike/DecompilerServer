@@ -63,14 +63,26 @@ public class ResponseFormatter
     /// </summary>
     public static string Error(string code, string message, string? details = null)
     {
+        return ErrorWithCode(code, message, details);
+    }
+
+    public static string ErrorWithCode(
+        string code,
+        string message,
+        object? details = null,
+        IEnumerable<ToolErrorHint>? hints = null)
+    {
         var response = new
         {
             status = "error",
+            message = message,
+            details = details,
             error = new
             {
                 code = code,
                 message = message,
-                details = details
+                details = details,
+                hints = hints
             }
         };
 
@@ -254,25 +266,33 @@ public class ResponseFormatter
         {
             return operation();
         }
+        catch (ToolErrorException ex)
+        {
+            return ErrorWithCode(ex.Code, ex.Message, ex.DetailsPayload, ex.Hints);
+        }
         catch (ArgumentException ex)
         {
-            return Error("Invalid argument", ex.Message);
+            return ErrorWithCode("invalid_argument", "Invalid argument", ex.Message);
         }
         catch (InvalidOperationException ex)
         {
-            return Error("Invalid operation", ex.Message);
+            var code = ex.Message.Contains("No assembly", StringComparison.OrdinalIgnoreCase)
+                || ex.Message.Contains("No context", StringComparison.OrdinalIgnoreCase)
+                    ? "no_assembly_loaded"
+                    : "invalid_operation";
+            return ErrorWithCode(code, "Invalid operation", ex.Message);
         }
         catch (FileNotFoundException ex)
         {
-            return Error("File not found", ex.Message);
+            return ErrorWithCode("file_not_found", "File not found", ex.Message);
         }
         catch (NotSupportedException ex)
         {
-            return Error("Not supported", ex.Message);
+            return ErrorWithCode("not_supported", "Not supported", ex.Message);
         }
         catch (Exception ex)
         {
-            return Error("Internal error", ex.Message);
+            return ErrorWithCode("internal_error", "Internal error", ex.Message);
         }
     }
 }

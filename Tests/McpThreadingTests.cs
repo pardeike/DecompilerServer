@@ -32,7 +32,7 @@ public class McpThreadingTests : ServiceTestBase
     }
 
     [Fact]
-    public void McpTools_Should_Work_From_Different_Threads()
+    public async Task McpTools_Should_Work_From_Different_Threads()
     {
         // This test simulates the MCP server scenario where tools are called
         // from worker threads that don't have thread-local service providers
@@ -73,7 +73,7 @@ public class McpThreadingTests : ServiceTestBase
         }
 
         // Wait for all tasks to complete
-        Task.WaitAll(tasks.ToArray(), TimeSpan.FromSeconds(30));
+        await Task.WhenAll(tasks).WaitAsync(TimeSpan.FromSeconds(30));
 
         // Assert that no exceptions occurred
         Assert.Empty(exceptions);

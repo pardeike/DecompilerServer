@@ -77,7 +77,9 @@ public abstract class SearchServiceBase
                 return false;
 
             // Name filter
-            return MatchesQuery(type.Name, query, regex);
+            return MatchesQuery(type.Name, query, regex)
+                || MatchesQuery(type.FullName, query, regex)
+                || MatchesQuery(type.ReflectionName, query, regex);
         });
     }
 
@@ -196,7 +198,7 @@ public abstract class SearchServiceBase
                 return false;
 
             // Name filter
-            return MatchesQuery(member.Name, query, regex);
+            return MatchesMemberQuery(member, query, regex);
         });
     }
 
@@ -364,6 +366,21 @@ public abstract class SearchServiceBase
     {
         return member.GetAttributes().Any(attr =>
             attr.AttributeType.FullName.Contains(attributeFilter, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private bool MatchesMemberQuery(IMember member, string query, bool regex)
+    {
+        if (string.IsNullOrEmpty(query))
+            return true;
+
+        var declaringType = member.DeclaringType;
+        var signature = _memberResolver.GetMemberSignature(member);
+
+        return MatchesQuery(member.Name, query, regex)
+            || MatchesQuery(member.FullName, query, regex)
+            || MatchesQuery(signature, query, regex)
+            || (declaringType != null && MatchesQuery($"{declaringType.FullName}.{member.Name}", query, regex))
+            || (declaringType != null && MatchesQuery($"{declaringType.FullName}:{member.Name}", query, regex));
     }
 
     protected MemberSummary CreateTypeSummary(ITypeDefinition type)

@@ -6,12 +6,12 @@ namespace DecompilerServer;
 
 public sealed class WorkspaceBootstrapService(
     ILogger<WorkspaceBootstrapService> log,
-    DecompilerWorkspace workspace) : BackgroundService
+    DecompilerWorkspace workspace) : IHostedService
 {
     private readonly ILogger<WorkspaceBootstrapService> _log = log;
     private readonly DecompilerWorkspace _workspace = workspace;
 
-    protected override Task ExecuteAsync(CancellationToken stoppingToken)
+    public Task StartAsync(CancellationToken cancellationToken)
     {
         var restored = _workspace.RestoreRegisteredContexts();
 
@@ -38,4 +38,6 @@ public sealed class WorkspaceBootstrapService(
 
         return Task.CompletedTask;
     }
+
+    public Task StopAsync(CancellationToken cancellationToken) => Task.CompletedTask;
 }

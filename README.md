@@ -242,10 +242,21 @@ status({})
 **Search and decompile:**
 
 ```text
+search_symbols({
+  "query": "Pawn.Kill",
+  "limit": 10,
+  "contextAlias": "rw16"
+})
+
 search_types({
   "query": "Pawn",
   "limit": 10,
   "contextAlias": "rw16"
+})
+
+list_members({
+  "typeId": "<type-member-id-from-search>",
+  "mode": "signatures"
 })
 
 get_decompiled_source({
@@ -254,6 +265,16 @@ get_decompiled_source({
 ```
 
 Once you have a `memberId`, follow-up tools normally route to the correct loaded assembly automatically.
+
+For foreign-code exploration, prefer this path before falling back to shell tools:
+
+1. Load the assembly with `load_assembly` and verify the active alias with `list_contexts` or `status`.
+2. Start broad with `search_symbols` when you have a partial or guessed name; use `search_types` only when you specifically want types.
+3. Use `list_members` or `get_members_of_type` on the resolved type before guessing method IDs.
+4. Fetch code with `get_decompiled_source`, `get_source_slice`, or `plan_chunking`.
+5. Move outward with `find_callers`, `find_usages`, `find_callees`, `get_il`, or compare tools.
+
+If a guessed member does not exist, member-based tools return structured error hints with likely candidates and concrete next tool calls. For example, a stale method guess can still resolve the type and point you at nearby overrides instead of forcing a `grep` or `monodis` fallback.
 
 **Compare aliases:**
 
@@ -285,8 +306,14 @@ compare_symbols({
 
 ```bash
 dotnet format DecompilerServer.sln
-dotnet test -c Release --no-restore
+dotnet test -c Release
 ```
+
+After restore/build has already completed, `dotnet test -c Release --no-restore` is the faster repeat check.
+
+### Agent Skill
+
+The repo includes a portable skill at [skills/decompiler-mcp/SKILL.md](skills/decompiler-mcp/SKILL.md). Install or copy that folder into Codex, Claude, or another skill-aware assistant to bias agents toward the intended DecompilerServer workflow and away from premature shell fallbacks.
 
 ### Releasing
 

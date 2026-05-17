@@ -135,6 +135,27 @@ public class WorkspaceToolTests : IDisposable
         Assert.Empty(data.GetProperty("loadedContexts").EnumerateArray());
     }
 
+    [Fact]
+    public void GetServerStats_WithContextAlias_ReportsRequestedWorkspaceContext()
+    {
+        LoadAssemblyTool.LoadAssembly(assemblyPath: TestAssemblyLocator.GetPath(), contextAlias: "rw14", rebuildIndex: false);
+        LoadAssemblyTool.LoadAssembly(
+            assemblyPath: typeof(global::EmbeddedSourceTestLibrary.EmbeddedSourceSample).Assembly.Location,
+            contextAlias: "rw15",
+            rebuildIndex: false,
+            makeCurrent: false);
+
+        var result = GetServerStatsTool.GetServerStats(contextAlias: "rw15");
+
+        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        Assert.Equal("ok", response.GetProperty("status").GetString());
+
+        var data = response.GetProperty("data");
+        Assert.Equal("rw15", data.GetProperty("contextAlias").GetString());
+        Assert.Equal("rw14", data.GetProperty("currentContextAlias").GetString());
+        Assert.Equal(2, data.GetProperty("loadedContexts").GetArrayLength());
+    }
+
     public void Dispose()
     {
         if (_serviceProvider is IDisposable disposable)

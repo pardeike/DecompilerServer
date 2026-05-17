@@ -44,7 +44,7 @@ Goal:
 
 Candidate work:
 - Add stable error codes for common failure cases.
-- Include suggestions for fuzzy misses where there is a clear likely match.
+- Include suggestions for fuzzy misses where there is a clear likely match, using the symbol-exploration diagnostics above as the model.
 - Add a `validate_assembly` or equivalent health-check tool.
 - Expand `get_server_stats` with diagnostic warnings where useful.
 

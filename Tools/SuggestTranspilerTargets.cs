@@ -2,8 +2,6 @@ using System.ComponentModel;
 using ModelContextProtocol.Server;
 using DecompilerServer.Services;
 using ICSharpCode.Decompiler.TypeSystem;
-using ICSharpCode.Decompiler.Metadata;
-using System.Reflection.Metadata;
 using System.Text;
 
 namespace DecompilerServer;
@@ -11,7 +9,7 @@ namespace DecompilerServer;
 [McpServerToolType]
 public static class SuggestTranspilerTargetsTool
 {
-    [McpServerTool, Description("Suggest candidate IL offsets and patterns for transpiler insertion points.")]
+    [McpServerTool, Description("Suggest candidate transpiler anchors from actual IL instructions. Read get_il for the complete instruction list before patching.")]
     public static string SuggestTranspilerTargets(string memberId, int maxHints = 10, string? contextAlias = null)
     {
         return ResponseFormatter.TryExecute(() =>
@@ -25,18 +23,10 @@ public static class SuggestTranspilerTargetsTool
                 throw new InvalidOperationException("No assembly loaded");
             }
 
-            var member = memberResolver.ResolveMember(memberId);
-            if (member == null)
-            {
-                throw new ArgumentException($"Invalid member ID: {memberId}");
-            }
+            var method = ToolValidation.ResolveMethodOrThrow(session, memberId);
 
-            if (member is not IMethod method)
-            {
-                throw new ArgumentException($"Member must be a method: {memberId}");
-            }
-
-            var targets = AnalyzeTranspilerTargets(method, maxHints);
+            var body = IlAnalysisService.ReadMethodBody(method, contextManager);
+            var targets = AnalyzeTranspilerTargets(body, maxHints);
             var exampleSnippet = GenerateTranspilerExample(method);
 
             var result = new
@@ -44,12 +34,14 @@ public static class SuggestTranspilerTargetsTool
                 target = CreateMethodSummary(method, memberResolver),
                 hints = targets,
                 exampleTranspiler = exampleSnippet,
+                hasIlBody = body.HasBody,
+                noBodyReason = body.NoBodyReason,
                 notes = new[]
                 {
-                    "These suggestions are based on common IL patterns that are good insertion points",
-                    "Offsets may vary between builds - use opcode patterns for reliable matching",
-                    "Always test transpiler modifications thoroughly",
-                    "Consider using HarmonyLib.CodeMatcher for complex pattern matching"
+                    "Hints are derived from the method's actual IL instructions.",
+                    "Offsets may vary between builds - prefer opcode and operand patterns for reliable matching.",
+                    "Use get_il for the complete instruction listing before writing a transpiler.",
+                    "Consider HarmonyLib.CodeMatcher for complex pattern matching."
                 }
             };
 
@@ -57,91 +49,33 @@ public static class SuggestTranspilerTargetsTool
         });
     }
 
-    private static List<TranspilerHint> AnalyzeTranspilerTargets(IMethod method, int maxHints)
+    private static List<TranspilerHint> AnalyzeTranspilerTargets(MethodIlBody body, int maxHints)
     {
         var hints = new List<TranspilerHint>();
 
-        try
+        if (!body.HasBody)
+            return hints;
+
+        var instructions = body.Instructions.ToArray();
+        for (var index = 0; index < instructions.Length && hints.Count < Math.Max(0, maxHints); index++)
         {
-            // Get method body from metadata
-            var methodDef = method.MetadataToken;
-            if (methodDef.IsNil)
-                return hints;
+            var instruction = instructions[index];
+            var rationale = GetRationale(instruction);
+            if (rationale == null)
+                continue;
 
-            // Common patterns that make good transpiler targets
-            var commonPatterns = new[]
-            {
-                new { Pattern = "Call", Rationale = "Method call - good for interception or replacement" },
-                new { Pattern = "Callvirt", Rationale = "Virtual method call - good for interception" },
-                new { Pattern = "Newobj", Rationale = "Object creation - good for replacement or monitoring" },
-                new { Pattern = "Ldstr", Rationale = "String literal - good for replacement or modification" },
-                new { Pattern = "Stfld", Rationale = "Field assignment - good for value interception" },
-                new { Pattern = "Ldfld", Rationale = "Field access - good for value monitoring" },
-                new { Pattern = "Ret", Rationale = "Return statement - good for result modification" },
-                new { Pattern = "Throw", Rationale = "Exception throw - good for error handling" },
-                new { Pattern = "Brfalse", Rationale = "Conditional branch - good for logic modification" },
-                new { Pattern = "Brtrue", Rationale = "Conditional branch - good for logic modification" }
-            };
-
-            // Generate synthetic hints based on method characteristics
-            int hintIndex = 0;
-            foreach (var pattern in commonPatterns.Take(maxHints))
-            {
-                hints.Add(new TranspilerHint
-                {
-                    Offset = hintIndex * 10, // Synthetic offset
-                    Opcode = pattern.Pattern,
-                    OperandSummary = $"Synthetic {pattern.Pattern} pattern",
-                    NearbyOps = new[] { "ldarg.0", pattern.Pattern.ToLower(), "nop" },
-                    Rationale = pattern.Rationale,
-                    Example = GeneratePatternExample(pattern.Pattern)
-                });
-                hintIndex++;
-            }
-
-            // Add method-specific hints
-            if (method.Parameters.Any())
-            {
-                hints.Add(new TranspilerHint
-                {
-                    Offset = 0,
-                    Opcode = "Ldarg",
-                    OperandSummary = "Parameter loading",
-                    NearbyOps = new[] { "ldarg.0", "ldarg.1", "ldarg.2" },
-                    Rationale = "Parameter access - good for argument modification or validation",
-                    Example = "// Match parameter loading\nif (code.opcode == OpCodes.Ldarg_1) { /* modify argument */ }"
-                });
-            }
-
-            if (method.ReturnType.Kind != TypeKind.Void)
-            {
-                hints.Add(new TranspilerHint
-                {
-                    Offset = 100, // End of method
-                    Opcode = "Ret",
-                    OperandSummary = "Return statement",
-                    NearbyOps = new[] { "ldloc", "ret" },
-                    Rationale = "Method return - good for result transformation",
-                    Example = "// Insert before return\nif (code.opcode == OpCodes.Ret) { /* insert before return */ }"
-                });
-            }
-
-        }
-        catch
-        {
-            // If we can't analyze the actual IL, provide generic suggestions
             hints.Add(new TranspilerHint
             {
-                Offset = 0,
-                Opcode = "Pattern",
-                OperandSummary = "Generic IL analysis not available",
-                NearbyOps = new[] { "nop", "nop", "nop" },
-                Rationale = "Use IL analysis tools to identify specific patterns",
-                Example = "// Use ILSpy or similar tools to identify actual IL patterns"
+                Offset = instruction.Offset,
+                Opcode = instruction.OpCode,
+                OperandSummary = instruction.OperandSummary ?? "",
+                NearbyOps = GetNearbyOps(instructions, index),
+                Rationale = rationale,
+                Example = GeneratePatternExample(instruction)
             });
         }
 
-        return hints.Take(maxHints).ToList();
+        return hints;
     }
 
     private static string GenerateTranspilerExample(IMethod method)
@@ -185,19 +119,58 @@ public static class SuggestTranspilerTargetsTool
         return example.ToString();
     }
 
-    private static string GeneratePatternExample(string pattern)
+    private static string? GetRationale(IlInstructionInfo instruction)
     {
-        return pattern.ToLower() switch
+        return instruction.OpCode switch
         {
-            "call" => "if (code.opcode == OpCodes.Call && code.operand is MethodInfo method) { /* intercept call */ }",
-            "callvirt" => "if (code.opcode == OpCodes.Callvirt) { /* intercept virtual call */ }",
-            "newobj" => "if (code.opcode == OpCodes.Newobj) { /* intercept object creation */ }",
-            "ldstr" => "if (code.opcode == OpCodes.Ldstr) { /* modify string literal */ }",
-            "stfld" => "if (code.opcode == OpCodes.Stfld) { /* intercept field write */ }",
-            "ldfld" => "if (code.opcode == OpCodes.Ldfld) { /* intercept field read */ }",
-            "ret" => "if (code.opcode == OpCodes.Ret) { /* modify before return */ }",
-            _ => $"if (code.opcode == OpCodes.{pattern}) {{ /* handle {pattern} */ }}"
+            "call" => "Direct method call - candidate for replacement, guard insertion, or call-site context.",
+            "callvirt" => "Virtual/interface call - candidate for interception or receiver/result context.",
+            "newobj" => "Object construction - candidate for replacement or constructor argument context.",
+            "ldstr" => "String literal load - candidate for matching a stable local anchor.",
+            "stfld" or "stsfld" => "Field write - candidate for state mutation interception.",
+            "ldfld" or "ldsfld" => "Field read - candidate for state dependency inspection.",
+            "ret" => "Return instruction - candidate for final result handling.",
+            "throw" => "Exception throw - candidate for error-path anchoring.",
+            "brfalse" or "brfalse.s" or "brtrue" or "brtrue.s" => "Conditional branch - candidate for control-flow anchoring.",
+            _ => null
         };
+    }
+
+    private static string[] GetNearbyOps(IReadOnlyList<IlInstructionInfo> instructions, int index)
+    {
+        var start = Math.Max(0, index - 2);
+        var end = Math.Min(instructions.Count - 1, index + 2);
+        return Enumerable.Range(start, end - start + 1)
+            .Select(i => IlAnalysisService.FormatInstruction(instructions[i]))
+            .ToArray();
+    }
+
+    private static string GeneratePatternExample(IlInstructionInfo instruction)
+    {
+        return instruction.OpCode switch
+        {
+            "call" => "if (code.opcode == OpCodes.Call && code.operand is MethodInfo method) { /* match exact method */ }",
+            "callvirt" => "if (code.opcode == OpCodes.Callvirt && code.operand is MethodInfo method) { /* match exact method */ }",
+            "newobj" => "if (code.opcode == OpCodes.Newobj && code.operand is ConstructorInfo ctor) { /* match exact constructor */ }",
+            "ldstr" => $"if (code.opcode == OpCodes.Ldstr && Equals(code.operand, {LiteralForExample(instruction.OperandSummary)})) {{ /* anchor */ }}",
+            "stfld" or "stsfld" => "if ((code.opcode == OpCodes.Stfld || code.opcode == OpCodes.Stsfld) && code.operand is FieldInfo field) { /* match exact field */ }",
+            "ldfld" or "ldsfld" => "if ((code.opcode == OpCodes.Ldfld || code.opcode == OpCodes.Ldsfld) && code.operand is FieldInfo field) { /* match exact field */ }",
+            "ret" => "if (code.opcode == OpCodes.Ret) { /* insert before return */ }",
+            "brfalse" or "brfalse.s" => "if (code.opcode == OpCodes.Brfalse || code.opcode == OpCodes.Brfalse_S) { /* match false branch */ }",
+            "brtrue" or "brtrue.s" => "if (code.opcode == OpCodes.Brtrue || code.opcode == OpCodes.Brtrue_S) { /* match true branch */ }",
+            "throw" => "if (code.opcode == OpCodes.Throw) { /* match exception path */ }",
+            _ => $"if (code.opcode == OpCodes.{ToOpCodesName(instruction.OpCode)}) {{ /* handle matched instruction */ }}"
+        };
+    }
+
+    private static string LiteralForExample(string? operandSummary)
+    {
+        return string.IsNullOrWhiteSpace(operandSummary) ? "\"...\"" : operandSummary;
+    }
+
+    private static string ToOpCodesName(string opcode)
+    {
+        return string.Concat(opcode.Split('.').Select(part => char.ToUpperInvariant(part[0]) + part[1..]));
     }
 
     private static MemberSummary CreateMethodSummary(IMethod method, MemberResolver memberResolver)

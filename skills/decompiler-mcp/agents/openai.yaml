@@ -1,0 +1,6 @@
+interface:
+  display_name: "Decompiler MCP"
+  short_description: "Choose effective DecompilerServer MCP tools"
+  default_prompt: "Use $decompiler-mcp to inspect this assembly through DecompilerServer before falling back to shell tools."
+policy:
+  allow_implicit_invocation: true

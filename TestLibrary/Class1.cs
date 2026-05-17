@@ -110,6 +110,27 @@ public class DeepDerivedClass : DerivedClass
 {
 }
 
+public abstract class PlayToilDriverBase
+{
+    protected virtual void ModifyPlayToil()
+    {
+        Console.WriteLine("base play toil");
+    }
+}
+
+public class JobDriver_PlayMusicalInstrument : PlayToilDriverBase
+{
+    protected override void ModifyPlayToil()
+    {
+        Console.WriteLine("modify play toil");
+    }
+
+    public void NotifyStarted()
+    {
+        ModifyPlayToil();
+    }
+}
+
 /// <summary>
 /// Generic class for testing generic type resolution
 /// </summary>

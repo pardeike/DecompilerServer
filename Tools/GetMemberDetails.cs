@@ -23,11 +23,7 @@ public static class GetMemberDetailsTool
                 throw new InvalidOperationException("No assembly loaded");
             }
 
-            var entity = memberResolver.ResolveMember(memberId);
-            if (entity == null)
-            {
-                throw new ArgumentException($"Member ID '{memberId}' could not be resolved");
-            }
+            var entity = ToolValidation.ResolveMemberOrThrow(session, memberId);
 
             var details = new MemberDetails
             {

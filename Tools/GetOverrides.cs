@@ -22,11 +22,7 @@ public static class GetOverridesTool
                 throw new InvalidOperationException("No assembly loaded");
             }
 
-            var method = memberResolver.ResolveMethod(methodId);
-            if (method == null)
-            {
-                throw new ArgumentException($"Method ID '{methodId}' could not be resolved");
-            }
+            var method = ToolValidation.ResolveMethodOrThrow(session, methodId);
 
             var overrides = inheritanceAnalyzer.GetOverrides(methodId);
             var overrideList = overrides.ToList();

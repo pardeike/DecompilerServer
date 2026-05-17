@@ -21,6 +21,7 @@ public static class FindBaseTypesTool
                 throw new InvalidOperationException("No assembly loaded");
             }
 
+            _ = ToolValidation.ResolveTypeOrThrow(session, typeId);
             var baseTypes = inheritanceAnalyzer.FindBaseTypes(typeId);
             var interfaces = includeInterfaces
                 ? inheritanceAnalyzer.GetImplementations(typeId).ToList()

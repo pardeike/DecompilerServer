@@ -22,11 +22,7 @@ public static class GetAstOutlineTool
                 throw new InvalidOperationException("No assembly loaded");
             }
 
-            var member = memberResolver.ResolveMember(memberId);
-            if (member == null)
-            {
-                throw new ArgumentException($"Invalid member ID: {memberId}");
-            }
+            var member = ToolValidation.ResolveMemberOrThrow(session, memberId);
 
             // For now, provide a simplified outline based on member metadata
             // Full AST parsing would require more complex implementation

@@ -103,6 +103,31 @@ public class WorkspaceRegistryTests : IDisposable
 
         Assert.Equal("rw15", workspace.CurrentContextAlias);
         Assert.Equal("rw15", root.GetProperty("currentContextAlias").GetString());
+        Assert.DoesNotContain(root.GetProperty("contexts").EnumerateArray(), item =>
+            item.GetProperty("contextAlias").GetString() == "rw14");
+    }
+
+    [Fact]
+    public void UnloadContext_WithPreserveRegistration_KeepsAliasRegistered()
+    {
+        using var workspace = new DecompilerWorkspace(_registryPath);
+
+        workspace.LoadAssembly(new WorkspaceLoadRequest
+        {
+            AssemblyPath = TestAssemblyLocator.GetPath(),
+            ContextAlias = "rw14",
+            RebuildIndex = false,
+            MakeCurrent = true
+        });
+
+        workspace.UnloadContext("rw14", preserveRegistration: true);
+
+        var json = File.ReadAllText(_registryPath);
+        using var document = JsonDocument.Parse(json);
+        var root = document.RootElement;
+
+        Assert.Contains(root.GetProperty("contexts").EnumerateArray(), item =>
+            item.GetProperty("contextAlias").GetString() == "rw14");
     }
 
     public void Dispose()
@@ -136,7 +161,7 @@ public class WorkspaceRegistryTests : IDisposable
 
         using var restartedWorkspace = new DecompilerWorkspace(_registryPath);
         var logger = new ListLogger<WorkspaceBootstrapService>();
-        using var bootstrapService = new WorkspaceBootstrapService(logger, restartedWorkspace);
+        var bootstrapService = new WorkspaceBootstrapService(logger, restartedWorkspace);
 
         await bootstrapService.StartAsync(CancellationToken.None);
         await bootstrapService.StopAsync(CancellationToken.None);

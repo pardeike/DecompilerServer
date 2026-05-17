@@ -7,7 +7,7 @@ namespace DecompilerServer;
 [McpServerToolType]
 public static class SearchTypesTool
 {
-    [McpServerTool, Description("Search types by name. Supports regex and filters. Modes: 'ids', 'discovery' (default), 'signatures', 'full'.")]
+    [McpServerTool, Description("Search types by simple or qualified name. Supports regex and filters. Use search_symbols when unsure whether the name is a type or member.")]
     public static string SearchTypes(
         string query,
         bool regex = false,

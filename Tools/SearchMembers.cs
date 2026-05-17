@@ -7,7 +7,7 @@ namespace DecompilerServer;
 [McpServerToolType]
 public static class SearchMembersTool
 {
-    [McpServerTool, Description("Search members (methods, ctors, properties, fields, events) with rich filters. Modes: 'ids', 'discovery' (default), 'signatures', 'full'.")]
+    [McpServerTool, Description("Search members by simple, qualified, or signature text with rich filters. Use after search_symbols/search_types when narrowing member candidates.")]
     public static string SearchMembers(string query, bool regex = false, string? namespaceFilter = null, string? declaringTypeFilter = null, string? attributeFilter = null, string? returnTypeFilter = null, string[]? paramTypeFilters = null, string? kind = null, string? accessibility = null, bool? isStatic = null, bool? isAbstract = null, bool? isVirtual = null, int? genericArity = null, int limit = 50, string? cursor = null, string mode = "discovery", string? contextAlias = null)
     {
         return ResponseFormatter.TryExecute(() =>

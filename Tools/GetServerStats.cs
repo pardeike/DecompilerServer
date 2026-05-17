@@ -7,17 +7,60 @@ namespace DecompilerServer;
 [McpServerToolType]
 public static class GetServerStatsTool
 {
-    [McpServerTool, Description("Basic health and timing info for the server.")]
-    public static string GetServerStats()
+    [McpServerTool, Description("Basic health and timing info for the server. In workspace mode, reports the current context or the requested contextAlias.")]
+    public static string GetServerStats(string? contextAlias = null)
     {
-        return ResponseFormatter.TryExecute(() =>
+        return ResponseFormatter.TryExecute<object>(() =>
         {
+            var workspace = ServiceLocator.Workspace;
+            if (workspace != null)
+            {
+                DecompilerSession? session = null;
+                if (!string.IsNullOrWhiteSpace(contextAlias))
+                {
+                    if (!workspace.TryGetSession(contextAlias, out session!))
+                        throw new InvalidOperationException($"Context alias '{contextAlias}' is not loaded.");
+                }
+                else
+                {
+                    workspace.TryGetCurrentSession(out session!);
+                }
+
+                var loadedContexts = workspace.ListContexts().ToList();
+                var workspaceStats = new
+                {
+                    loaded = session?.ContextManager.IsLoaded ?? false,
+                    currentContextAlias = workspace.CurrentContextAlias,
+                    contextAlias = session?.ContextAlias,
+                    loadedContexts,
+                    assemblyPath = session?.ContextManager.AssemblyPath,
+                    mvid = session?.ContextManager.Mvid,
+                    loadedAt = session?.ContextManager.LoadedAtUtc,
+                    indexes = session?.ContextManager.GetIndexStats(),
+                    caches = session == null ? null : new
+                    {
+                        decompiler = session.DecompilerService.GetCacheStats(),
+                        memberResolver = session.MemberResolver.GetCacheStats(),
+                        usageAnalyzer = session.UsageAnalyzer.GetCacheStats()
+                    },
+                    performance = session == null ? null : new
+                    {
+                        typeIndexReady = session.ContextManager.TypeIndexReady,
+                        namespaceIndexReady = session.ContextManager.NamespaceIndexReady,
+                        memberIndexReady = session.ContextManager.MemberIndexReady,
+                        estimatedMemoryUsage = EstimateMemoryUsage(session.DecompilerService, session.MemberResolver, session.UsageAnalyzer)
+                    }
+                };
+
+                return workspaceStats;
+            }
+
             var contextManager = ServiceLocator.ContextManager;
             var decompilerService = ServiceLocator.DecompilerService;
             var memberResolver = ServiceLocator.MemberResolver;
             var usageAnalyzer = ServiceLocator.UsageAnalyzer;
 
-            var stats = new
+            var legacyStats = new
             {
                 // Assembly info
                 loaded = contextManager.IsLoaded,
@@ -46,7 +89,7 @@ public static class GetServerStatsTool
                 }
             };
 
-            return stats;
+            return legacyStats;
         });
     }
 

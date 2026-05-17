@@ -123,6 +123,8 @@ Current response conventions:
 - null values omitted where appropriate;
 - structured errors instead of throwing across the MCP boundary.
 
+Structured error responses preserve top-level `status`, `message`, and `details` fields, and also include `error.code`, `error.message`, `error.details`, and optional `error.hints`. Symbol-resolution failures should use stable codes such as `type_not_found`, `member_not_found`, `ambiguous_member`, `wrong_symbol_kind`, `invalid_member_id`, and `no_assembly_loaded`.
+
 ## Routing Model
 
 The repository currently supports both the workspace model and the older single-context fallback. New work should target the workspace-aware path.
@@ -156,7 +158,8 @@ Operational rules:
 - `makeCurrent` controls whether the loaded alias becomes the current one;
 - `list_contexts` reports loaded aliases and which one is current;
 - `select_context` changes the default alias;
-- `unload` can unload one alias or all aliases;
+- `unload` can unload one alias or all aliases, and removes persisted registrations by default;
+- `unload(..., preserveRegistration: true)` keeps restart-restore registrations while unloading memory;
 - `status` reports current alias plus loaded contexts when the workspace is active.
 
 Startup behavior:
@@ -186,6 +189,14 @@ Search-style and overview-style endpoints should use:
 ### Member-ID Follow-Up Flow
 
 Once a discovery tool returns a `memberId`, the caller should be able to use follow-up tools without resupplying the alias. That behavior depends on the MVID prefix and must remain reliable.
+
+### Symbol Exploration Flow
+
+Unknown-assembly exploration should stay inside MCP tools:
+- use `search_symbols` when the caller has a partial, qualified, or guessed name;
+- use `search_types` for type-only discovery and `search_members` for member-only discovery;
+- use `list_members` or `get_members_of_type` after a type is found;
+- if a member-based tool receives a stale or human-entered symbol, return structured candidates and suggested next tool calls rather than only `Invalid member ID`.
 
 ## Compare Model
 
@@ -244,6 +255,7 @@ These are current boundaries, not bugs.
 - `compare_contexts` is structural and does not inspect method bodies.
 - `compare_symbols(compareMode: "body")` is method-only.
 - `get_il` currently supports `"IL"` output, not `ILAst`.
+- `get_il` returns real IL instructions when the method has a body; abstract, extern, and interface methods report `no_il_body`.
 - rename detection across aliases is not special-cased; a rename appears as remove-plus-add at the type or member level.
 - compiler-generated noise is excluded from context-wide compare by default.
 

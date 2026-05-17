@@ -8,7 +8,7 @@ namespace DecompilerServer;
 [McpServerToolType]
 public static class ResolveMemberIdTool
 {
-    [McpServerTool, Description("Resolve a memberId and return a one-line summary for quick validation.")]
+    [McpServerTool, Description("Resolve a memberId or human-entered symbol and return a one-line summary; structured errors include search/list-members hints.")]
     public static string ResolveMemberId(string memberId, string? contextAlias = null)
     {
         return ResponseFormatter.TryExecute(() =>
@@ -22,11 +22,7 @@ public static class ResolveMemberIdTool
                 throw new InvalidOperationException("No assembly loaded");
             }
 
-            var entity = memberResolver.ResolveMember(memberId);
-            if (entity == null)
-            {
-                throw new ArgumentException($"Member ID '{memberId}' could not be resolved");
-            }
+            var entity = ToolValidation.ResolveMemberOrThrow(session, memberId);
 
             // Create a member summary based on the entity type
             if (entity is ITypeDefinition type)

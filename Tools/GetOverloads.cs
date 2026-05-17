@@ -21,6 +21,7 @@ public static class GetOverloadsTool
                 throw new InvalidOperationException("No assembly loaded");
             }
 
+            _ = ToolValidation.ResolveMethodOrThrow(session, memberId);
             var overloads = inheritanceAnalyzer.GetOverloads(memberId);
             var overloadList = overloads
                 .OrderBy(m => GetParameterCount(m.Signature))

@@ -47,59 +47,33 @@ public class UsageAnalyzer
     /// </summary>
     public IEnumerable<UsageReference> FindUsages(string memberId, int limit = 100, string? cursor = null)
     {
+        return FindUsagesPage(memberId, limit, cursor).Items;
+    }
+
+    public AnalysisPage<UsageReference> FindUsagesPage(string memberId, int limit = 100, string? cursor = null)
+    {
         EnsureCacheCurrent();
 
-        // Create cache key
-        var cacheKey = $"{memberId}:{limit}:{cursor}";
+        var allUsages = _usageCache.GetOrAdd(memberId, _ => CollectUsages(memberId));
+        return Page(allUsages, limit, cursor);
+    }
 
-        // Check cache first
-        if (_usageCache.TryGetValue(cacheKey, out var cachedUsages))
-            return cachedUsages.Take(limit);
-
+    private List<UsageReference> CollectUsages(string memberId)
+    {
         var targetMember = _memberResolver.ResolveMember(memberId);
         if (targetMember == null)
-            return Enumerable.Empty<UsageReference>();
+            return new List<UsageReference>();
 
         var usages = new List<UsageReference>();
-        var compilation = _contextManager.GetCompilation();
         var allTypes = _contextManager.GetAllTypes();
-
-        // Parse cursor for pagination
-        var startIndex = 0;
-        if (!string.IsNullOrEmpty(cursor) && int.TryParse(cursor, out var cursorIndex))
-        {
-            startIndex = cursorIndex;
-        }
-
-        var processedCount = 0;
-        var foundCount = 0;
 
         foreach (var type in allTypes)
         {
-            if (foundCount >= limit)
-                break;
-
             foreach (var method in type.Methods)
             {
-                processedCount++;
-                if (processedCount <= startIndex)
-                    continue;
-                if (foundCount >= limit)
-                    break;
-
-                var methodUsages = FindUsagesInMethod(method, targetMember);
-                foreach (var usage in methodUsages)
-                {
-                    if (foundCount >= limit)
-                        break;
-                    usages.Add(usage);
-                    foundCount++;
-                }
+                usages.AddRange(FindUsagesInMethod(method, targetMember));
             }
         }
-
-        // Cache the result
-        _usageCache.TryAdd(cacheKey, usages);
 
         return usages;
     }
@@ -109,9 +83,18 @@ public class UsageAnalyzer
     /// </summary>
     public IEnumerable<UsageReference> FindCallers(string methodId, int limit = 100, string? cursor = null)
     {
+        return FindCallersPage(methodId, limit, cursor).Items;
+    }
+
+    public AnalysisPage<UsageReference> FindCallersPage(string methodId, int limit = 100, string? cursor = null)
+    {
         EnsureCacheCurrent();
-        var usages = FindUsages(methodId, limit, cursor);
-        return usages.Where(u => u.Kind == UsageKind.Call || u.Kind == UsageKind.NewObject);
+        var allCallers = _usageCache
+            .GetOrAdd(methodId, _ => CollectUsages(methodId))
+            .Where(u => u.Kind == UsageKind.Call || u.Kind == UsageKind.NewObject)
+            .ToList();
+
+        return Page(allCallers, limit, cursor);
     }
 
     /// <summary>
@@ -119,42 +102,37 @@ public class UsageAnalyzer
     /// </summary>
     public IEnumerable<UsageReference> FindCallees(string methodId, int limit = 100, string? cursor = null)
     {
+        return FindCalleesPage(methodId, limit, cursor).Items;
+    }
+
+    public AnalysisPage<UsageReference> FindCalleesPage(string methodId, int limit = 100, string? cursor = null)
+    {
         EnsureCacheCurrent();
 
         var method = _memberResolver.ResolveMethod(methodId);
         if (method == null)
-            return Enumerable.Empty<UsageReference>();
+            return AnalysisPage<UsageReference>.Empty();
         if (method.MetadataToken.IsNil)
-            return Enumerable.Empty<UsageReference>();
+            return AnalysisPage<UsageReference>.Empty();
 
         var peFile = _contextManager.GetPEFile();
         var metadata = peFile.Metadata;
         if (method.MetadataToken.Kind != HandleKind.MethodDefinition)
-            return Enumerable.Empty<UsageReference>();
+            return AnalysisPage<UsageReference>.Empty();
 
         var methodDef = metadata.GetMethodDefinition((MethodDefinitionHandle)method.MetadataToken);
         if (methodDef.RelativeVirtualAddress == 0)
-            return Enumerable.Empty<UsageReference>();
+            return AnalysisPage<UsageReference>.Empty();
         var body = peFile.Reader.GetMethodBody(methodDef.RelativeVirtualAddress);
         var il = body.GetILBytes();
         var results = new List<UsageReference>();
         if (il == null || il.Length == 0)
-            return results;
-
-        var startIndex = 0;
-        if (!string.IsNullOrEmpty(cursor) && int.TryParse(cursor, out var cursorIndex))
-            startIndex = cursorIndex;
-        var index = 0;
+            return AnalysisPage<UsageReference>.Empty();
 
         foreach (var (opCode, operand) in ReadInstructions(il))
         {
-            if (results.Count >= limit)
-                break;
-
             if (opCode == OpCodes.Call || opCode == OpCodes.Callvirt || opCode == OpCodes.Newobj)
             {
-                if (index++ < startIndex)
-                    continue;
                 var resolved = ResolveMethodId(metadata, operand);
                 if (resolved != null)
                 {
@@ -168,8 +146,6 @@ public class UsageAnalyzer
             }
             else if (opCode == OpCodes.Ldfld || opCode == OpCodes.Ldsfld || opCode == OpCodes.Stfld || opCode == OpCodes.Stsfld)
             {
-                if (index++ < startIndex)
-                    continue;
                 var field = ResolveFieldId(metadata, operand);
                 if (field != null)
                 {
@@ -186,7 +162,7 @@ public class UsageAnalyzer
             }
         }
 
-        return results;
+        return Page(results, limit, cursor);
     }
 
     /// <summary>
@@ -232,48 +208,31 @@ public class UsageAnalyzer
     /// </summary>
     public IEnumerable<StringLiteralReference> FindStringLiterals(string query, bool regex = false, int limit = 100, string? cursor = null)
     {
+        return FindStringLiteralsPage(query, regex, limit, cursor).Items;
+    }
+
+    public AnalysisPage<StringLiteralReference> FindStringLiteralsPage(string query, bool regex = false, int limit = 100, string? cursor = null)
+    {
         EnsureCacheCurrent();
 
-        // Create cache key
-        var cacheKey = $"{query}:{regex}:{limit}:{cursor}";
+        var cacheKey = $"{query}:{regex}";
 
-        // Check cache first
-        if (_stringLiteralCache.TryGetValue(cacheKey, out var cachedLiterals))
-            return cachedLiterals.Take(limit);
+        var allLiterals = _stringLiteralCache.GetOrAdd(cacheKey, _ => CollectStringLiterals(query, regex));
+        return Page(allLiterals, limit, cursor);
+    }
 
+    private List<StringLiteralReference> CollectStringLiterals(string query, bool regex)
+    {
         var results = new List<StringLiteralReference>();
-        var compilation = _contextManager.GetCompilation();
         var allTypes = _contextManager.GetAllTypes();
-
-        // Parse cursor for pagination
-        var startIndex = 0;
-        if (!string.IsNullOrEmpty(cursor) && int.TryParse(cursor, out var cursorIndex))
-        {
-            startIndex = cursorIndex;
-        }
-
-        var processedCount = 0;
-        var foundCount = 0;
 
         foreach (var type in allTypes)
         {
-            if (foundCount >= limit)
-                break;
-
             foreach (var method in type.Methods)
             {
-                processedCount++;
-                if (processedCount <= startIndex)
-                    continue;
-                if (foundCount >= limit)
-                    break;
-
                 var literals = FindStringLiteralsInMethod(method);
                 foreach (var literal in literals)
                 {
-                    if (foundCount >= limit)
-                        break;
-
                     if (MatchesStringQuery(literal, query, regex))
                     {
                         results.Add(new StringLiteralReference(
@@ -281,14 +240,10 @@ public class UsageAnalyzer
                               _memberResolver.GenerateMemberId(method),
                               method.DeclaringType?.FullName ?? "",
                               null)); // Would need source mapping for line numbers
-                        foundCount++;
                     }
                 }
             }
         }
-
-        // Cache the result
-        _stringLiteralCache.TryAdd(cacheKey, results);
 
         return results;
     }
@@ -533,6 +488,30 @@ public class UsageAnalyzer
         }
 
         return text.Contains(query, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static AnalysisPage<T> Page<T>(IReadOnlyList<T> items, int limit, string? cursor)
+    {
+        var normalizedLimit = limit <= 0 ? 100 : Math.Min(limit, 100);
+        var startIndex = 0;
+        if (!string.IsNullOrWhiteSpace(cursor) && int.TryParse(cursor, out var parsedCursor))
+            startIndex = Math.Max(0, parsedCursor);
+
+        var pageItems = items.Skip(startIndex).Take(normalizedLimit).ToList();
+        var hasMore = startIndex + normalizedLimit < items.Count;
+        return new AnalysisPage<T>(
+            pageItems,
+            hasMore,
+            hasMore ? (startIndex + normalizedLimit).ToString() : null,
+            items.Count);
+    }
+}
+
+public sealed record AnalysisPage<T>(List<T> Items, bool HasMore, string? NextCursor, int TotalEstimate)
+{
+    public static AnalysisPage<T> Empty()
+    {
+        return new AnalysisPage<T>(new List<T>(), false, null, 0);
     }
 }
 

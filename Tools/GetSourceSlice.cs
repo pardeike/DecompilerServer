@@ -8,7 +8,7 @@ namespace DecompilerServer;
 [McpServerToolType]
 public static class GetSourceSliceTool
 {
-    [McpServerTool, Description("Return a line range of source for a member, preferring original source when available and falling back to decompiled C#.")]
+    [McpServerTool, Description("Return a line range of source for a resolved memberId. If a human-entered guess is wrong, use returned candidates/hints before shell fallback.")]
     public static string GetSourceSlice(string memberId, int startLine, int endLine, bool includeLineNumbers = false, int context = 0, string? contextAlias = null)
     {
         return ResponseFormatter.TryExecute(() =>
@@ -23,11 +23,7 @@ public static class GetSourceSliceTool
                 throw new InvalidOperationException("No assembly loaded");
             }
 
-            var member = memberResolver.ResolveMember(memberId);
-            if (member == null)
-            {
-                throw new ArgumentException($"Invalid member ID: {memberId}");
-            }
+            var member = ToolValidation.ResolveMemberOrThrow(session, memberId);
 
             // Apply context to expand the range
             var expandedStartLine = Math.Max(1, startLine - context);

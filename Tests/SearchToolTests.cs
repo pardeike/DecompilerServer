@@ -331,6 +331,68 @@ public class SearchToolTests : ServiceTestBase
     }
 
     [Fact]
+    public void SearchTypes_WithQualifiedName_ReturnsMatchingType()
+    {
+        var result = SearchTypesTool.SearchTypes("TestLibrary.SimpleClass", mode: "full");
+
+        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        Assert.Equal("ok", response.GetProperty("status").GetString());
+
+        var items = response.GetProperty("data").GetProperty("items");
+        Assert.Contains(items.EnumerateArray(), item =>
+            item.GetProperty("fullName").GetString() == "TestLibrary.SimpleClass");
+    }
+
+    [Fact]
+    public void SearchMembers_WithQualifiedName_ReturnsMatchingMember()
+    {
+        var result = SearchMembersTool.SearchMembers("TestLibrary.SimpleClass.SimpleMethod", mode: "full");
+
+        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        Assert.Equal("ok", response.GetProperty("status").GetString());
+
+        var items = response.GetProperty("data").GetProperty("items");
+        Assert.Contains(items.EnumerateArray(), item =>
+            item.GetProperty("declaringType").GetString() == "TestLibrary.SimpleClass"
+            && item.GetProperty("name").GetString() == "SimpleMethod");
+    }
+
+    [Fact]
+    public void SearchSymbols_WithPartialSymbol_ReturnsTypeAndMemberMatches()
+    {
+        var result = SearchSymbolsTool.SearchSymbols("SimpleClass", mode: "full", limit: 20);
+
+        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        Assert.Equal("ok", response.GetProperty("status").GetString());
+
+        var items = response.GetProperty("data").GetProperty("items");
+        Assert.Contains(items.EnumerateArray(), item =>
+            item.GetProperty("kind").GetString() == "Type"
+            && item.GetProperty("fullName").GetString() == "TestLibrary.SimpleClass");
+    }
+
+    [Fact]
+    public void ListMembers_AliasMatchesGetMembersOfType()
+    {
+        var testType = ContextManager.FindTypeByName("TestLibrary.SimpleClass");
+        Assert.NotNull(testType);
+
+        var typeId = MemberResolver.GenerateMemberId(testType);
+        var canonical = GetMembersOfTypeTool.GetMembersOfType(typeId, mode: "signatures");
+        var alias = ListMembersTool.ListMembers(typeId, mode: "signatures");
+
+        var canonicalItems = JsonSerializer.Deserialize<JsonElement>(canonical)
+            .GetProperty("data")
+            .GetProperty("items");
+        var aliasItems = JsonSerializer.Deserialize<JsonElement>(alias)
+            .GetProperty("data")
+            .GetProperty("items");
+
+        Assert.Equal(canonicalItems.GetArrayLength(), aliasItems.GetArrayLength());
+        Assert.Equal(canonicalItems[0].GetProperty("memberId").GetString(), aliasItems[0].GetProperty("memberId").GetString());
+    }
+
+    [Fact]
     public void GetMemberSignature_WithValidMember_ReturnsSignatureAndSummary()
     {
         // Arrange - find a method from the test assembly

@@ -14,6 +14,7 @@ Read these files first:
 - Reuse `TypeSurfaceComparer` for type-surface semantics instead of duplicating compare logic.
 - Use `DecompilerService.DecompileEntitySnippet(...)` for focused compare body retrieval.
 - Prefer structured JSON output over pre-rendered diff text for overview commands.
+- For unknown foreign code, start with `search_symbols`, then `list_members`/`get_members_of_type`, then source or caller/callee tools. Do not fall back to shell scans after one bad member guess unless MCP diagnostics are exhausted.
 
 ## Workspace and Compare Expectations
 
@@ -37,8 +38,10 @@ Run after code changes:
 
 ```bash
 dotnet format DecompilerServer.sln
-dotnet test -c Release --no-restore
+dotnet test -c Release
 ```
+
+Use `dotnet test -c Release --no-restore` only after restore/build assets already exist.
 
 ## Documentation Policy
 
