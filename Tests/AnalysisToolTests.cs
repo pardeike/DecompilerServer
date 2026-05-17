@@ -236,7 +236,7 @@ public class AnalysisToolTests : ServiceTestBase
     }
 
     [Fact]
-    public void GetIL_WithValidMethod_ReturnsILSummary()
+    public void GetIL_WithValidMethod_ReturnsILInstructions()
     {
         // Arrange - find a method from the test assembly
         var testType = ContextManager.FindTypeByName("TestLibrary.SimpleClass");

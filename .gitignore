@@ -5,6 +5,7 @@
 *.user
 *.userosscache
 *.sln.docstates
+.DS_Store
 # User-specific files (MonoDevelop/Xamarin Studio)
 *.userprefs
 # Build results
@@ -202,4 +203,3 @@ ModelManifest.xml
 /Harmony/Documentation/api/*.html
 /Harmony/Documentation/api/*.yml
 /Harmony/Documentation/Documentation.dll
-.DS_Store

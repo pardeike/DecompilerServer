@@ -33,8 +33,8 @@ Goal:
 - Let callers trade detail for cost when the default response is too verbose.
 
 Candidate work:
-- Add a shared `mode` parameter with values such as `minimal`, `summary`, and `detailed`.
-- Start with `get_member_details`, `search_types`, `search_members`, and `get_decompiled_source`.
+- Extend the existing member-summary modes (`ids`, `discovery`, `signatures`, `full`) beyond search/list endpoints where they fit.
+- Consider smaller output modes for `get_member_details` and `get_decompiled_source`.
 - Keep the default behavior stable so existing callers do not silently lose information.
 
 ### Error reporting and diagnostics
@@ -43,8 +43,8 @@ Goal:
 - Make failures easier to act on without forcing the caller to guess what went wrong.
 
 Candidate work:
-- Add stable error codes for common failure cases.
-- Include suggestions for fuzzy misses where there is a clear likely match, using the symbol-exploration diagnostics above as the model.
+- Extend stable error codes beyond the current symbol-resolution and assembly-loaded cases.
+- Include suggestions for more fuzzy misses where there is a clear likely match, using the symbol-exploration diagnostics as the model.
 - Add a `validate_assembly` or equivalent health-check tool.
 - Expand `get_server_stats` with diagnostic warnings where useful.
 

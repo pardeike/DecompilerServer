@@ -25,7 +25,7 @@ public static class GetILTool
             // Only support IL format for now, ILAst would require additional implementation
             if (format != "IL")
             {
-                throw new NotSupportedException($"Format '{format}' is not supported. Only 'IL' format is currently supported, and it currently returns metadata summary output rather than full body disassembly.");
+                throw new NotSupportedException($"Format '{format}' is not supported. Only 'IL' format is currently supported.");
             }
 
             var method = ToolValidation.ResolveMethodOrThrow(session, memberId);

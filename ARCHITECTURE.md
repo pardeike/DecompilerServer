@@ -15,7 +15,8 @@ Documentation policy:
 Key startup behavior:
 - registers `DecompilerWorkspace` plus the legacy singleton services;
 - registers `WorkspaceBootstrapService`;
-- calls `.AddMcpServer().WithStdioServerTransport().WithToolsFromAssembly()`;
+- configures concise MCP server instructions through `McpServerOptions.ServerInstructions`;
+- calls `.AddMcpServer(...).WithStdioServerTransport().WithToolsFromAssembly()`;
 - initializes `ServiceLocator` with the built service provider.
 
 Tool shape:
@@ -197,6 +198,17 @@ Unknown-assembly exploration should stay inside MCP tools:
 - use `search_types` for type-only discovery and `search_members` for member-only discovery;
 - use `list_members` or `get_members_of_type` after a type is found;
 - if a member-based tool receives a stale or human-entered symbol, return structured candidates and suggested next tool calls rather than only `Invalid member ID`.
+
+### MCP Server Instructions
+
+`Program.ServerInstructions` is intentionally short and workflow-oriented.
+
+It should:
+- steer clients toward `search_symbols`, `list_members`, structured errors, and common parameter names;
+- complement the tool schemas rather than duplicate the full README or tool reference;
+- stay concise enough to be useful in the MCP handshake.
+
+If the workflow changes, update `Program.ServerInstructions`, the Codex skill, and this section together.
 
 ## Compare Model
 
