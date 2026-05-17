@@ -55,6 +55,27 @@ public class AnalysisToolTests : ServiceTestBase
     }
 
     [Fact]
+    public void ResolveMemberId_WithRawQualifiedSymbols_ReturnsCanonicalSummaries()
+    {
+        var methodResult = ResolveMemberIdTool.ResolveMemberId("TestLibrary.SimpleClass.SimpleMethod");
+        var methodResponse = JsonSerializer.Deserialize<JsonElement>(methodResult);
+
+        Assert.Equal("ok", methodResponse.GetProperty("status").GetString());
+        var methodData = methodResponse.GetProperty("data");
+        Assert.Equal("SimpleMethod", methodData.GetProperty("name").GetString());
+        Assert.Equal("Method", methodData.GetProperty("kind").GetString());
+        Assert.Matches("^[0-9a-f]{32}:[0-9A-F]{8}:M$", methodData.GetProperty("memberId").GetString()!);
+
+        var typeResult = ResolveMemberIdTool.ResolveMemberId("TestLibrary.SimpleClass");
+        var typeResponse = JsonSerializer.Deserialize<JsonElement>(typeResult);
+
+        Assert.Equal("ok", typeResponse.GetProperty("status").GetString());
+        var typeData = typeResponse.GetProperty("data");
+        Assert.Equal("TestLibrary.SimpleClass", typeData.GetProperty("fullName").GetString());
+        Assert.Equal("Type", typeData.GetProperty("kind").GetString());
+    }
+
+    [Fact]
     public void NormalizeMemberId_WithPartialInput_ReturnsCandidates()
     {
         // Arrange - find a type name to search for
@@ -193,6 +214,36 @@ public class AnalysisToolTests : ServiceTestBase
     }
 
     [Fact]
+    public void FindDerivedTypes_WithLimit_ReportsTotalAndPages()
+    {
+        // Arrange
+        var baseType = ContextManager.FindTypeByName("TestLibrary.BaseClass");
+        Assert.NotNull(baseType);
+        var memberId = MemberResolver.GenerateMemberId(baseType);
+
+        // Act
+        var firstResult = FindDerivedTypesTool.FindDerivedTypes(memberId, transitive: true, limit: 1);
+
+        // Assert
+        var firstResponse = JsonSerializer.Deserialize<JsonElement>(firstResult);
+        Assert.Equal("ok", firstResponse.GetProperty("status").GetString());
+
+        var firstData = firstResponse.GetProperty("data");
+        Assert.Equal(1, firstData.GetProperty("items").GetArrayLength());
+        Assert.True(firstData.GetProperty("hasMore").GetBoolean());
+        Assert.Equal(3, firstData.GetProperty("totalEstimate").GetInt32());
+
+        var secondResult = FindDerivedTypesTool.FindDerivedTypes(memberId, transitive: true, limit: 1, cursor: firstData.GetProperty("nextCursor").GetString());
+        var secondResponse = JsonSerializer.Deserialize<JsonElement>(secondResult);
+        Assert.Equal("ok", secondResponse.GetProperty("status").GetString());
+
+        var secondData = secondResponse.GetProperty("data");
+        Assert.Equal(1, secondData.GetProperty("items").GetArrayLength());
+        Assert.True(secondData.GetProperty("hasMore").GetBoolean());
+        Assert.Equal(3, secondData.GetProperty("totalEstimate").GetInt32());
+    }
+
+    [Fact]
     public void FindDerivedTypes_TransitiveParameter_AffectsResults()
     {
         // Arrange - find a type that has base types (indicating inheritance hierarchy exists)
@@ -262,8 +313,33 @@ public class AnalysisToolTests : ServiceTestBase
             Assert.NotNull(data.GetProperty("text").GetString());
             Assert.True(data.GetProperty("isFullDisassembly").GetBoolean());
             Assert.Contains("IL_", data.GetProperty("text").GetString(), StringComparison.Ordinal);
+            Assert.Contains("// Metadata Token: 0x", data.GetProperty("text").GetString(), StringComparison.Ordinal);
+            Assert.DoesNotContain("System.Reflection.Metadata.EntityHandle", data.GetProperty("text").GetString(), StringComparison.Ordinal);
             Assert.True(data.GetProperty("instructions").GetArrayLength() > 0);
         }
+    }
+
+    [Fact]
+    public void GetIL_WithLimit_ReturnsPagedInstructions()
+    {
+        var testType = ContextManager.FindTypeByName("TestLibrary.SimpleClass");
+        Assert.NotNull(testType);
+
+        var method = testType.Methods.FirstOrDefault(m => m.Name == "SimpleMethod");
+        Assert.NotNull(method);
+
+        var memberId = MemberResolver.GenerateMemberId(method);
+        var result = GetILTool.GetIL(memberId, limit: 2);
+
+        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        Assert.Equal("ok", response.GetProperty("status").GetString());
+
+        var data = response.GetProperty("data");
+        Assert.False(data.GetProperty("isFullDisassembly").GetBoolean());
+        Assert.True(data.GetProperty("hasMore").GetBoolean());
+        Assert.Equal("2", data.GetProperty("nextCursor").GetString());
+        Assert.Equal(2, data.GetProperty("returnedInstructionCount").GetInt32());
+        Assert.Equal(2, data.GetProperty("instructions").GetArrayLength());
     }
 
     [Fact]

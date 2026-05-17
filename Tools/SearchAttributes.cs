@@ -13,6 +13,9 @@ public static class SearchAttributesTool
     {
         return ResponseFormatter.TryExecute(() =>
         {
+            if (limit <= 0)
+                throw new ArgumentException("limit must be greater than 0.", nameof(limit));
+
             var session = ToolSessionRouter.GetForContext(contextAlias);
             var contextManager = session.ContextManager;
             var memberResolver = session.MemberResolver;
@@ -22,24 +25,13 @@ public static class SearchAttributesTool
                 throw new InvalidOperationException("No assembly loaded");
             }
 
-            var compilation = contextManager.GetCompilation();
             var allTypes = contextManager.GetAllTypes();
 
             var matchingMembers = new List<MemberSummary>();
 
-            // Parse cursor for pagination
-            var startIndex = 0;
-            if (!string.IsNullOrEmpty(cursor) && int.TryParse(cursor, out var cursorIndex))
-            {
-                startIndex = cursorIndex;
-            }
-
             // Search through all types and their members
-            foreach (var type in allTypes.Skip(startIndex))
+            foreach (var type in allTypes)
             {
-                if (matchingMembers.Count >= limit)
-                    break;
-
                 // Check the type itself if no kind filter or kind is "type"
                 if (string.IsNullOrEmpty(kind) || kind.Equals("type", StringComparison.OrdinalIgnoreCase))
                 {
@@ -54,8 +46,6 @@ public static class SearchAttributesTool
                 {
                     foreach (var method in type.Methods)
                     {
-                        if (matchingMembers.Count >= limit) break;
-
                         if (HasAttribute(method, attributeFullName))
                         {
                             // Filter by constructor vs method if specified
@@ -82,8 +72,6 @@ public static class SearchAttributesTool
                 {
                     foreach (var field in type.Fields)
                     {
-                        if (matchingMembers.Count >= limit) break;
-
                         if (HasAttribute(field, attributeFullName))
                         {
                             matchingMembers.Add(CreateMemberSummary(field, memberResolver));
@@ -96,8 +84,6 @@ public static class SearchAttributesTool
                 {
                     foreach (var property in type.Properties)
                     {
-                        if (matchingMembers.Count >= limit) break;
-
                         if (HasAttribute(property, attributeFullName))
                         {
                             matchingMembers.Add(CreateMemberSummary(property, memberResolver));
@@ -110,8 +96,6 @@ public static class SearchAttributesTool
                 {
                     foreach (var evt in type.Events)
                     {
-                        if (matchingMembers.Count >= limit) break;
-
                         if (HasAttribute(evt, attributeFullName))
                         {
                             matchingMembers.Add(CreateMemberSummary(evt, memberResolver));
@@ -120,14 +104,26 @@ public static class SearchAttributesTool
                 }
             }
 
-            // Calculate pagination info
-            var hasMore = matchingMembers.Count >= limit;
-            var nextCursor = hasMore ? (startIndex + allTypes.Count()).ToString() : null;
+            var startIndex = ParseCursor(cursor);
+            var pageItems = matchingMembers.Skip(startIndex).Take(limit).ToList();
+            var hasMore = startIndex + limit < matchingMembers.Count;
+            var nextCursor = hasMore ? (startIndex + limit).ToString() : null;
 
-            var result = new SearchResult<MemberSummary>(matchingMembers, hasMore, nextCursor, matchingMembers.Count);
+            var result = new SearchResult<MemberSummary>(pageItems, hasMore, nextCursor, matchingMembers.Count);
 
             return result;
         });
+    }
+
+    private static int ParseCursor(string? cursor)
+    {
+        if (string.IsNullOrWhiteSpace(cursor))
+            return 0;
+
+        if (!int.TryParse(cursor, out var startIndex) || startIndex < 0)
+            throw new ArgumentException("cursor must be a non-negative integer.", nameof(cursor));
+
+        return startIndex;
     }
 
     private static bool HasAttribute(IEntity entity, string attributeFullName)

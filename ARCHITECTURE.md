@@ -105,6 +105,8 @@ These services provide graph-style analysis:
 - implementations;
 - overrides and overloads.
 
+`find_callees` is callee-shaped, not usage-shaped. Items should identify the target through `targetMemberId` when the operand resolves to a local assembly member, and through `symbol`, `declaringType`, `opcode`, `offset`, `operandTokenHex`, and `resolution` for local, external, or unresolved metadata operands. Legacy `inMember`/`inType` aliases may remain for compatibility, but new clients should prefer the target-specific fields.
+
 ### TypeSurfaceComparer
 
 `TypeSurfaceComparer` defines the shared semantics for structural type diffs.
@@ -161,7 +163,8 @@ Operational rules:
 - `select_context` changes the default alias;
 - `unload` can unload one alias or all aliases, and removes persisted registrations by default;
 - `unload(..., preserveRegistration: true)` keeps restart-restore registrations while unloading memory;
-- `status` reports current alias plus loaded contexts when the workspace is active.
+- `status` reports current alias plus loaded contexts when the workspace is active;
+- `get_server_stats(contextAlias)` reports detailed cache, index, and performance diagnostics for one alias or the current alias.
 
 Startup behavior:
 - `WorkspaceBootstrapService` restores persisted registrations;
@@ -187,6 +190,8 @@ Search-style and overview-style endpoints should use:
 
 `compare_contexts` uses integer-offset cursors today.
 
+`get_il` supports the same `limit`/`cursor` paging pattern for instruction lists and also accepts `startOffset`/`endOffset` windows when callers need a byte-offset slice around a suspected anchor.
+
 ### Member-ID Follow-Up Flow
 
 Once a discovery tool returns a `memberId`, the caller should be able to use follow-up tools without resupplying the alias. That behavior depends on the MVID prefix and must remain reliable.
@@ -194,17 +199,19 @@ Once a discovery tool returns a `memberId`, the caller should be able to use fol
 ### Symbol Exploration Flow
 
 Unknown-assembly exploration should stay inside MCP tools:
-- use `search_symbols` when the caller has a partial, qualified, or guessed name;
+- use `search_symbols` when the caller has a fragment or is unsure whether a name is a type or member;
+- use `resolve_member_id` first for fully-qualified or XML-doc-like guessed symbols such as `Namespace.Type.Member` or `M:Namespace.Type.Member`;
 - use `search_types` for type-only discovery and `search_members` for member-only discovery;
 - use `list_members` or `get_members_of_type` after a type is found;
 - if a member-based tool receives a stale or human-entered symbol, return structured candidates and suggested next tool calls rather than only `Invalid member ID`.
+- if `search_symbols` receives `Type.MissingMember` and the type resolves, return a diagnostic plus the type and direct members instead of an empty success.
 
 ### MCP Server Instructions
 
 `Program.ServerInstructions` is intentionally short and workflow-oriented.
 
 It should:
-- steer clients toward `search_symbols`, `list_members`, structured errors, and common parameter names;
+- steer clients toward `search_symbols`, `resolve_member_id`, `list_members`, structured errors, and common parameter names;
 - complement the tool schemas rather than duplicate the full README or tool reference;
 - stay concise enough to be useful in the MCP handshake.
 

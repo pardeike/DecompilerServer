@@ -25,6 +25,11 @@ public static class GetSourceSliceTool
 
             var member = ToolValidation.ResolveMemberOrThrow(session, memberId);
 
+            if (context < 0)
+            {
+                throw new ArgumentException("context must be non-negative", nameof(context));
+            }
+
             // Apply context to expand the range
             var expandedStartLine = Math.Max(1, startLine - context);
             var expandedEndLine = endLine + context; // Will be capped by the service

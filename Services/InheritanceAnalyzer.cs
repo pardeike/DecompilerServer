@@ -59,11 +59,7 @@ public class InheritanceAnalyzer
             transitive ? IsDirectOrIndirectDerivedFrom(type, targetType) : IsDirectDerivedFrom(type, targetType));
 
         // Apply pagination
-        var startIndex = 0;
-        if (!string.IsNullOrEmpty(cursor) && int.TryParse(cursor, out var cursorIndex))
-        {
-            startIndex = cursorIndex;
-        }
+        var startIndex = ParseCursor(cursor);
 
         return derivedTypes
             .Skip(startIndex)
@@ -102,16 +98,37 @@ public class InheritanceAnalyzer
             ImplementsInterface(type, targetInterface));
 
         // Apply pagination
-        var startIndex = 0;
-        if (!string.IsNullOrEmpty(cursor) && int.TryParse(cursor, out var cursorIndex))
-        {
-            startIndex = cursorIndex;
-        }
+        var startIndex = ParseCursor(cursor);
 
         return implementors
             .Skip(startIndex)
             .Take(limit)
             .Select(CreateTypeSummary);
+    }
+
+    /// <summary>
+    /// Find concrete methods that implement a specific interface method.
+    /// </summary>
+    public IEnumerable<MemberSummary> FindMethodImplementations(string interfaceMethodId, int limit = 100, string? cursor = null)
+    {
+        var targetMethod = _memberResolver.ResolveMethod(interfaceMethodId);
+        var targetInterface = targetMethod?.DeclaringType?.GetDefinition();
+        if (targetMethod == null || targetInterface == null || targetInterface.Kind != TypeKind.Interface)
+            return Enumerable.Empty<MemberSummary>();
+
+        var allTypes = _contextManager.GetAllTypes();
+        var implementations = allTypes
+            .Where(type => ImplementsInterface(type, targetInterface))
+            .SelectMany(type => FindInterfaceMethodImplementations(type, targetMethod))
+            .GroupBy(method => _memberResolver.GenerateMemberId(method), StringComparer.Ordinal)
+            .Select(group => group.First());
+
+        var startIndex = ParseCursor(cursor);
+
+        return implementations
+            .Skip(startIndex)
+            .Take(limit)
+            .Select(CreateMethodSummary);
     }
 
     /// <summary>
@@ -212,6 +229,17 @@ public class InheritanceAnalyzer
         return false;
     }
 
+    private static int ParseCursor(string? cursor)
+    {
+        if (string.IsNullOrWhiteSpace(cursor))
+            return 0;
+
+        if (!int.TryParse(cursor, out var startIndex) || startIndex < 0)
+            throw new ArgumentException("cursor must be a non-negative integer.", nameof(cursor));
+
+        return startIndex;
+    }
+
     private bool IsDirectDerivedFrom(ITypeDefinition type, ITypeDefinition targetBaseType)
     {
         // Check only direct base types (no traversal)
@@ -220,11 +248,73 @@ public class InheritanceAnalyzer
 
     private bool ImplementsInterface(ITypeDefinition type, ITypeDefinition targetInterface)
     {
-        return type.DirectBaseTypes.Any(baseType =>
+        var toVisit = new Stack<ITypeDefinition>();
+        var visited = new HashSet<ITypeDefinition>();
+        toVisit.Push(type);
+
+        while (toVisit.Count > 0)
         {
-            var baseTypeDef = baseType.GetDefinition();
-            return baseTypeDef == targetInterface;
-        });
+            var current = toVisit.Pop();
+            if (!visited.Add(current))
+                continue;
+
+            foreach (var baseType in current.DirectBaseTypes)
+            {
+                var baseTypeDef = baseType.GetDefinition();
+                if (baseTypeDef == null)
+                    continue;
+
+                if (baseTypeDef == targetInterface)
+                    return true;
+
+                toVisit.Push(baseTypeDef);
+            }
+        }
+
+        return false;
+    }
+
+    private IEnumerable<IMethod> FindInterfaceMethodImplementations(ITypeDefinition type, IMethod targetMethod)
+    {
+        var visited = new HashSet<ITypeDefinition>();
+        var current = type;
+
+        while (current != null && visited.Add(current))
+        {
+            foreach (var method in current.Methods)
+            {
+                if (MethodImplementsInterfaceMethod(method, targetMethod))
+                    yield return method;
+            }
+
+            current = current.DirectBaseTypes
+                .Select(baseType => baseType.GetDefinition())
+                .FirstOrDefault(baseType => baseType != null && baseType.Kind != TypeKind.Interface);
+        }
+    }
+
+    private bool MethodImplementsInterfaceMethod(IMethod method, IMethod targetMethod)
+    {
+        if (method.IsConstructor)
+            return false;
+
+        if (method.ExplicitlyImplementedInterfaceMembers.Any(member => IsSameMemberDefinition(member, targetMethod)))
+            return true;
+
+        return string.Equals(method.Name, targetMethod.Name, StringComparison.Ordinal)
+            && SignaturesMatch(method, targetMethod);
+    }
+
+    private static bool IsSameMemberDefinition(IMember left, IMember right)
+    {
+        var leftDefinition = left.MemberDefinition;
+        var rightDefinition = right.MemberDefinition;
+
+        return leftDefinition.MetadataToken == rightDefinition.MetadataToken
+            && string.Equals(
+                leftDefinition.DeclaringTypeDefinition?.FullName,
+                rightDefinition.DeclaringTypeDefinition?.FullName,
+                StringComparison.Ordinal);
     }
 
     private IMethod? GetBaseDefinition(IMethod method)

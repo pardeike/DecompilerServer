@@ -12,9 +12,11 @@ public static class GetImplementationsTool
     {
         return ResponseFormatter.TryExecute(() =>
         {
+            if (limit <= 0)
+                throw new ArgumentException("limit must be greater than 0.", nameof(limit));
+
             var session = ToolSessionRouter.GetForMember(interfaceTypeOrMethodId, contextAlias);
             var contextManager = session.ContextManager;
-            var memberResolver = session.MemberResolver;
             var inheritanceAnalyzer = session.InheritanceAnalyzer;
 
             if (!contextManager.IsLoaded)
@@ -27,24 +29,15 @@ public static class GetImplementationsTool
 
             IEnumerable<MemberSummary> implementations;
 
-            if (member is ICSharpCode.Decompiler.TypeSystem.IType type)
+            if (member is ICSharpCode.Decompiler.TypeSystem.IType)
             {
                 // It's a type - find all types implementing this interface
-                implementations = inheritanceAnalyzer.FindImplementors(interfaceTypeOrMethodId, limit, cursor);
+                implementations = inheritanceAnalyzer.FindImplementors(interfaceTypeOrMethodId, int.MaxValue, null);
             }
-            else if (member is ICSharpCode.Decompiler.TypeSystem.IMethod method)
+            else if (member is ICSharpCode.Decompiler.TypeSystem.IMethod)
             {
                 // It's a method - find concrete implementations
-                var overrides = inheritanceAnalyzer.GetOverrides(interfaceTypeOrMethodId);
-
-                // Apply pagination manually for method overrides
-                var methodStartIndex = 0;
-                if (!string.IsNullOrEmpty(cursor) && int.TryParse(cursor, out var methodCursorIndex))
-                {
-                    methodStartIndex = methodCursorIndex;
-                }
-
-                implementations = overrides.Skip(methodStartIndex).Take(limit);
+                implementations = inheritanceAnalyzer.FindMethodImplementations(interfaceTypeOrMethodId, int.MaxValue, null);
             }
             else
             {
@@ -53,20 +46,26 @@ public static class GetImplementationsTool
 
             var implementationsList = implementations.ToList();
 
-            // Calculate pagination info
-            var startIndex = 0;
-            if (!string.IsNullOrEmpty(cursor) && int.TryParse(cursor, out var cursorIndex))
-            {
-                startIndex = cursorIndex;
-            }
-
-            var hasMore = implementationsList.Count >= limit;
+            var startIndex = ParseCursor(cursor);
+            var pageItems = implementationsList.Skip(startIndex).Take(limit).ToList();
+            var hasMore = startIndex + limit < implementationsList.Count;
             var nextCursor = hasMore ? (startIndex + limit).ToString() : null;
 
-            var result = new SearchResult<MemberSummary>(implementationsList, hasMore, nextCursor,
+            var result = new SearchResult<MemberSummary>(pageItems, hasMore, nextCursor,
                 implementationsList.Count);
 
             return result;
         });
+    }
+
+    private static int ParseCursor(string? cursor)
+    {
+        if (string.IsNullOrWhiteSpace(cursor))
+            return 0;
+
+        if (!int.TryParse(cursor, out var startIndex) || startIndex < 0)
+            throw new ArgumentException("cursor must be a non-negative integer.", nameof(cursor));
+
+        return startIndex;
     }
 }

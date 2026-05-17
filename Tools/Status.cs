@@ -7,7 +7,7 @@ namespace DecompilerServer;
 [McpServerToolType]
 public static class StatusTool
 {
-    [McpServerTool, Description("Get current server status, including assembly MVID and cache stats.")]
+    [McpServerTool, Description("Cheap current workspace status: loaded aliases, current alias, active assembly path/MVID, and small cache summary. Use get_server_stats for detailed diagnostics.")]
     public static string Status()
     {
         return ResponseFormatter.TryExecute(() =>
@@ -25,8 +25,8 @@ public static class StatusTool
                     LoadedContexts = loadedContexts,
                     Mvid = contextManager?.Mvid,
                     AssemblyPath = contextManager?.AssemblyPath,
-                    StartedAtUnix = contextManager?.LoadedAtUtc?.Ticks,
-                    Settings = hasCurrent ? GetDecompilerSettings() : null,
+                    StartedAtUnix = ToUnixTimeSeconds(contextManager?.LoadedAtUtc),
+                    Settings = hasCurrent ? GetDecompilerSettings(contextManager!) : null,
                     Stats = hasCurrent ? GetCacheStats(currentSession.DecompilerService, currentSession.MemberResolver) : null,
                     Indexes = hasCurrent ? new IndexStatus
                     {
@@ -52,8 +52,8 @@ public static class StatusTool
                 LoadedContexts = null,
                 Mvid = legacyContextManager.Mvid,
                 AssemblyPath = legacyContextManager.AssemblyPath,
-                StartedAtUnix = legacyContextManager.LoadedAtUtc?.Ticks,
-                Settings = legacyContextManager.IsLoaded ? GetDecompilerSettings() : null,
+                StartedAtUnix = ToUnixTimeSeconds(legacyContextManager.LoadedAtUtc),
+                Settings = legacyContextManager.IsLoaded ? GetDecompilerSettings(legacyContextManager) : null,
                 Stats = GetCacheStats(decompilerService, memberResolver),
                 Indexes = legacyContextManager.IsLoaded ? new IndexStatus
                 {
@@ -68,15 +68,28 @@ public static class StatusTool
         });
     }
 
-    private static object GetDecompilerSettings()
+    private static object GetDecompilerSettings(AssemblyContextManager contextManager)
     {
-        // Return current decompiler settings
+        var settings = contextManager.GetSettings();
         return new
         {
-            usingDeclarations = true,
-            showXmlDocumentation = true,
-            namedArguments = true
+            usingDeclarations = settings.UsingDeclarations,
+            showXmlDocumentation = settings.ShowXmlDocumentation,
+            namedArguments = settings.NamedArguments,
+            makeAssignmentExpressions = settings.MakeAssignmentExpressions,
+            alwaysUseBraces = settings.AlwaysUseBraces,
+            removeDeadCode = settings.RemoveDeadCode,
+            introduceIncrementAndDecrement = settings.IntroduceIncrementAndDecrement
         };
+    }
+
+    private static long? ToUnixTimeSeconds(DateTime? utc)
+    {
+        if (!utc.HasValue)
+            return null;
+
+        var value = DateTime.SpecifyKind(utc.Value, DateTimeKind.Utc);
+        return new DateTimeOffset(value).ToUnixTimeSeconds();
     }
 
     private static object GetCacheStats(DecompilerService decompilerService, MemberResolver memberResolver)

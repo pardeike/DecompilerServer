@@ -30,9 +30,9 @@ public static class PlanChunkingTool
                 throw new ArgumentException("targetChunkSize must be positive", nameof(targetChunkSize));
             }
 
-            if (overlap <= 0)
+            if (overlap < 0)
             {
-                throw new ArgumentException("overlap must be positive", nameof(overlap));
+                throw new ArgumentException("overlap must be non-negative", nameof(overlap));
             }
 
             var includeHeader = member is ITypeDefinition;

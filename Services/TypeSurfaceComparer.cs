@@ -100,6 +100,21 @@ internal static class TypeSurfaceComparer
                 StringComparison.Ordinal));
     }
 
+    public static bool IsCompilerGenerated(IMember member)
+    {
+        if (member.Name.StartsWith("<", StringComparison.Ordinal))
+            return true;
+
+        if (member.DeclaringType is ITypeDefinition declaringType && IsCompilerGenerated(declaringType))
+            return true;
+
+        return member.GetAttributes().Any(attribute =>
+            string.Equals(
+                attribute.AttributeType.FullName,
+                "System.Runtime.CompilerServices.CompilerGeneratedAttribute",
+                StringComparison.Ordinal));
+    }
+
     private static Dictionary<string, ComparedMemberSummary> BuildTypeMemberMap(ITypeDefinition type, MemberResolver memberResolver)
     {
         return GetDirectMembers(type)

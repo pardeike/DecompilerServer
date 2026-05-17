@@ -14,7 +14,8 @@ Read these files first:
 - Reuse `TypeSurfaceComparer` for type-surface semantics instead of duplicating compare logic.
 - Use `DecompilerService.DecompileEntitySnippet(...)` for focused compare body retrieval.
 - Prefer structured JSON output over pre-rendered diff text for overview commands.
-- For unknown foreign code, start with `search_symbols`, then `list_members`/`get_members_of_type`, then source or caller/callee tools. Do not fall back to shell scans after one bad member guess unless MCP diagnostics are exhausted.
+- For unknown foreign code, start with `search_symbols` for fragments. For fully-qualified or XML-doc-like guessed symbols, start with `resolve_member_id` so structured `member_not_found` diagnostics can resolve the type and suggest candidates.
+- After a type resolves, use `list_members`/`get_members_of_type`, then source or caller/callee tools. Do not fall back to shell scans after one bad member guess unless MCP diagnostics are exhausted.
 
 ## Workspace and Compare Expectations
 

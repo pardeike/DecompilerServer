@@ -1,4 +1,5 @@
 using System.ComponentModel;
+using System.Text.Json;
 using ModelContextProtocol.Server;
 using DecompilerServer.Services;
 using ICSharpCode.Decompiler;
@@ -22,17 +23,7 @@ public static class SetDecompileSettingsTool
                 throw new InvalidOperationException("No assembly loaded");
             }
 
-            // Get current settings
-            var currentSettings = new DecompilerSettings
-            {
-                UsingDeclarations = true,
-                ShowXmlDocumentation = true,
-                NamedArguments = true,
-                MakeAssignmentExpressions = true,
-                AlwaysUseBraces = true,
-                RemoveDeadCode = true,
-                IntroduceIncrementAndDecrement = true
-            };
+            var currentSettings = contextManager.GetSettings();
 
             // Apply new settings
             var updatedSettings = ApplySettingsChanges(currentSettings, settings);
@@ -74,32 +65,65 @@ public static class SetDecompileSettingsTool
 
         foreach (var (key, value) in changes)
         {
-            switch (key.ToLowerInvariant())
+            switch (NormalizeSettingKey(key))
             {
                 case "usingdeclarations":
-                    if (value is bool boolVal1) newSettings.UsingDeclarations = boolVal1;
+                    if (TryReadBoolean(value, out var boolVal1)) newSettings.UsingDeclarations = boolVal1;
                     break;
                 case "showxmldocumentation":
-                    if (value is bool boolVal2) newSettings.ShowXmlDocumentation = boolVal2;
+                    if (TryReadBoolean(value, out var boolVal2)) newSettings.ShowXmlDocumentation = boolVal2;
                     break;
                 case "namedarguments":
-                    if (value is bool boolVal3) newSettings.NamedArguments = boolVal3;
+                    if (TryReadBoolean(value, out var boolVal3)) newSettings.NamedArguments = boolVal3;
                     break;
                 case "makeassignmentexpressions":
-                    if (value is bool boolVal4) newSettings.MakeAssignmentExpressions = boolVal4;
+                    if (TryReadBoolean(value, out var boolVal4)) newSettings.MakeAssignmentExpressions = boolVal4;
                     break;
-                case "alwaysuseBraces":
-                    if (value is bool boolVal5) newSettings.AlwaysUseBraces = boolVal5;
+                case "alwaysusebraces":
+                    if (TryReadBoolean(value, out var boolVal5)) newSettings.AlwaysUseBraces = boolVal5;
                     break;
                 case "removedeadcode":
-                    if (value is bool boolVal6) newSettings.RemoveDeadCode = boolVal6;
+                    if (TryReadBoolean(value, out var boolVal6)) newSettings.RemoveDeadCode = boolVal6;
                     break;
                 case "introduceincrementanddecrement":
-                    if (value is bool boolVal7) newSettings.IntroduceIncrementAndDecrement = boolVal7;
+                    if (TryReadBoolean(value, out var boolVal7)) newSettings.IntroduceIncrementAndDecrement = boolVal7;
                     break;
             }
         }
 
         return newSettings;
+    }
+
+    private static string NormalizeSettingKey(string key)
+    {
+        return key.Replace("_", string.Empty, StringComparison.Ordinal)
+            .Replace("-", string.Empty, StringComparison.Ordinal)
+            .ToLowerInvariant();
+    }
+
+    private static bool TryReadBoolean(object? value, out bool result)
+    {
+        switch (value)
+        {
+            case bool boolValue:
+                result = boolValue;
+                return true;
+            case JsonElement { ValueKind: JsonValueKind.True }:
+                result = true;
+                return true;
+            case JsonElement { ValueKind: JsonValueKind.False }:
+                result = false;
+                return true;
+            case JsonElement { ValueKind: JsonValueKind.String } element
+                when bool.TryParse(element.GetString(), out var parsed):
+                result = parsed;
+                return true;
+            case string stringValue when bool.TryParse(stringValue, out var parsed):
+                result = parsed;
+                return true;
+            default:
+                result = false;
+                return false;
+        }
     }
 }

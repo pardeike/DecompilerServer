@@ -85,9 +85,7 @@ public static class CompareContextsTool
                 });
             }
 
-            var startIndex = 0;
-            if (!string.IsNullOrWhiteSpace(cursor) && !int.TryParse(cursor, out startIndex))
-                throw new ArgumentException("cursor must be an integer offset.", nameof(cursor));
+            var startIndex = ParseCursor(cursor);
 
             var pagedItems = items.Skip(startIndex).Take(limit).ToList();
             var hasMore = startIndex + limit < items.Count;
@@ -108,6 +106,17 @@ public static class CompareContextsTool
                 TotalEstimate = items.Count
             };
         });
+    }
+
+    private static int ParseCursor(string? cursor)
+    {
+        if (string.IsNullOrWhiteSpace(cursor))
+            return 0;
+
+        if (!int.TryParse(cursor, out var startIndex) || startIndex < 0)
+            throw new ArgumentException("cursor must be a non-negative integer.", nameof(cursor));
+
+        return startIndex;
     }
 
     private static IEnumerable<ITypeDefinition> GetFilteredTypes(

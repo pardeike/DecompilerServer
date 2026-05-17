@@ -372,6 +372,49 @@ public class SearchToolTests : ServiceTestBase
     }
 
     [Fact]
+    public void SearchSymbols_WithQualifiedMissingMember_ReturnsResolvedTypeFallback()
+    {
+        var result = SearchSymbolsTool.SearchSymbols(
+            "TestLibrary.JobDriver_PlayMusicalInstrument.MakeNewToils",
+            mode: "full",
+            limit: 20);
+
+        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        Assert.Equal("ok", response.GetProperty("status").GetString());
+
+        var data = response.GetProperty("data");
+        var diagnostic = data.GetProperty("diagnostic");
+        Assert.Equal("member_guess_unresolved", diagnostic.GetProperty("code").GetString());
+        Assert.Equal("MakeNewToils", diagnostic.GetProperty("missingMember").GetString());
+
+        var items = data.GetProperty("items");
+        Assert.Contains(items.EnumerateArray(), item =>
+            item.GetProperty("kind").GetString() == "Type"
+            && item.GetProperty("fullName").GetString() == "TestLibrary.JobDriver_PlayMusicalInstrument");
+        Assert.Contains(items.EnumerateArray(), item =>
+            item.GetProperty("kind").GetString() == "Method"
+            && item.GetProperty("name").GetString() == "ModifyPlayToil");
+    }
+
+    [Fact]
+    public void SearchSymbols_DefaultSearchHidesCompilerGeneratedMembers()
+    {
+        var result = SearchSymbolsTool.SearchSymbols(
+            "SimpleClass",
+            kind: "field",
+            includeTypes: false,
+            mode: "full",
+            limit: 50);
+
+        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        Assert.Equal("ok", response.GetProperty("status").GetString());
+
+        var items = response.GetProperty("data").GetProperty("items");
+        Assert.DoesNotContain(items.EnumerateArray(), item =>
+            item.GetProperty("name").GetString()?.StartsWith("<", StringComparison.Ordinal) == true);
+    }
+
+    [Fact]
     public void ListMembers_AliasMatchesGetMembersOfType()
     {
         var testType = ContextManager.FindTypeByName("TestLibrary.SimpleClass");

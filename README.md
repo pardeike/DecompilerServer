@@ -237,6 +237,7 @@ load_assembly({
 ```text
 list_contexts({})
 status({})
+get_server_stats({ "contextAlias": "rw16" })
 ```
 
 **Search and decompile:**
@@ -269,12 +270,13 @@ Once you have a `memberId`, follow-up tools normally route to the correct loaded
 For foreign-code exploration, prefer this path before falling back to shell tools:
 
 1. Load the assembly with `load_assembly` and verify the active alias with `list_contexts` or `status`.
-2. Start broad with `search_symbols` when you have a partial or guessed name; use `search_types` only when you specifically want types.
+2. Start broad with `search_symbols` when you have a fragment; use `resolve_member_id` first when you have a fully-qualified or XML-doc-like guess such as `Namespace.Type.Member` or `M:Namespace.Type.Member`.
 3. Use `list_members` or `get_members_of_type` on the resolved type before guessing method IDs.
 4. Fetch code with `get_decompiled_source`, `get_source_slice`, or `plan_chunking`.
-5. Move outward with `find_callers`, `find_usages`, `find_callees`, `get_il`, or compare tools.
+5. Move outward with `find_callers`, `find_usages`, `find_callees`, `get_il`, or compare tools. `find_callees` returns callee-focused `targetMemberId`, `symbol`, `opcode`, `offset`, and `resolution` fields; external calls are explicit instead of pretending to be canonical local IDs.
+6. Use `get_server_stats` when you need cache/index/performance diagnostics for one alias; `status` is the cheaper current-alias overview.
 
-If a guessed member does not exist, member-based tools return structured error hints with likely candidates and concrete next tool calls. For example, a stale method guess can still resolve the type and point you at nearby overrides instead of forcing a `grep` or `monodis` fallback.
+If a guessed member does not exist, member-based tools return structured error hints with likely candidates and concrete next tool calls. `search_symbols` also degrades gracefully for `Type.MissingMember`: if the type resolves but the member does not, it returns the type, its direct members, and a diagnostic instead of an empty success.
 
 **Compare aliases:**
 
@@ -319,11 +321,11 @@ The repo includes a portable skill at [skills/decompiler-mcp/SKILL.md](skills/de
 
 The GitHub `Release` workflow is triggered by pushing a tag that starts with `v` and matches the project version in `DecompilerServer.csproj`.
 
-For example, if the project version is `1.3.4`:
+For example, if the project version is `1.3.5`:
 
 ```bash
-git tag -a v1.3.4 -m "Release v1.3.4"
-git push origin v1.3.4
+git tag -a v1.3.5 -m "Release v1.3.5"
+git push origin v1.3.5
 ```
 
 ### Documentation

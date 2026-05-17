@@ -74,6 +74,7 @@ public static class IlAnalysisService
 
             object? operand = null;
             int? operandToken = null;
+            string? operandTokenHex = null;
             string? operandKind = null;
             string? operandSummary = null;
 
@@ -101,11 +102,13 @@ public static class IlAnalysisService
                     position += 4;
                     operand = token;
                     operandToken = token;
+                    operandTokenHex = $"0x{token:X8}";
                     operandKind = opCode.OperandType.ToString();
                     operandSummary = FormatMetadataToken(metadata, token);
                     break;
                 case OperandType.InlineSig:
                     operandToken = BitConverter.ToInt32(il, position);
+                    operandTokenHex = $"0x{operandToken.Value:X8}";
                     position += 4;
                     operand = operandToken;
                     operandKind = "signature";
@@ -116,6 +119,7 @@ public static class IlAnalysisService
                     position += 4;
                     operand = stringToken;
                     operandToken = stringToken;
+                    operandTokenHex = $"0x{stringToken:X8}";
                     operandKind = "string";
                     operandSummary = Quote(metadata.GetUserString(MetadataTokens.UserStringHandle(stringToken)));
                     break;
@@ -185,6 +189,7 @@ public static class IlAnalysisService
                 OpCode: opCode.Name ?? opCode.ToString() ?? "unknown",
                 Operand: operand,
                 OperandToken: operandToken,
+                OperandTokenHex: operandTokenHex,
                 OperandKind: operandKind,
                 OperandSummary: operandSummary);
         }
@@ -300,5 +305,6 @@ public sealed record IlInstructionInfo(
     string OpCode,
     object? Operand,
     int? OperandToken,
+    string? OperandTokenHex,
     string? OperandKind,
     string? OperandSummary);

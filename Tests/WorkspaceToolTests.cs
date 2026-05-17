@@ -34,11 +34,13 @@ public class WorkspaceToolTests : IDisposable
         // Arrange
         var firstAssembly = TestAssemblyLocator.GetPath();
         var secondAssembly = typeof(global::EmbeddedSourceTestLibrary.EmbeddedSourceSample).Assembly.Location;
+        var beforeLoad = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
         // Act
         var firstResult = LoadAssemblyTool.LoadAssembly(assemblyPath: firstAssembly, contextAlias: "rw14", rebuildIndex: false);
         var secondResult = LoadAssemblyTool.LoadAssembly(assemblyPath: secondAssembly, contextAlias: "rw15", rebuildIndex: false, makeCurrent: false);
         var contextsResult = ListContextsTool.ListContexts();
+        var afterList = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
         // Assert
         Assert.DoesNotContain("error", firstResult, StringComparison.OrdinalIgnoreCase);
@@ -54,6 +56,12 @@ public class WorkspaceToolTests : IDisposable
         Assert.Equal(2, items.GetArrayLength());
         Assert.Contains(items.EnumerateArray(), item => item.GetProperty("contextAlias").GetString() == "rw14");
         Assert.Contains(items.EnumerateArray(), item => item.GetProperty("contextAlias").GetString() == "rw15");
+
+        foreach (var item in items.EnumerateArray())
+        {
+            var loadedAtUnix = item.GetProperty("loadedAtUnix").GetInt64();
+            Assert.InRange(loadedAtUnix, beforeLoad, afterList);
+        }
     }
 
     [Fact]
@@ -80,6 +88,25 @@ public class WorkspaceToolTests : IDisposable
         var data = status.GetProperty("data");
         Assert.Equal("rw15", data.GetProperty("currentContextAlias").GetString());
         Assert.Equal(2, data.GetProperty("loadedContexts").GetArrayLength());
+    }
+
+    [Fact]
+    public void Status_ReportsUnixTimestampForCurrentContext()
+    {
+        // Arrange
+        var beforeLoad = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+        LoadAssemblyTool.LoadAssembly(assemblyPath: TestAssemblyLocator.GetPath(), contextAlias: "rw14", rebuildIndex: false);
+
+        // Act
+        var statusResult = StatusTool.Status();
+        var afterStatus = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
+        // Assert
+        var status = JsonSerializer.Deserialize<JsonElement>(statusResult);
+        Assert.Equal("ok", status.GetProperty("status").GetString());
+
+        var startedAtUnix = status.GetProperty("data").GetProperty("startedAtUnix").GetInt64();
+        Assert.InRange(startedAtUnix, beforeLoad, afterStatus);
     }
 
     [Fact]

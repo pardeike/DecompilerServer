@@ -7,7 +7,7 @@ namespace DecompilerServer;
 [McpServerToolType]
 public static class GetServerStatsTool
 {
-    [McpServerTool, Description("Basic health and timing info for the server. In workspace mode, reports the current context or the requested contextAlias.")]
+    [McpServerTool, Description("Detailed cache, index, timing, and memory-estimate diagnostics for the current context or requested contextAlias. Use status/list_contexts for quick alias checks.")]
     public static string GetServerStats(string? contextAlias = null)
     {
         return ResponseFormatter.TryExecute<object>(() =>

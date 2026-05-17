@@ -118,13 +118,14 @@ public static class SymbolResolutionDiagnostics
         AssemblyContextManager contextManager,
         MemberResolver memberResolver,
         string? kind = null,
-        int limit = 50)
+        int limit = 50,
+        bool includeCompilerGenerated = false)
     {
         if (!contextManager.IsLoaded)
             return Array.Empty<MemberSummary>();
 
         var normalizedKind = NormalizeKind(kind);
-        var allTypes = contextManager.GetAllTypes();
+        var allTypes = FilterCompilerGeneratedTypes(contextManager.GetAllTypes(), includeCompilerGenerated).ToArray();
         var results = new List<MemberSummary>();
 
         if (normalizedKind == null || normalizedKind == "type")
@@ -140,6 +141,9 @@ public static class SymbolResolutionDiagnostics
             {
                 foreach (var member in GetDirectMembers(type))
                 {
+                    if (!includeCompilerGenerated && DecompilerServer.TypeSurfaceComparer.IsCompilerGenerated(member))
+                        continue;
+
                     if (!MatchesKind(member, normalizedKind))
                         continue;
 
@@ -154,6 +158,21 @@ public static class SymbolResolutionDiagnostics
             .ThenBy(summary => summary.FullName, StringComparer.OrdinalIgnoreCase)
             .Take(Math.Max(0, limit))
             .ToArray();
+    }
+
+    public static ITypeDefinition? FindBestType(string typeName, AssemblyContextManager contextManager)
+    {
+        var direct = contextManager.FindTypeByName(typeName);
+        if (direct != null)
+            return direct;
+
+        var types = contextManager.GetAllTypes().ToArray();
+
+        return types.FirstOrDefault(type => string.Equals(type.FullName, typeName, StringComparison.OrdinalIgnoreCase))
+            ?? types.FirstOrDefault(type => string.Equals(type.ReflectionName, typeName, StringComparison.OrdinalIgnoreCase))
+            ?? types.FirstOrDefault(type => string.Equals(type.Name, typeName, StringComparison.OrdinalIgnoreCase))
+            ?? types.FirstOrDefault(type => type.FullName.EndsWith("." + typeName, StringComparison.OrdinalIgnoreCase))
+            ?? types.FirstOrDefault(type => type.ReflectionName.EndsWith("+" + typeName, StringComparison.OrdinalIgnoreCase));
     }
 
     public static bool MatchesType(ITypeDefinition type, string query)
@@ -179,21 +198,6 @@ public static class SymbolResolutionDiagnostics
             || Contains(signature, query)
             || (declaringType != null && Contains($"{declaringType.FullName}.{member.Name}", query))
             || (declaringType != null && Contains($"{declaringType.FullName}:{member.Name}", query));
-    }
-
-    private static ITypeDefinition? FindBestType(string typeName, AssemblyContextManager contextManager)
-    {
-        var direct = contextManager.FindTypeByName(typeName);
-        if (direct != null)
-            return direct;
-
-        var types = contextManager.GetAllTypes().ToArray();
-
-        return types.FirstOrDefault(type => string.Equals(type.FullName, typeName, StringComparison.OrdinalIgnoreCase))
-            ?? types.FirstOrDefault(type => string.Equals(type.ReflectionName, typeName, StringComparison.OrdinalIgnoreCase))
-            ?? types.FirstOrDefault(type => string.Equals(type.Name, typeName, StringComparison.OrdinalIgnoreCase))
-            ?? types.FirstOrDefault(type => type.FullName.EndsWith("." + typeName, StringComparison.OrdinalIgnoreCase))
-            ?? types.FirstOrDefault(type => type.ReflectionName.EndsWith("+" + typeName, StringComparison.OrdinalIgnoreCase));
     }
 
     private static IEnumerable<MemberSummary> FindNearbyMembers(
@@ -238,7 +242,7 @@ public static class SymbolResolutionDiagnostics
             .Select(member => CreateMemberSummary(member, memberResolver));
     }
 
-    private static IEnumerable<IMember> GetDirectMembers(ITypeDefinition type)
+    public static IEnumerable<IMember> GetDirectMembers(ITypeDefinition type)
     {
         return type.Methods.Cast<IMember>()
             .Concat(type.Fields)
@@ -246,7 +250,7 @@ public static class SymbolResolutionDiagnostics
             .Concat(type.Events);
     }
 
-    private static string? NormalizeKind(string? kind)
+    public static string? NormalizeKind(string? kind)
     {
         if (string.IsNullOrWhiteSpace(kind))
             return null;
@@ -263,7 +267,7 @@ public static class SymbolResolutionDiagnostics
         };
     }
 
-    private static bool MatchesKind(IMember member, string? normalizedKind)
+    public static bool MatchesKind(IMember member, string? normalizedKind)
     {
         if (normalizedKind == null)
             return true;
@@ -283,17 +287,52 @@ public static class SymbolResolutionDiagnostics
         if (string.IsNullOrWhiteSpace(query))
             return 100;
 
+        var penalty = IsLikelyCompilerGenerated(summary) ? 100 : 0;
+
         if (string.Equals(summary.FullName, query, StringComparison.OrdinalIgnoreCase))
-            return 0;
+            return penalty;
 
         if (string.Equals(summary.Name, query, StringComparison.OrdinalIgnoreCase))
-            return 1;
+            return penalty + 1;
 
         if (summary.FullName.EndsWith("." + query, StringComparison.OrdinalIgnoreCase)
             || summary.FullName.EndsWith(":" + query, StringComparison.OrdinalIgnoreCase))
-            return 2;
+            return penalty + 2;
 
-        return 10;
+        if (!string.IsNullOrWhiteSpace(summary.DeclaringType)
+            && (string.Equals(summary.DeclaringType, query, StringComparison.OrdinalIgnoreCase)
+                || summary.DeclaringType.EndsWith("." + query, StringComparison.OrdinalIgnoreCase)
+                || summary.DeclaringType.EndsWith("+" + query, StringComparison.OrdinalIgnoreCase)))
+            return penalty + 3;
+
+        return penalty + 10;
+    }
+
+    private static IEnumerable<ITypeDefinition> FilterCompilerGeneratedTypes(IEnumerable<ITypeDefinition> types, bool includeCompilerGenerated)
+    {
+        return includeCompilerGenerated
+            ? types
+            : types.Where(type => !DecompilerServer.TypeSurfaceComparer.IsCompilerGenerated(type));
+    }
+
+    private static bool IsLikelyCompilerGenerated(MemberSummary summary)
+    {
+        return StartsGenerated(summary.Name)
+            || StartsGenerated(summary.FullName)
+            || StartsGenerated(summary.DeclaringType)
+            || ContainsGeneratedSegment(summary.FullName)
+            || ContainsGeneratedSegment(summary.DeclaringType);
+    }
+
+    private static bool StartsGenerated(string? value)
+    {
+        return value?.StartsWith("<", StringComparison.Ordinal) == true;
+    }
+
+    private static bool ContainsGeneratedSegment(string? value)
+    {
+        return value?.Contains(".<", StringComparison.Ordinal) == true
+            || value?.Contains("+<", StringComparison.Ordinal) == true;
     }
 
     private static bool Contains(string? text, string query)
@@ -370,7 +409,7 @@ public static class SymbolResolutionDiagnostics
         };
     }
 
-    private static MemberSummary CreateTypeSummary(ITypeDefinition type, MemberResolver memberResolver)
+    public static MemberSummary CreateTypeSummary(ITypeDefinition type, MemberResolver memberResolver)
     {
         return new MemberSummary
         {
@@ -387,7 +426,7 @@ public static class SymbolResolutionDiagnostics
         };
     }
 
-    private static MemberSummary CreateMemberSummary(IMember member, MemberResolver memberResolver)
+    public static MemberSummary CreateMemberSummary(IMember member, MemberResolver memberResolver)
     {
         return new MemberSummary
         {

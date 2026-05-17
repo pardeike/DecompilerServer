@@ -34,6 +34,7 @@ public abstract class SearchServiceBase
         string? cursor = null)
     {
         EnsureCacheCurrent();
+        ValidateRegex(query, regex);
 
         // Create cache key from search parameters
         var cacheKey = $"types:{query}:{regex}:{namespaceFilter}:{includeNested}:{limit}:{cursor}";
@@ -104,6 +105,7 @@ public abstract class SearchServiceBase
         string? cursor = null)
     {
         EnsureCacheCurrent();
+        ValidateRegex(query, regex);
 
         // Create cache key from search parameters
         var paramTypesKey = paramTypeFilters != null ? string.Join(",", paramTypeFilters) : "";
@@ -255,11 +257,7 @@ public abstract class SearchServiceBase
         var items = source.ToList();
         var startIndex = 0;
 
-        // Parse cursor if provided
-        if (!string.IsNullOrEmpty(cursor) && int.TryParse(cursor, out var cursorIndex))
-        {
-            startIndex = cursorIndex;
-        }
+        startIndex = ParseCursor(cursor);
 
         var pageItems = items
             .Skip(startIndex)
@@ -273,6 +271,17 @@ public abstract class SearchServiceBase
         return new SearchResult<T>(pageItems, hasMore, nextCursor, items.Count);
     }
 
+    private static int ParseCursor(string? cursor)
+    {
+        if (string.IsNullOrWhiteSpace(cursor))
+            return 0;
+
+        if (!int.TryParse(cursor, out var startIndex) || startIndex < 0)
+            throw new ArgumentException("cursor must be a non-negative integer.", nameof(cursor));
+
+        return startIndex;
+    }
+
     protected bool MatchesQuery(string text, string query, bool regex)
     {
         if (string.IsNullOrEmpty(query))
@@ -284,13 +293,28 @@ public abstract class SearchServiceBase
             {
                 return Regex.IsMatch(text, query, RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromSeconds(1));
             }
-            catch
+            catch (RegexMatchTimeoutException)
             {
-                return false; // Invalid regex or timeout
+                return false;
             }
         }
 
         return text.Contains(query, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void ValidateRegex(string query, bool regex)
+    {
+        if (!regex || string.IsNullOrEmpty(query))
+            return;
+
+        try
+        {
+            _ = new Regex(query, RegexOptions.IgnoreCase | RegexOptions.Compiled, TimeSpan.FromSeconds(1));
+        }
+        catch (ArgumentException ex)
+        {
+            throw new ArgumentException($"Invalid regex pattern '{query}': {ex.Message}", nameof(query), ex);
+        }
     }
 
     protected bool MatchesDeclaringType(IMember member, string declaringTypeFilter)

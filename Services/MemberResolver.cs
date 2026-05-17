@@ -42,6 +42,7 @@ public class MemberResolver
         // Try fast path with indexed members first
         var entity = _contextManager.FindMemberById(memberId) ??
                      ResolveMemberByFullName(memberId, compilation) ??
+                     ResolveMemberByHumanQualifiedName(memberId, compilation) ??
                      ResolveMemberByTokenId(memberId, compilation) ??
                      ResolveMemberByMetadataToken(memberId, compilation);
 
@@ -224,6 +225,79 @@ public class MemberResolver
             return null;
 
         return ResolveMemberByToken(token, compilation);
+    }
+
+    private IEntity? ResolveMemberByHumanQualifiedName(string input, ICompilation compilation)
+    {
+        var value = NormalizeHumanQualifiedName(input);
+        if (string.IsNullOrWhiteSpace(value))
+            return null;
+
+        if (value.Contains(':', StringComparison.Ordinal))
+        {
+            var parts = value.Split(':', 2);
+            if (parts.Length == 2)
+            {
+                var member = ResolveMemberByTypeAndName(parts[0].Trim(), parts[1].Trim(), compilation);
+                if (member != null)
+                    return member;
+            }
+        }
+
+        for (var index = value.LastIndexOf('.'); index > 0; index = value.LastIndexOf('.', index - 1))
+        {
+            if (index >= value.Length - 1)
+                continue;
+
+            var member = ResolveMemberByTypeAndName(value[..index].Trim(), value[(index + 1)..].Trim(), compilation);
+            if (member != null)
+                return member;
+        }
+
+        return FindTypeDefinition(value, compilation);
+    }
+
+    private static string NormalizeHumanQualifiedName(string input)
+    {
+        var value = input.Trim();
+        if (value.Length > 2 && value[1] == ':' && "TMFPE".Contains(value[0]))
+            value = value[2..];
+
+        var parenIndex = value.IndexOf('(');
+        if (parenIndex >= 0)
+            value = value[..parenIndex];
+
+        return value;
+    }
+
+    private IEntity? ResolveMemberByTypeAndName(string typeName, string memberName, ICompilation compilation)
+    {
+        var type = FindTypeDefinition(typeName, compilation);
+        if (type == null)
+            return null;
+
+        return (IEntity?)type.Methods.FirstOrDefault(method => string.Equals(method.Name, memberName, StringComparison.OrdinalIgnoreCase))
+            ?? (IEntity?)type.Fields.FirstOrDefault(field => string.Equals(field.Name, memberName, StringComparison.OrdinalIgnoreCase))
+            ?? (IEntity?)type.Properties.FirstOrDefault(property => string.Equals(property.Name, memberName, StringComparison.OrdinalIgnoreCase))
+            ?? type.Events.FirstOrDefault(evt => string.Equals(evt.Name, memberName, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private ITypeDefinition? FindTypeDefinition(string typeName, ICompilation compilation)
+    {
+        var direct = _contextManager.FindTypeByName(typeName);
+        if (direct != null)
+            return direct;
+
+        var type = compilation.FindType(new ICSharpCode.Decompiler.TypeSystem.FullTypeName(typeName)).GetDefinition();
+        if (type != null)
+            return type;
+
+        return _contextManager.GetAllTypes().FirstOrDefault(candidate =>
+            string.Equals(candidate.FullName, typeName, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(candidate.ReflectionName, typeName, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(candidate.Name, typeName, StringComparison.OrdinalIgnoreCase)
+            || candidate.FullName.EndsWith("." + typeName, StringComparison.OrdinalIgnoreCase)
+            || candidate.ReflectionName.EndsWith("+" + typeName, StringComparison.OrdinalIgnoreCase));
     }
 
     private IEntity? ResolveMemberByMetadataToken(string memberId, ICompilation compilation)

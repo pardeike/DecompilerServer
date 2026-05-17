@@ -43,11 +43,7 @@ public static class GetTypesInNamespaceTool
             var sortedTypes = filteredTypes.OrderBy(type => type.FullName).ToList();
 
             // Apply pagination
-            var startIndex = 0;
-            if (!string.IsNullOrEmpty(cursor) && int.TryParse(cursor, out var cursorIndex))
-            {
-                startIndex = cursorIndex;
-            }
+            var startIndex = ParseCursor(cursor);
 
             var pageItems = sortedTypes
                 .Skip(startIndex)
@@ -74,5 +70,16 @@ public static class GetTypesInNamespaceTool
 
             return result;
         });
+    }
+
+    private static int ParseCursor(string? cursor)
+    {
+        if (string.IsNullOrWhiteSpace(cursor))
+            return 0;
+
+        if (!int.TryParse(cursor, out var startIndex) || startIndex < 0)
+            throw new ArgumentException("cursor must be a non-negative integer.", nameof(cursor));
+
+        return startIndex;
     }
 }

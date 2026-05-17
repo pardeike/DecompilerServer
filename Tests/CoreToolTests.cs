@@ -236,6 +236,24 @@ public class CoreToolTests : ServiceTestBase
     }
 
     [Fact]
+    public void GetSourceSlice_WithNegativeContext_ReturnsError()
+    {
+        // Arrange
+        var types = ContextManager.GetAllTypes();
+        var testType = types.FirstOrDefault(t => t.Name.Contains("Simple"));
+        Assert.NotNull(testType);
+
+        var memberId = MemberResolver.GenerateMemberId(testType);
+
+        // Act
+        var result = GetSourceSliceTool.GetSourceSlice(memberId, startLine: 1, endLine: 5, context: -1);
+
+        // Assert
+        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        Assert.Equal("error", response.GetProperty("status").GetString());
+    }
+
+    [Fact]
     public void GetSourceSlice_WithLineNumbers_IncludesLineNumbers()
     {
         // Arrange - find a type from the test assembly and decompile it first

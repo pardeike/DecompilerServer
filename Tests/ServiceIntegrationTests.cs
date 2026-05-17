@@ -165,11 +165,64 @@ public class ServiceIntegrationTests : ServiceTestBase
     }
 
     [Fact]
+    public void SearchServiceBase_SearchTypes_WithInvalidRegex_ShouldReturnError()
+    {
+        // Arrange
+        var searchService = new TestSearchService(ContextManager, MemberResolver);
+
+        // Act & Assert
+        Assert.Throws<ArgumentException>(() => searchService.SearchTypes("[", regex: true, limit: 10));
+    }
+
+    [Fact]
+    public void SearchServiceBase_SearchTypes_WithInvalidCursor_ShouldReturnError()
+    {
+        // Arrange
+        var searchService = new TestSearchService(ContextManager, MemberResolver);
+
+        // Act & Assert
+        Assert.Throws<ArgumentException>(() => searchService.SearchTypes("Simple", cursor: "not-a-cursor"));
+    }
+
+    [Fact]
+    public void UsageAnalyzer_FindStringLiterals_WithInvalidRegex_ShouldReturnError()
+    {
+        // Arrange
+        var analyzer = new UsageAnalyzer(ContextManager, MemberResolver);
+
+        // Act & Assert
+        Assert.Throws<ArgumentException>(() => analyzer.FindStringLiterals("[", regex: true, limit: 10).ToList());
+    }
+
+    [Fact]
+    public void UsageAnalyzer_FindStringLiterals_WithInvalidCursor_ShouldReturnError()
+    {
+        // Arrange
+        var analyzer = new UsageAnalyzer(ContextManager, MemberResolver);
+
+        // Act & Assert
+        Assert.Throws<ArgumentException>(() => analyzer.FindStringLiterals("method", cursor: "not-a-cursor").ToList());
+    }
+
+    [Fact]
+    public void InheritanceAnalyzer_FindDerivedTypes_WithInvalidCursor_ShouldReturnError()
+    {
+        // Arrange
+        var analyzer = new InheritanceAnalyzer(ContextManager, MemberResolver);
+
+        // Act & Assert
+        Assert.Throws<ArgumentException>(() => analyzer.FindDerivedTypes("T:TestLibrary.BaseClass", cursor: "not-a-cursor").ToList());
+    }
+
+    [Fact]
     public void UsageAnalyzer_FindCallees_ShouldDetectBaseMethodCall()
     {
         var analyzer = new UsageAnalyzer(ContextManager, MemberResolver);
         var callees = analyzer.FindCallees("M:TestLibrary.DerivedClass.VirtualMethod").ToList();
-        Assert.Contains(callees, c => c.InMember == "M:TestLibrary.BaseClass.VirtualMethod");
+        Assert.Contains(callees, c =>
+            c.Symbol.EndsWith("TestLibrary.BaseClass.VirtualMethod", StringComparison.Ordinal)
+            && c.Kind == "Call"
+            && c.TargetMemberId != null);
     }
 
     [Fact]

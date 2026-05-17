@@ -100,66 +100,33 @@ public class UsageAnalyzer
     /// <summary>
     /// Find what methods/members a method calls (callees)
     /// </summary>
-    public IEnumerable<UsageReference> FindCallees(string methodId, int limit = 100, string? cursor = null)
+    public IEnumerable<CalleeReference> FindCallees(string methodId, int limit = 100, string? cursor = null)
     {
         return FindCalleesPage(methodId, limit, cursor).Items;
     }
 
-    public AnalysisPage<UsageReference> FindCalleesPage(string methodId, int limit = 100, string? cursor = null)
+    public AnalysisPage<CalleeReference> FindCalleesPage(string methodId, int limit = 100, string? cursor = null)
     {
         EnsureCacheCurrent();
 
         var method = _memberResolver.ResolveMethod(methodId);
         if (method == null)
-            return AnalysisPage<UsageReference>.Empty();
-        if (method.MetadataToken.IsNil)
-            return AnalysisPage<UsageReference>.Empty();
+            return AnalysisPage<CalleeReference>.Empty();
 
         var peFile = _contextManager.GetPEFile();
         var metadata = peFile.Metadata;
-        if (method.MetadataToken.Kind != HandleKind.MethodDefinition)
-            return AnalysisPage<UsageReference>.Empty();
+        var body = IlAnalysisService.ReadMethodBody(method, _contextManager);
+        var results = new List<CalleeReference>();
+        if (!body.HasBody)
+            return AnalysisPage<CalleeReference>.Empty();
 
-        var methodDef = metadata.GetMethodDefinition((MethodDefinitionHandle)method.MetadataToken);
-        if (methodDef.RelativeVirtualAddress == 0)
-            return AnalysisPage<UsageReference>.Empty();
-        var body = peFile.Reader.GetMethodBody(methodDef.RelativeVirtualAddress);
-        var il = body.GetILBytes();
-        var results = new List<UsageReference>();
-        if (il == null || il.Length == 0)
-            return AnalysisPage<UsageReference>.Empty();
-
-        foreach (var (opCode, operand) in ReadInstructions(il))
+        foreach (var instruction in body.Instructions)
         {
-            if (opCode == OpCodes.Call || opCode == OpCodes.Callvirt || opCode == OpCodes.Newobj)
-            {
-                var resolved = ResolveMethodId(metadata, operand);
-                if (resolved != null)
-                {
-                    results.Add(new UsageReference
-                    {
-                        InMember = resolved.Value.memberId,
-                        InType = resolved.Value.typeName,
-                        Kind = opCode == OpCodes.Newobj ? UsageKind.NewObject : UsageKind.Call
-                    });
-                }
-            }
-            else if (opCode == OpCodes.Ldfld || opCode == OpCodes.Ldsfld || opCode == OpCodes.Stfld || opCode == OpCodes.Stsfld)
-            {
-                var field = ResolveFieldId(metadata, operand);
-                if (field != null)
-                {
-                    var kind = opCode == OpCodes.Ldfld || opCode == OpCodes.Ldsfld
-                          ? UsageKind.FieldRead
-                          : UsageKind.FieldWrite;
-                    results.Add(new UsageReference
-                    {
-                        InMember = field.Value.memberId,
-                        InType = field.Value.typeName,
-                        Kind = kind
-                    });
-                }
-            }
+            var kind = GetCalleeKind(instruction.OpCode);
+            if (kind == null)
+                continue;
+
+            results.Add(CreateCalleeReference(metadata, instruction, kind));
         }
 
         return Page(results, limit, cursor);
@@ -214,6 +181,7 @@ public class UsageAnalyzer
     public AnalysisPage<StringLiteralReference> FindStringLiteralsPage(string query, bool regex = false, int limit = 100, string? cursor = null)
     {
         EnsureCacheCurrent();
+        ValidateRegex(query, regex);
 
         var cacheKey = $"{query}:{regex}";
 
@@ -337,56 +305,126 @@ public class UsageAnalyzer
         return usages;
     }
 
-    private (string memberId, string typeName)? ResolveMethodId(MetadataReader metadata, int token)
+    private static string? GetCalleeKind(string opcode)
     {
-        var handle = MetadataTokens.EntityHandle(token);
-        switch (handle.Kind)
+        return opcode switch
         {
-            case HandleKind.MethodDefinition:
-                var md = metadata.GetMethodDefinition((MethodDefinitionHandle)handle);
-                var typeName = GetFullTypeName(metadata, md.GetDeclaringType());
-                var name = metadata.GetString(md.Name);
-                if (typeName == null)
-                    typeName = "";
-                else
-                    typeName += ".";
-                return ($"M:{typeName}{name}", typeName);
-            case HandleKind.MemberReference:
-                var mr = metadata.GetMemberReference((MemberReferenceHandle)handle);
-                var parentName = GetFullTypeName(metadata, mr.Parent);
-                if (parentName == null)
-                    return null;
-                var methodName = metadata.GetString(mr.Name);
-                return ($"M:{parentName}.{methodName}", parentName);
-            default:
-                return null;
+            "call" or "callvirt" => nameof(UsageKind.Call),
+            "newobj" => nameof(UsageKind.NewObject),
+            "ldfld" or "ldsfld" => nameof(UsageKind.FieldRead),
+            "stfld" or "stsfld" => nameof(UsageKind.FieldWrite),
+            _ => null
+        };
+    }
+
+    private CalleeReference CreateCalleeReference(MetadataReader metadata, IlInstructionInfo instruction, string kind)
+    {
+        var target = instruction.OperandToken.HasValue
+            ? ResolveCalleeTarget(metadata, instruction.OperandToken.Value)
+            : null;
+
+        var symbol = target?.Symbol
+            ?? instruction.OperandSummary
+            ?? instruction.OperandTokenHex
+            ?? instruction.Operand?.ToString()
+            ?? "unknown";
+
+        return new CalleeReference
+        {
+            TargetMemberId = target?.MemberId,
+            Symbol = symbol,
+            DeclaringType = target?.DeclaringType,
+            Kind = kind,
+            Opcode = instruction.OpCode,
+            Offset = instruction.Offset,
+            Resolved = target?.MemberId != null,
+            Resolution = target?.Resolution ?? "unresolved",
+            OperandToken = instruction.OperandToken,
+            OperandTokenHex = instruction.OperandTokenHex
+        };
+    }
+
+    private CalleeTarget? ResolveCalleeTarget(MetadataReader metadata, int token)
+    {
+        try
+        {
+            var handle = MetadataTokens.EntityHandle(token);
+            return handle.Kind switch
+            {
+                HandleKind.MethodDefinition or HandleKind.FieldDefinition => ResolveLocalTarget(handle, metadata, token),
+                HandleKind.MemberReference => ResolveMemberReferenceTarget(metadata, (MemberReferenceHandle)handle),
+                _ => new CalleeTarget(null, $"0x{token:X8}", null, "unresolved")
+            };
+        }
+        catch
+        {
+            return new CalleeTarget(null, $"0x{token:X8}", null, "unresolved");
         }
     }
 
-    private (string memberId, string typeName)? ResolveFieldId(MetadataReader metadata, int token)
+    private CalleeTarget ResolveLocalTarget(EntityHandle handle, MetadataReader metadata, int token)
     {
-        var handle = MetadataTokens.EntityHandle(token);
-        switch (handle.Kind)
+        var entity = ResolveEntity(handle);
+        if (entity != null)
         {
-            case HandleKind.FieldDefinition:
-                var fd = metadata.GetFieldDefinition((FieldDefinitionHandle)handle);
-                var typeName = GetFullTypeName(metadata, fd.GetDeclaringType());
-                var name = metadata.GetString(fd.Name);
-                if (typeName == null)
-                    typeName = "";
-                else
-                    typeName += ".";
-                return ($"F:{typeName}{name}", typeName);
-            case HandleKind.MemberReference:
-                var mr = metadata.GetMemberReference((MemberReferenceHandle)handle);
-                var parentName = GetFullTypeName(metadata, mr.Parent);
-                if (parentName == null)
-                    return null;
-                var fieldName = metadata.GetString(mr.Name);
-                return ($"F:{parentName}.{fieldName}", parentName);
-            default:
-                return null;
+            var declaringType = entity is IMember member
+                ? member.DeclaringType?.FullName
+                : (entity as ITypeDefinition)?.FullName;
+            return new CalleeTarget(
+                _memberResolver.GenerateMemberId(entity),
+                entity.FullName,
+                declaringType,
+                "assembly");
         }
+
+        return handle.Kind switch
+        {
+            HandleKind.MethodDefinition => ResolveMethodDefinitionTarget(metadata, (MethodDefinitionHandle)handle, token),
+            HandleKind.FieldDefinition => ResolveFieldDefinitionTarget(metadata, (FieldDefinitionHandle)handle, token),
+            _ => new CalleeTarget(null, $"0x{token:X8}", null, "unresolved")
+        };
+    }
+
+    private CalleeTarget ResolveMethodDefinitionTarget(MetadataReader metadata, MethodDefinitionHandle handle, int token)
+    {
+        var methodDefinition = metadata.GetMethodDefinition(handle);
+        var declaringType = GetFullTypeName(metadata, methodDefinition.GetDeclaringType());
+        var name = metadata.GetString(methodDefinition.Name);
+        var symbol = declaringType == null ? name : $"{declaringType}.{name}";
+        return new CalleeTarget(null, symbol, declaringType, "unresolved");
+    }
+
+    private CalleeTarget ResolveFieldDefinitionTarget(MetadataReader metadata, FieldDefinitionHandle handle, int token)
+    {
+        var fieldDefinition = metadata.GetFieldDefinition(handle);
+        var declaringType = GetFullTypeName(metadata, fieldDefinition.GetDeclaringType());
+        var name = metadata.GetString(fieldDefinition.Name);
+        var symbol = declaringType == null ? name : $"{declaringType}.{name}";
+        return new CalleeTarget(null, symbol, declaringType, "unresolved");
+    }
+
+    private CalleeTarget ResolveMemberReferenceTarget(MetadataReader metadata, MemberReferenceHandle handle)
+    {
+        var memberReference = metadata.GetMemberReference(handle);
+        var declaringType = GetFullTypeName(metadata, memberReference.Parent);
+        var name = metadata.GetString(memberReference.Name);
+        var symbol = declaringType == null ? name : $"{declaringType}.{name}";
+        return new CalleeTarget(null, symbol, declaringType, "external");
+    }
+
+    private IEntity? ResolveEntity(EntityHandle handle)
+    {
+        try
+        {
+            if (_contextManager.GetCompilation().MainModule is ICSharpCode.Decompiler.TypeSystem.MetadataModule module)
+                return module.ResolveEntity(handle);
+        }
+        catch
+        {
+            return null;
+        }
+
+        return null;
     }
 
     private string? GetFullTypeName(MetadataReader metadata, EntityHandle handle)
@@ -403,6 +441,12 @@ public class UsageAnalyzer
                 var ns2 = metadata.GetString(tr.Namespace);
                 var name2 = metadata.GetString(tr.Name);
                 return string.IsNullOrEmpty(ns2) ? name2 : $"{ns2}.{name2}";
+            case HandleKind.MethodDefinition:
+                var methodDefinition = metadata.GetMethodDefinition((MethodDefinitionHandle)handle);
+                return GetFullTypeName(metadata, methodDefinition.GetDeclaringType());
+            case HandleKind.MemberReference:
+                var memberReference = metadata.GetMemberReference((MemberReferenceHandle)handle);
+                return GetFullTypeName(metadata, memberReference.Parent);
             default:
                 return null;
         }
@@ -481,7 +525,7 @@ public class UsageAnalyzer
                       System.Text.RegularExpressions.RegexOptions.IgnoreCase,
                       TimeSpan.FromSeconds(1));
             }
-            catch
+            catch (System.Text.RegularExpressions.RegexMatchTimeoutException)
             {
                 return false;
             }
@@ -490,12 +534,28 @@ public class UsageAnalyzer
         return text.Contains(query, StringComparison.OrdinalIgnoreCase);
     }
 
+    private static void ValidateRegex(string query, bool regex)
+    {
+        if (!regex || string.IsNullOrEmpty(query))
+            return;
+
+        try
+        {
+            _ = new System.Text.RegularExpressions.Regex(
+                query,
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase,
+                TimeSpan.FromSeconds(1));
+        }
+        catch (ArgumentException ex)
+        {
+            throw new ArgumentException($"Invalid regex pattern '{query}': {ex.Message}", nameof(query), ex);
+        }
+    }
+
     private static AnalysisPage<T> Page<T>(IReadOnlyList<T> items, int limit, string? cursor)
     {
         var normalizedLimit = limit <= 0 ? 100 : Math.Min(limit, 100);
-        var startIndex = 0;
-        if (!string.IsNullOrWhiteSpace(cursor) && int.TryParse(cursor, out var parsedCursor))
-            startIndex = Math.Max(0, parsedCursor);
+        var startIndex = ParseCursor(cursor);
 
         var pageItems = items.Skip(startIndex).Take(normalizedLimit).ToList();
         var hasMore = startIndex + normalizedLimit < items.Count;
@@ -504,6 +564,17 @@ public class UsageAnalyzer
             hasMore,
             hasMore ? (startIndex + normalizedLimit).ToString() : null,
             items.Count);
+    }
+
+    private static int ParseCursor(string? cursor)
+    {
+        if (string.IsNullOrWhiteSpace(cursor))
+            return 0;
+
+        if (!int.TryParse(cursor, out var startIndex) || startIndex < 0)
+            throw new ArgumentException("cursor must be a non-negative integer.", nameof(cursor));
+
+        return startIndex;
     }
 }
 
@@ -526,6 +597,33 @@ public record UsageReference
     public int? Line { get; init; }
     public string? Snippet { get; init; }
 }
+
+/// <summary>
+/// Represents a direct callee referenced by a method body.
+/// </summary>
+public record CalleeReference
+{
+    public string? TargetMemberId { get; init; }
+    public required string Symbol { get; init; }
+    public string? DeclaringType { get; init; }
+    public required string Kind { get; init; }
+    public required string Opcode { get; init; }
+    public required int Offset { get; init; }
+    public required bool Resolved { get; init; }
+    public required string Resolution { get; init; }
+    public int? OperandToken { get; init; }
+    public string? OperandTokenHex { get; init; }
+
+    // Compatibility aliases for older callers that consumed find_callees as UsageReference-shaped output.
+    public string InMember => TargetMemberId ?? Symbol;
+    public string? InType => DeclaringType;
+}
+
+internal sealed record CalleeTarget(
+    string? MemberId,
+    string Symbol,
+    string? DeclaringType,
+    string Resolution);
 
 /// <summary>
 /// Types of member usage

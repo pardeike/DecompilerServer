@@ -59,11 +59,7 @@ public static class GetMembersOfTypeTool
             var sortedMembers = members.OrderBy(m => m.Name).ThenBy(m => m.SymbolKind).ToList();
 
             // Apply pagination
-            var startIndex = 0;
-            if (!string.IsNullOrEmpty(cursor) && int.TryParse(cursor, out var cursorIndex))
-            {
-                startIndex = cursorIndex;
-            }
+            var startIndex = ParseCursor(cursor);
 
             var pageItems = sortedMembers
                 .Skip(startIndex)
@@ -86,6 +82,17 @@ public static class GetMembersOfTypeTool
             .Concat(type.Fields)
             .Concat(type.Properties)
             .Concat(type.Events);
+    }
+
+    private static int ParseCursor(string? cursor)
+    {
+        if (string.IsNullOrWhiteSpace(cursor))
+            return 0;
+
+        if (!int.TryParse(cursor, out var startIndex) || startIndex < 0)
+            throw new ArgumentException("cursor must be a non-negative integer.", nameof(cursor));
+
+        return startIndex;
     }
 
     private static IEnumerable<IMember> GetAllMembersIncludingInherited(ITypeDefinition type)

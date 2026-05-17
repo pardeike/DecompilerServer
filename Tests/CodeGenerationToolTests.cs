@@ -333,6 +333,26 @@ public class CodeGenerationToolTests : ServiceTestBase
     }
 
     [Fact]
+    public void PlanChunking_WithZeroOverlap_ReturnsChunkPlan()
+    {
+        // Arrange
+        var types = ContextManager.GetAllTypes();
+        var testType = types.FirstOrDefault(t => t.Methods.Any(m => !m.IsConstructor));
+        Assert.NotNull(testType);
+
+        var method = testType.Methods.First(m => !m.IsConstructor);
+        var memberId = MemberResolver.GenerateMemberId(method);
+
+        // Act
+        var result = PlanChunkingTool.PlanChunking(memberId, targetChunkSize: 1000, overlap: 0);
+
+        // Assert
+        var response = JsonSerializer.Deserialize<JsonElement>(result);
+        Assert.Equal("ok", response.GetProperty("status").GetString());
+        Assert.Equal(0, response.GetProperty("data").GetProperty("overlap").GetInt32());
+    }
+
+    [Fact]
     public void PlanChunking_WithNegativeOverlap_ReturnsError()
     {
         // Arrange - find a method from the test assembly

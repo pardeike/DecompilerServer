@@ -130,6 +130,50 @@ public class WorkspaceRegistryTests : IDisposable
             item.GetProperty("contextAlias").GetString() == "rw14");
     }
 
+    [Fact]
+    public void DuplicateMvidContext_DoesNotStealOrEraseCanonicalMemberRouting()
+    {
+        using var workspace = new DecompilerWorkspace(_registryPath);
+        var primaryPath = TestAssemblyLocator.GetPath();
+        var otherPath = typeof(global::EmbeddedSourceTestLibrary.EmbeddedSourceSample).Assembly.Location;
+
+        workspace.LoadAssembly(new WorkspaceLoadRequest
+        {
+            AssemblyPath = primaryPath,
+            ContextAlias = "primary",
+            RebuildIndex = false,
+            MakeCurrent = true
+        });
+
+        var primarySession = workspace.GetCurrentSession();
+        var type = primarySession.ContextManager.FindTypeByName("TestLibrary.SimpleClass");
+        Assert.NotNull(type);
+        var memberId = primarySession.MemberResolver.GenerateMemberId(type);
+
+        workspace.LoadAssembly(new WorkspaceLoadRequest
+        {
+            AssemblyPath = primaryPath,
+            ContextAlias = "duplicate",
+            RebuildIndex = false,
+            MakeCurrent = false
+        });
+
+        workspace.LoadAssembly(new WorkspaceLoadRequest
+        {
+            AssemblyPath = otherPath,
+            ContextAlias = "other",
+            RebuildIndex = false,
+            MakeCurrent = true
+        });
+
+        Assert.Equal("primary", workspace.ResolveSessionForMemberId(memberId).ContextAlias);
+
+        workspace.UnloadContext("duplicate");
+
+        Assert.Equal("other", workspace.CurrentContextAlias);
+        Assert.Equal("primary", workspace.ResolveSessionForMemberId(memberId).ContextAlias);
+    }
+
     public void Dispose()
     {
         if (Directory.Exists(_tempDir))

@@ -46,7 +46,7 @@ public sealed class DecompilerWorkspace : IDisposable
             }
 
             _sessionsByAlias[contextAlias] = session;
-            _aliasByMvid[session.ContextManager.Mvid!] = contextAlias;
+            AddSessionMappings(session);
 
             if (request.MakeCurrent || CurrentContextAlias == null)
             {
@@ -419,11 +419,43 @@ public sealed class DecompilerWorkspace : IDisposable
     private void RemoveSessionMappings(DecompilerSession session)
     {
         _sessionsByAlias.Remove(session.ContextAlias);
-        if (session.ContextManager.Mvid != null)
-            _aliasByMvid.Remove(session.ContextManager.Mvid);
+
+        var mvid = session.ContextManager.Mvid;
+        if (mvid != null &&
+            _aliasByMvid.TryGetValue(mvid, out var mappedAlias) &&
+            string.Equals(mappedAlias, session.ContextAlias, StringComparison.OrdinalIgnoreCase))
+        {
+            _aliasByMvid.Remove(mvid);
+
+            var replacement = FindReplacementSessionForMvid(mvid);
+            if (replacement != null)
+                _aliasByMvid[mvid] = replacement.ContextAlias;
+        }
 
         if (string.Equals(CurrentContextAlias, session.ContextAlias, StringComparison.OrdinalIgnoreCase))
             CurrentContextAlias = null;
+    }
+
+    private void AddSessionMappings(DecompilerSession session)
+    {
+        var mvid = session.ContextManager.Mvid;
+        if (mvid != null && !_aliasByMvid.ContainsKey(mvid))
+            _aliasByMvid[mvid] = session.ContextAlias;
+    }
+
+    private DecompilerSession? FindReplacementSessionForMvid(string mvid)
+    {
+        if (CurrentContextAlias != null &&
+            _sessionsByAlias.TryGetValue(CurrentContextAlias, out var currentSession) &&
+            string.Equals(currentSession.ContextManager.Mvid, mvid, StringComparison.OrdinalIgnoreCase))
+        {
+            return currentSession;
+        }
+
+        return _sessionsByAlias.Values
+            .Where(candidate => string.Equals(candidate.ContextManager.Mvid, mvid, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(candidate => candidate.ContextAlias, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault();
     }
 }
 
@@ -481,12 +513,21 @@ public sealed class DecompilerSession : IDisposable
             ContextAlias = ContextAlias,
             Mvid = ContextManager.Mvid!,
             AssemblyPath = ContextManager.AssemblyPath!,
-            LoadedAtUnix = ContextManager.LoadedAtUtc?.Ticks,
+            LoadedAtUnix = ToUnixTimeSeconds(ContextManager.LoadedAtUtc),
             TypeCount = ContextManager.TypeCount,
             MethodCount = ContextManager.GetAllTypes().Sum(type => type.Methods.Count()),
             NamespaceCount = ContextManager.NamespaceCount,
             IsCurrent = isCurrent
         };
+    }
+
+    private static long? ToUnixTimeSeconds(DateTime? utc)
+    {
+        if (!utc.HasValue)
+            return null;
+
+        var value = DateTime.SpecifyKind(utc.Value, DateTimeKind.Utc);
+        return new DateTimeOffset(value).ToUnixTimeSeconds();
     }
 
     public void Dispose()
