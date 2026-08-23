@@ -1,13 +1,19 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+﻿using System.Net;
+using DecompilerServer.Services;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using DecompilerServer.Services;
+using ModelContextProtocol.AspNetCore;
 using ModelContextProtocol.Server;
 
 namespace DecompilerServer;
 
 public partial class Program
 {
+    internal const string DefaultHttpUrl = "http://127.0.0.1:30503";
+
     internal const string ServerInstructions = """
         DecompilerServer inspects loaded .NET assemblies. Use search_symbols first for fragments; use resolve_member_id first for fully-qualified or XML-doc-like guessed symbols.
         Common parameter names: search_types/search_members use query, not pattern; resolve_member_id/get_decompiled_source/find_usages use memberId; find_callers/find_callees/get_overrides use methodId; get_types_in_namespace uses ns.
@@ -22,33 +28,113 @@ public partial class Program
 
     public static async Task Main(string[] args)
     {
+        var launchOptions = ParseLaunchOptions(
+            args,
+            Environment.GetEnvironmentVariable("DECOMPILER_TRANSPORT"),
+            Environment.GetEnvironmentVariable("DECOMPILER_HTTP_URL"));
+
+        if (launchOptions.UseHttp)
+        {
+            await RunHttpAsync(launchOptions);
+            return;
+        }
+
+        await RunStdioAsync(launchOptions.HostArguments);
+    }
+
+    internal static LaunchOptions ParseLaunchOptions(
+        string[] args,
+        string? transportEnvironment,
+        string? httpUrlEnvironment)
+    {
+        var useHttpArgument = args.Any(arg => string.Equals(arg, "--http", StringComparison.OrdinalIgnoreCase));
+        var hostArguments = args
+            .Where(arg => !string.Equals(arg, "--http", StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        var useHttp = useHttpArgument || string.Equals(transportEnvironment, "http", StringComparison.OrdinalIgnoreCase);
+        var httpUrl = string.IsNullOrWhiteSpace(httpUrlEnvironment) ? DefaultHttpUrl : httpUrlEnvironment.Trim();
+
+        if (useHttp)
+            ValidateLoopbackHttpUrl(httpUrl);
+
+        return new LaunchOptions(useHttp, httpUrl, hostArguments);
+    }
+
+    internal static void ValidateLoopbackHttpUrl(string httpUrl)
+    {
+        if (!Uri.TryCreate(httpUrl, UriKind.Absolute, out var uri)
+            || !string.Equals(uri.Scheme, Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase)
+            || (!string.Equals(uri.Host, "localhost", StringComparison.OrdinalIgnoreCase)
+                && (!IPAddress.TryParse(uri.Host, out var address) || !IPAddress.IsLoopback(address)))
+            || uri.AbsolutePath != "/"
+            || !string.IsNullOrEmpty(uri.Query)
+            || !string.IsNullOrEmpty(uri.Fragment)
+            || !string.IsNullOrEmpty(uri.UserInfo))
+        {
+            throw new ArgumentException(
+                "DECOMPILER_HTTP_URL must be an HTTP loopback origin such as http://127.0.0.1:30503.",
+                nameof(httpUrl));
+        }
+    }
+
+    private static async Task RunStdioAsync(string[] args)
+    {
         var builder = Host.CreateApplicationBuilder(args);
-        builder.Logging.ClearProviders();
-        builder.Logging.AddProvider(new StderrLoggerProvider());
-        builder.Logging.SetMinimumLevel(LogLevel.Information);
-        // builder.Logging.AddFilter("Microsoft.Hosting.Lifetime", LogLevel.Warning);
-        // builder.Logging.AddFilter("ModelContextProtocol", LogLevel.Warning);
-        builder.Services.AddHostedService<WorkspaceBootstrapService>();
-
-        // Register DecompilerServer services as singletons for state persistence
-        builder.Services.AddSingleton<DecompilerWorkspace>();
-        builder.Services.AddSingleton<AssemblyContextManager>();
-        builder.Services.AddSingleton<MemberResolver>();
-        builder.Services.AddSingleton<DecompilerService>();
-        builder.Services.AddSingleton<UsageAnalyzer>();
-        builder.Services.AddSingleton<InheritanceAnalyzer>();
-        builder.Services.AddSingleton<ResponseFormatter>();
-
+        ConfigureLogging(builder.Logging);
+        AddDecompilerServices(builder.Services);
         builder.Services
-            .AddMcpServer(ConfigureMcpServerOptions) // core MCP server services
-            .WithStdioServerTransport() // Codex talks to STDIO servers
-            .WithToolsFromAssembly();   // auto-discover [McpServerTool]s in this assembly
+            .AddMcpServer(ConfigureMcpServerOptions)
+            .WithStdioServerTransport()
+            .WithToolsFromAssembly();
 
         var app = builder.Build();
-
-        // Initialize service locator
         ServiceLocator.SetServiceProvider(app.Services);
-
         await app.RunAsync();
     }
+
+    private static async Task RunHttpAsync(LaunchOptions launchOptions)
+    {
+        var builder = WebApplication.CreateBuilder(launchOptions.HostArguments);
+        ConfigureLogging(builder.Logging);
+        builder.WebHost.UseUrls(launchOptions.HttpUrl);
+        builder.Configuration["AllowedHosts"] = "localhost;127.0.0.1;[::1]";
+        AddDecompilerServices(builder.Services);
+        builder.Services
+            .AddMcpServer(ConfigureMcpServerOptions)
+            .WithHttpTransport(options =>
+            {
+                options.SessionMode = HttpServerSessionMode.StatefulForInitializeClients;
+#pragma warning disable MCP9006
+                options.IdleTimeout = TimeSpan.FromMinutes(10);
+                options.MaxIdleSessionCount = 64;
+#pragma warning restore MCP9006
+            })
+            .WithToolsFromAssembly();
+
+        var app = builder.Build();
+        app.MapMcp("/mcp");
+        ServiceLocator.SetServiceProvider(app.Services);
+        await app.RunAsync();
+    }
+
+    private static void ConfigureLogging(ILoggingBuilder logging)
+    {
+        logging.ClearProviders();
+        logging.AddProvider(new StderrLoggerProvider());
+        logging.SetMinimumLevel(LogLevel.Information);
+    }
+
+    private static void AddDecompilerServices(IServiceCollection services)
+    {
+        services.AddHostedService<WorkspaceBootstrapService>();
+        services.AddSingleton<DecompilerWorkspace>();
+        services.AddSingleton<AssemblyContextManager>();
+        services.AddSingleton<MemberResolver>();
+        services.AddSingleton<DecompilerService>();
+        services.AddSingleton<UsageAnalyzer>();
+        services.AddSingleton<InheritanceAnalyzer>();
+        services.AddSingleton<ResponseFormatter>();
+    }
+
+    internal sealed record LaunchOptions(bool UseHttp, string HttpUrl, string[] HostArguments);
 }

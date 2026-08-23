@@ -14,6 +14,51 @@ namespace Tests;
 public class McpProtocolTests
 {
     [Fact]
+    public void LaunchOptions_DefaultToStdio()
+    {
+        var options = DecompilerServer.Program.ParseLaunchOptions([], null, null);
+
+        Assert.False(options.UseHttp);
+        Assert.Equal(DecompilerServer.Program.DefaultHttpUrl, options.HttpUrl);
+        Assert.Empty(options.HostArguments);
+    }
+
+    [Fact]
+    public void LaunchOptions_EnableHttpWithoutPassingPrivateSwitchToHost()
+    {
+        var options = DecompilerServer.Program.ParseLaunchOptions(
+            ["--http", "--environment", "Development"],
+            null,
+            null);
+
+        Assert.True(options.UseHttp);
+        Assert.Equal(["--environment", "Development"], options.HostArguments);
+    }
+
+    [Theory]
+    [InlineData("http://localhost:30503")]
+    [InlineData("http://127.0.0.1:30503")]
+    [InlineData("http://[::1]:30503")]
+    public void LaunchOptions_AcceptLoopbackHttpOrigins(string httpUrl)
+    {
+        var options = DecompilerServer.Program.ParseLaunchOptions([], "http", httpUrl);
+
+        Assert.True(options.UseHttp);
+        Assert.Equal(httpUrl, options.HttpUrl);
+    }
+
+    [Theory]
+    [InlineData("https://127.0.0.1:30503")]
+    [InlineData("http://0.0.0.0:30503")]
+    [InlineData("http://example.com:30503")]
+    [InlineData("http://127.0.0.1:30503/mcp")]
+    public void LaunchOptions_RejectNonLoopbackOrNonOriginUrls(string httpUrl)
+    {
+        Assert.Throws<ArgumentException>(() =>
+            DecompilerServer.Program.ParseLaunchOptions([], "http", httpUrl));
+    }
+
+    [Fact]
     public void McpServer_Should_Expose_Concise_ServerInstructions()
     {
         var options = new McpServerOptions();

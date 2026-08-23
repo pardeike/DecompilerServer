@@ -104,6 +104,26 @@ Open Cursor Settings → MCP and add a new server, or edit `.cursor/mcp.json` in
 
 On Windows, use the `.exe` extension and escaped backslashes.
 
+When many Codex tasks use the same project, stdio starts one DecompilerServer
+child process per task. To share one bounded workspace and one process instead,
+start DecompilerServer once in loopback HTTP mode:
+
+```text
+DecompilerServer.exe --http
+```
+
+Then configure Codex to connect to that shared process:
+
+```toml
+[mcp_servers.decompiler]
+url = "http://127.0.0.1:30503/mcp"
+```
+
+The default listener is `http://127.0.0.1:30503`. Set
+`DECOMPILER_HTTP_URL` before starting the server to choose another HTTP
+loopback origin. Non-loopback and HTTPS bindings are rejected; terminate TLS
+at a separately secured reverse proxy if remote access is required.
+
 </details>
 
 <details>
