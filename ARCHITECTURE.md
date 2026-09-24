@@ -10,7 +10,13 @@ Documentation policy:
 
 ## Runtime Model
 
-`Program.cs` builds a hosted stdio MCP server and auto-discovers tools from the assembly.
+`Program.cs` builds an MCP server and auto-discovers tools from the assembly.
+
+Transport modes:
+- stdio remains the default and owns one process per MCP client;
+- `--http` (or `DECOMPILER_TRANSPORT=http`) hosts one shared Streamable HTTP endpoint at `/mcp`;
+- HTTP mode binds only to a validated loopback origin, defaults to `http://127.0.0.1:30503`, and accepts a different origin through `DECOMPILER_HTTP_URL`;
+- HTTP uses stateless requests for current clients and bounded, ten-minute sessions for initialize-handshake clients, while all clients share the singleton `DecompilerWorkspace`.
 
 Key startup behavior:
 - registers `DecompilerWorkspace` plus the legacy singleton services;
