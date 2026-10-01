@@ -64,6 +64,20 @@ internal static class TypeSurfaceComparer
             .Where(member => !member.MetadataToken.IsNil);
     }
 
+    internal static string GetSurfaceFingerprint(IMember member)
+    {
+        var builder = new ICSharpCode.Decompiler.CSharp.Syntax.TypeSystemAstBuilder
+        {
+            AlwaysUseShortTypeNames = false,
+            UseKeywordsForBuiltinTypes = false,
+            ShowAttributes = false,
+            ShowConstantValues = true,
+            ShowTypeParameterConstraints = true
+        };
+        // Qualified declarations include modifiers, accessor visibility, constraints and defaults.
+        return builder.ConvertEntity(member).ToString();
+    }
+
     public static IEnumerable<IMember> GetAddressableMembers(ITypeDefinition type)
     {
         return GetDirectMembers(type)
@@ -140,7 +154,7 @@ internal static class TypeSurfaceComparer
                 group =>
                 {
                     var ordered = group
-                        .Select(member => memberResolver.GetMemberSignature(member))
+                        .Select(GetSurfaceFingerprint)
                         .OrderBy(signature => signature, StringComparer.Ordinal)
                         .ToArray();
 

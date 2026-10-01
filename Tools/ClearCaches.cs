@@ -25,6 +25,7 @@ public static class ClearCachesTool
                     decompilerService.ClearCache();
                     memberResolver.ClearCache();
                     usageAnalyzer.ClearCache();
+                    session.SearchService.ClearSearchCache();
                     clearedItems.AddRange(new[] { "source", "resolutions", "usage" });
                     break;
 
@@ -41,6 +42,7 @@ public static class ClearCachesTool
                 case "usage":
                 case "usages":
                     usageAnalyzer.ClearCache();
+                    session.SearchService.ClearSearchCache();
                     clearedItems.Add("usage");
                     break;
 

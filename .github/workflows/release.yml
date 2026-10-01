@@ -59,11 +59,27 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1 || \
-          gh release create "$GITHUB_REF_NAME" \
-            --verify-tag \
-            --title "$GITHUB_REF_NAME" \
-            --generate-notes
+          set -euo pipefail
+
+          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            exit 0
+          fi
+
+          notes_file=".github/release-notes/${GITHUB_REF_NAME}.md"
+          if [[ -f "$notes_file" ]]; then
+            release_title="$(head -n 1 "$notes_file")"
+            release_title="${release_title#\# }"
+            tail -n +3 "$notes_file" > "$RUNNER_TEMP/release-notes.md"
+            gh release create "$GITHUB_REF_NAME" \
+              --verify-tag \
+              --title "$release_title" \
+              --notes-file "$RUNNER_TEMP/release-notes.md"
+          else
+            gh release create "$GITHUB_REF_NAME" \
+              --verify-tag \
+              --title "$GITHUB_REF_NAME" \
+              --generate-notes
+          fi
 
   publish-assets:
     needs:

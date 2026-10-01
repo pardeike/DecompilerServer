@@ -25,6 +25,9 @@ public static class IlAnalysisService
 
     public static MethodIlBody ReadMethodBody(IMethod method, AssemblyContextManager contextManager)
     {
+        var ownerMetadata = method.ParentModule?.MetadataFile?.Metadata;
+        if (ownerMetadata != null && !string.Equals(ownerMetadata.GetGuid(ownerMetadata.GetModuleDefinition().Mvid).ToString("N"), contextManager.Mvid?.Replace("-", ""), StringComparison.OrdinalIgnoreCase))
+            new MemberResolver(contextManager).EnsureOwnedEntity(method);
         if (method.MetadataToken.IsNil)
             return MethodIlBody.NoBody("metadata_token_missing");
 
@@ -156,14 +159,14 @@ public static class IlAnalysisService
                 case OperandType.ShortInlineVar:
                     operand = il[position];
                     position += 1;
-                    operandKind = "variable";
-                    operandSummary = $"V_{operand}";
+                    operandKind = opCode.Name!.Contains("arg", StringComparison.Ordinal) ? "argument" : "local";
+                    operandSummary = $"{(operandKind == "argument" ? "A" : "V")}_{operand}";
                     break;
                 case OperandType.InlineVar:
                     operand = BitConverter.ToUInt16(il, position);
                     position += 2;
-                    operandKind = "variable";
-                    operandSummary = $"V_{operand}";
+                    operandKind = opCode.Name!.Contains("arg", StringComparison.Ordinal) ? "argument" : "local";
+                    operandSummary = $"{(operandKind == "argument" ? "A" : "V")}_{operand}";
                     break;
                 case OperandType.InlineSwitch:
                     var count = BitConverter.ToInt32(il, position);

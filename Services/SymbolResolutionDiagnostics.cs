@@ -13,6 +13,9 @@ public static class SymbolResolutionDiagnostics
         if (!contextManager.IsLoaded)
             return new ToolErrorException("no_assembly_loaded", "No assembly loaded");
 
+        if (MemberResolver.TryGetMvid(input, out _))
+            return new ToolErrorException("invalid_member_id", "The metadata token is not present in the owning assembly.", new { memberId = input });
+
         var symbol = SymbolParts.Parse(input);
         var hints = new List<ToolErrorHint>();
         var candidates = new List<MemberSummary>();

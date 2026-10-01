@@ -26,7 +26,7 @@ public sealed class OriginalSourceResolver : IDisposable
     private static readonly HttpClient SourceLinkHttpClient = CreateHttpClient();
 
     private readonly AssemblyContextManager _contextManager;
-    private readonly ConcurrentDictionary<string, CachedDocumentLoad> _documentCache = new();
+    private readonly BoundedCache<string, CachedDocumentLoad> _documentCache = new(256, 16 * 1024 * 1024, value => 256 + value.EstimatedBytes);
     private readonly object _cacheLock = new();
 
     private long _cacheVersion = -1;

@@ -24,16 +24,13 @@ public static class BatchGetDecompiledSourceTool
             var totalChars = 0;
             var truncated = false;
             var budgetTruncated = false;
-            var retainedSessions = new List<ToolSessionView>();
 
-            try
             {
                 foreach (var memberId in memberIds)
                 {
                     try
                     {
-                        var session = ToolSessionRouter.GetForMember(memberId, contextAlias);
-                        retainedSessions.Add(session);
+                        using var session = ToolSessionRouter.GetForMember(memberId, contextAlias);
                         var contextManager = session.ContextManager;
                         var decompilerService = session.DecompilerService;
                         var memberResolver = session.MemberResolver;
@@ -43,12 +40,12 @@ public static class BatchGetDecompiledSourceTool
                             throw new InvalidOperationException("No assembly loaded");
                         }
 
-                        _ = ToolValidation.ResolveMemberOrThrow(session, memberId);
-
-                        var document = decompilerService.DecompileMember(memberId, includeHeader: true);
+                        var member = ToolValidation.ResolveMemberOrThrow(session, memberId);
+                        var includeHeader = member is ICSharpCode.Decompiler.TypeSystem.ITypeDefinition;
+                        var document = decompilerService.DecompileMember(memberId, includeHeader);
 
                         // Create first slice (typically the whole document or a reasonable portion)
-                        var firstSlice = decompilerService.GetSourceSlice(memberId, 1, Math.Min(document.TotalLines, maxLinesPerMember));
+                        var firstSlice = decompilerService.GetSourceSlice(memberId, 1, Math.Min(document.TotalLines, maxLinesPerMember), includeHeader);
                         var sliceLength = firstSlice.Code.Length;
 
                         // Check if adding this would exceed the limit
@@ -160,11 +157,6 @@ public static class BatchGetDecompiledSourceTool
                     processed = results.Count,
                     requested = memberIds.Length
                 };
-            }
-            finally
-            {
-                for (var index = retainedSessions.Count - 1; index >= 0; index--)
-                    retainedSessions[index].Dispose();
             }
         });
     }

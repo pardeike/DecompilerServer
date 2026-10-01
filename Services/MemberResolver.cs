@@ -4,6 +4,7 @@ using System.Reflection.Metadata.Ecma335;
 using System.Text.RegularExpressions;
 using System.Collections.Concurrent;
 using System;
+using ICSharpCode.Decompiler.Documentation;
 
 namespace DecompilerServer.Services;
 
@@ -14,9 +15,11 @@ namespace DecompilerServer.Services;
 public class MemberResolver
 {
     private readonly AssemblyContextManager _contextManager;
-    private readonly ConcurrentDictionary<string, IEntity?> _resolutionCache = new();
+    private readonly BoundedCache<string, IEntity?> _resolutionCache = new(4096, 2 * 1024 * 1024, _ => 256);
+    private readonly BoundedCache<string, string> _signatureCache = new(100_000, 16 * 1024 * 1024, value => 128 + value.Length * 2L);
     private readonly object _cacheLock = new();
     private long _cacheVersion = -1;
+    private readonly ConcurrentDictionary<string, string> _dependencyPaths = new(StringComparer.OrdinalIgnoreCase);
 
     public MemberResolver(AssemblyContextManager contextManager)
     {
@@ -36,6 +39,9 @@ public class MemberResolver
         if (Regex.IsMatch(memberId, @"^[0-9a-fA-F]{32}:00000000:[TMPFE]$"))
             throw new ToolErrorException("invalid_member_id", "A zero metadata token does not identify a real member.", new { input = memberId });
 
+        if (TryGetMvid(memberId, out var mvid) && !string.Equals(mvid, _contextManager.Mvid?.Replace("-", ""), StringComparison.OrdinalIgnoreCase))
+            throw CreateContextError(memberId, mvid);
+
         // Check cache first
         if (_resolutionCache.TryGetValue(memberId, out var cached))
             return cached;
@@ -44,7 +50,6 @@ public class MemberResolver
 
         // Try fast path with indexed members first
         var entity = _contextManager.FindMemberById(memberId) ??
-                     ResolveMemberByFullName(memberId, compilation) ??
                      ResolveMemberByHumanQualifiedName(memberId, compilation) ??
                      ResolveMemberByTokenId(memberId, compilation) ??
                      ResolveMemberByMetadataToken(memberId, compilation);
@@ -116,6 +121,10 @@ public class MemberResolver
             ? metadata.GetGuid(metadata.GetModuleDefinition().Mvid).ToString("N")
             : _contextManager.Mvid?.Replace("-", "") ?? new string('0', 32);
 
+        if (!string.Equals(mvid, _contextManager.Mvid?.Replace("-", ""), StringComparison.OrdinalIgnoreCase)
+            && entity.ParentModule?.MetadataFile?.FileName is { } path)
+            _dependencyPaths.TryAdd(mvid, path);
+
         var token = MetadataTokens.GetToken(entity.MetadataToken);
         var kind = entity switch
         {
@@ -130,12 +139,37 @@ public class MemberResolver
         return $"{mvid}:{token:X8}:{kind}";
     }
 
+    internal static bool TryGetMvid(string input, out string mvid)
+    {
+        var match = Regex.Match(input, @"^([0-9a-fA-F]{32}):[0-9a-fA-F]{8}:[TMPFE]$");
+        mvid = match.Groups[1].Value;
+        return match.Success;
+    }
+
+    internal string? GetDependencyPath(string mvid) => _dependencyPaths.GetValueOrDefault(mvid);
+
+    internal ToolErrorException CreateContextError(string memberId, string mvid, string code = "context_not_loaded")
+    {
+        var path = GetDependencyPath(mvid);
+        return new ToolErrorException(code, "The member belongs to a different assembly context.",
+            new { memberId, mvid, assemblyPath = path },
+            path == null ? [new ToolErrorHint("list_contexts", new { includeRegistered = true }, "Activate the owning assembly alias, then retry with its contextAlias.")]
+                : [new ToolErrorHint("load_assembly", new { assemblyPath = path, makeCurrent = false, contextAlias = "dependency-" + mvid[..8] }, "Load the defining assembly, then retry the canonical memberId.")]);
+    }
+
+    internal void EnsureOwnedEntity(IEntity entity)
+    {
+        var id = GenerateMemberId(entity);
+        if (TryGetMvid(id, out var mvid) && !string.Equals(mvid, _contextManager.Mvid?.Replace("-", ""), StringComparison.OrdinalIgnoreCase))
+            throw CreateContextError(id, mvid, "member_context_mismatch");
+    }
+
     /// <summary>
     /// Get a human-readable signature for a member
     /// </summary>
     public string GetMemberSignature(IEntity entity)
     {
-        return entity switch
+        return _signatureCache.GetOrAdd(GenerateMemberId(entity), _ => entity switch
         {
             IMethod method => FormatMethodSignature(method),
             IProperty property => FormatPropertySignature(property),
@@ -143,7 +177,7 @@ public class MemberResolver
             IEvent evt => FormatEventSignature(evt),
             IType type => FormatTypeSignature(type),
             _ => entity.Name
-        };
+        });
     }
 
     /// <summary>
@@ -166,6 +200,7 @@ public class MemberResolver
         lock (_cacheLock)
         {
             _resolutionCache.Clear();
+            _signatureCache.Clear();
             _cacheVersion = _contextManager.ContextVersion;
         }
     }
@@ -179,8 +214,8 @@ public class MemberResolver
 
         return new ResolverCacheStats(
             _resolutionCache.Count,
-            _resolutionCache.Count(kv => kv.Value != null),
-            _resolutionCache.Count(kv => kv.Value == null));
+            _resolutionCache.Values.Count(value => value != null),
+            _resolutionCache.Values.Count(value => value == null), _resolutionCache.Bytes + _signatureCache.Bytes);
     }
 
     private void EnsureCacheCurrent()
@@ -195,28 +230,9 @@ public class MemberResolver
                 return;
 
             _resolutionCache.Clear();
+            _signatureCache.Clear();
             _cacheVersion = version;
         }
-    }
-
-    private IEntity? ResolveMemberByFullName(string memberId, ICompilation compilation)
-    {
-        // Handle XML documentation style IDs (T:, M:, F:, P:, E:)
-        if (memberId.Length < 3 || memberId[1] != ':')
-            return null;
-
-        var prefix = memberId[0];
-        var fullName = memberId.Substring(2);
-
-        return prefix switch
-        {
-            'T' => compilation.FindType(new ICSharpCode.Decompiler.TypeSystem.FullTypeName(fullName)).GetDefinition(),
-            'M' => FindMethodByFullName(fullName, compilation),
-            'F' => FindFieldByFullName(fullName, compilation),
-            'P' => FindPropertyByFullName(fullName, compilation),
-            'E' => FindEventByFullName(fullName, compilation),
-            _ => null
-        };
     }
 
     private IEntity? ResolveMemberByTokenId(string memberId, ICompilation compilation)
@@ -233,7 +249,36 @@ public class MemberResolver
 
     private IEntity? ResolveMemberByHumanQualifiedName(string input, ICompilation compilation)
     {
-        var value = NormalizeHumanQualifiedName(input);
+        var value = input.Trim();
+        char? kind = null;
+        if (value.Length > 2 && value[1] == ':' && "TMFPE".Contains(value[0]))
+        {
+            kind = value[0];
+            value = value[2..];
+        }
+        if (kind == 'T')
+            return FindTypeDefinition(value, compilation);
+
+        // ILSpy handles exact XML documentation signatures, including generic parameters and byrefs.
+        if (kind == 'M' && value.Contains('('))
+        {
+            try
+            {
+                var exact = IdStringProvider.FindEntity(input, new SimpleTypeResolveContext(compilation.MainModule));
+                if (exact != null)
+                    return exact;
+            }
+            catch (ReflectionNameParseException) { }
+        }
+        string? parameters = null;
+        var paren = value.IndexOf('(');
+        if (paren >= 0)
+        {
+            if (!value.EndsWith(')'))
+                return null;
+            parameters = value[(paren + 1)..^1];
+            value = value[..paren];
+        }
         if (string.IsNullOrWhiteSpace(value))
             return null;
 
@@ -242,7 +287,7 @@ public class MemberResolver
             var parts = value.Split(':', 2);
             if (parts.Length == 2)
             {
-                var member = ResolveMemberByTypeAndName(parts[0].Trim(), parts[1].Trim(), compilation);
+                var member = ResolveMemberByTypeAndName(parts[0].Trim(), parts[1].Trim(), compilation, parameters, kind);
                 if (member != null)
                     return member;
             }
@@ -253,37 +298,43 @@ public class MemberResolver
             if (index >= value.Length - 1)
                 continue;
 
-            var member = ResolveMemberByTypeAndName(value[..index].Trim(), value[(index + 1)..].Trim(), compilation);
+            var member = ResolveMemberByTypeAndName(value[..index].Trim(), value[(index + 1)..].Trim(), compilation, parameters, kind);
             if (member != null)
                 return member;
         }
 
-        return FindTypeDefinition(value, compilation);
+        return kind == null && parameters == null ? FindTypeDefinition(value, compilation) : null;
     }
 
-    private static string NormalizeHumanQualifiedName(string input)
-    {
-        var value = input.Trim();
-        if (value.Length > 2 && value[1] == ':' && "TMFPE".Contains(value[0]))
-            value = value[2..];
-
-        var parenIndex = value.IndexOf('(');
-        if (parenIndex >= 0)
-            value = value[..parenIndex];
-
-        return value;
-    }
-
-    private IEntity? ResolveMemberByTypeAndName(string typeName, string memberName, ICompilation compilation)
+    private IEntity? ResolveMemberByTypeAndName(string typeName, string memberName, ICompilation compilation, string? parameters = null, char? kind = null)
     {
         var type = FindTypeDefinition(typeName, compilation);
         if (type == null)
             return null;
 
-        return (IEntity?)type.Methods.FirstOrDefault(method => string.Equals(method.Name, memberName, StringComparison.OrdinalIgnoreCase))
-            ?? (IEntity?)type.Fields.FirstOrDefault(field => string.Equals(field.Name, memberName, StringComparison.OrdinalIgnoreCase))
-            ?? (IEntity?)type.Properties.FirstOrDefault(property => string.Equals(property.Name, memberName, StringComparison.OrdinalIgnoreCase))
-            ?? type.Events.FirstOrDefault(evt => string.Equals(evt.Name, memberName, StringComparison.OrdinalIgnoreCase));
+        var requested = memberName.Replace("#ctor", ".ctor");
+        var matches = TypeSurfaceComparer.GetAddressableMembers(type)
+            .Where(member => string.Equals(member.Name, requested, StringComparison.OrdinalIgnoreCase))
+            .Where(member => kind == null || GetKind(member) == kind)
+            .Where(member => parameters == null || member is IMethod method && ParametersMatch(method, parameters))
+            .Cast<IEntity>().ToArray();
+        if (matches.Length > 1)
+            throw new ToolErrorException("ambiguous_member", "Specify the parameter types or use a canonical memberId.",
+                new { input = typeName + "." + memberName, candidates = matches.Select(member => SymbolResolutionDiagnostics.CreateMemberSummary((IMember)member, this)).ToArray() });
+        return matches.SingleOrDefault();
+    }
+
+    private static char GetKind(IMember member) => member switch { IMethod => 'M', IProperty => 'P', IField => 'F', IEvent => 'E', _ => '?' };
+
+    private static bool ParametersMatch(IMethod method, string requested)
+    {
+        var id = IdStringProvider.GetIdString(method);
+        var start = id.IndexOf('(');
+        var actual = start < 0 ? "" : id[(start + 1)..^1];
+        // Normalize C# primitive spellings without weakening namespace or overload identity.
+        foreach (var (alias, full) in new[] { ("string", "System.String"), ("int", "System.Int32"), ("bool", "System.Boolean"), ("long", "System.Int64"), ("double", "System.Double"), ("float", "System.Single"), ("object", "System.Object"), ("byte", "System.Byte"), ("char", "System.Char"), ("short", "System.Int16"), ("decimal", "System.Decimal"), ("uint", "System.UInt32"), ("ulong", "System.UInt64"), ("ushort", "System.UInt16"), ("sbyte", "System.SByte") })
+            requested = Regex.Replace(requested, $@"(?<![\w.]){alias}(?!\w)", full);
+        return string.Equals(actual, requested.Replace(" ", ""), StringComparison.Ordinal);
     }
 
     private ITypeDefinition? FindTypeDefinition(string typeName, ICompilation compilation)
@@ -332,64 +383,6 @@ public class MemberResolver
         }
     }
 
-    private IMethod? FindMethodByFullName(string fullName, ICompilation compilation)
-    {
-        // Parse method full name and find matching method
-        // This is simplified - full implementation would handle generics, overloads, etc.
-        var lastDot = fullName.LastIndexOf('.');
-        if (lastDot < 0) return null;
-
-        var typeName = fullName.Substring(0, lastDot);
-        var methodName = fullName.Substring(lastDot + 1);
-
-        // Use cached type lookup if available
-        var type = _contextManager.FindTypeByName(typeName) ??
-                   compilation.FindType(new ICSharpCode.Decompiler.TypeSystem.FullTypeName(typeName)).GetDefinition();
-        return type?.Methods.FirstOrDefault(m => m.Name == methodName);
-    }
-
-    private IField? FindFieldByFullName(string fullName, ICompilation compilation)
-    {
-        var lastDot = fullName.LastIndexOf('.');
-        if (lastDot < 0) return null;
-
-        var typeName = fullName.Substring(0, lastDot);
-        var fieldName = fullName.Substring(lastDot + 1);
-
-        // Use cached type lookup if available
-        var type = _contextManager.FindTypeByName(typeName) ??
-                   compilation.FindType(new ICSharpCode.Decompiler.TypeSystem.FullTypeName(typeName)).GetDefinition();
-        return type?.Fields.FirstOrDefault(f => f.Name == fieldName);
-    }
-
-    private IProperty? FindPropertyByFullName(string fullName, ICompilation compilation)
-    {
-        var lastDot = fullName.LastIndexOf('.');
-        if (lastDot < 0) return null;
-
-        var typeName = fullName.Substring(0, lastDot);
-        var propertyName = fullName.Substring(lastDot + 1);
-
-        // Use cached type lookup if available
-        var type = _contextManager.FindTypeByName(typeName) ??
-                   compilation.FindType(new ICSharpCode.Decompiler.TypeSystem.FullTypeName(typeName)).GetDefinition();
-        return type?.Properties.FirstOrDefault(p => p.Name == propertyName);
-    }
-
-    private IEvent? FindEventByFullName(string fullName, ICompilation compilation)
-    {
-        var lastDot = fullName.LastIndexOf('.');
-        if (lastDot < 0) return null;
-
-        var typeName = fullName.Substring(0, lastDot);
-        var eventName = fullName.Substring(lastDot + 1);
-
-        // Use cached type lookup if available
-        var type = _contextManager.FindTypeByName(typeName) ??
-                   compilation.FindType(new ICSharpCode.Decompiler.TypeSystem.FullTypeName(typeName)).GetDefinition();
-        return type?.Events.FirstOrDefault(e => e.Name == eventName);
-    }
-
     private string FormatMethodSignature(IMethod method)
     {
         var builder = CreateSignatureBuilder();
@@ -432,4 +425,4 @@ public class MemberResolver
 /// <summary>
 /// Resolver cache statistics
 /// </summary>
-public record ResolverCacheStats(int CachedResolutions, int SuccessfulResolutions, int FailedResolutions);
+public record ResolverCacheStats(int CachedResolutions, int SuccessfulResolutions, int FailedResolutions, long EstimatedBytes = 0);

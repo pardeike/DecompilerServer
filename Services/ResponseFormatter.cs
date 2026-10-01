@@ -423,6 +423,10 @@ public record WorkspaceContextsResult
     public string? CurrentContextAlias { get; init; }
     public required List<WorkspaceContextInfo> Items { get; init; }
     public List<string>? RegisteredAliases { get; init; }
+    public int RegisteredAliasCount { get; init; }
+    public bool? HasMore { get; init; }
+    public string? NextCursor { get; init; }
+    public int? TotalEstimate { get; init; }
 }
 
 /// <summary>

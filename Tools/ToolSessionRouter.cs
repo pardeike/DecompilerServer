@@ -11,6 +11,8 @@ internal sealed record ToolSessionView(
     InheritanceAnalyzer InheritanceAnalyzer,
     DecompilerSessionLease? Lease = null) : IDisposable
 {
+    private SearchService? _legacySearch;
+    internal SearchService SearchService => Lease?.Session.SearchService ?? (_legacySearch ??= new SearchService(ContextManager, MemberResolver));
     public void Dispose() => Lease?.Dispose();
 }
 

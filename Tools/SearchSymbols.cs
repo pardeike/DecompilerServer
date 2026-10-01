@@ -37,41 +37,23 @@ public static class SearchSymbolsTool
             var items = new List<MemberSummary>();
             object? diagnostic = null;
 
-            if (includeTypes && (normalizedKind == null || normalizedKind == "type"))
+            foreach (var entry in session.SearchService.GetSymbolIndex())
             {
-                IEnumerable<ITypeDefinition> types = FilterCompilerGeneratedTypes(contextManager.GetAllTypes(), includeCompilerGenerated);
-                if (!string.IsNullOrWhiteSpace(namespaceFilter))
-                    types = types.Where(type => type.Namespace.StartsWith(namespaceFilter, StringComparison.OrdinalIgnoreCase));
-
-                items.AddRange(types
-                    .Where(type => SymbolResolutionDiagnostics.MatchesType(type, query))
-                    .Select(type => SymbolResolutionDiagnostics.CreateTypeSummary(type, memberResolver)));
-            }
-
-            if (includeMembers && normalizedKind != "type")
-            {
-                IEnumerable<ITypeDefinition> types = FilterCompilerGeneratedTypes(contextManager.GetAllTypes(), includeCompilerGenerated);
-                if (!string.IsNullOrWhiteSpace(namespaceFilter))
-                    types = types.Where(type => type.Namespace.StartsWith(namespaceFilter, StringComparison.OrdinalIgnoreCase));
-
-                foreach (var type in types)
+                if (!includeCompilerGenerated && entry.IsGenerated) continue;
+                if (!string.IsNullOrWhiteSpace(namespaceFilter) && !(entry.Summary.Namespace ?? "").StartsWith(namespaceFilter, StringComparison.OrdinalIgnoreCase)) continue;
+                if (entry.Entity is ITypeDefinition type)
                 {
-                    foreach (var member in SymbolResolutionDiagnostics.GetDirectMembers(type))
-                    {
-                        if (!includeCompilerGenerated && TypeSurfaceComparer.IsCompilerGenerated(member))
-                            continue;
-
-                        if (!MatchesKind(member, normalizedKind))
-                            continue;
-
-                        if (!string.IsNullOrWhiteSpace(declaringTypeFilter) && !MatchesDeclaringType(member, declaringTypeFilter))
-                            continue;
-
-                        if (!SymbolResolutionDiagnostics.MatchesMember(member, query, memberResolver))
-                            continue;
-
-                        items.Add(SymbolResolutionDiagnostics.CreateMemberSummary(member, memberResolver));
-                    }
+                    if (includeTypes && (normalizedKind == null || normalizedKind == "type") && SymbolResolutionDiagnostics.MatchesType(type, query))
+                        items.Add(entry.Summary);
+                }
+                else if (entry.Entity is IMember member && includeMembers && normalizedKind != "type")
+                {
+                    if (!MatchesKind(member, normalizedKind)) continue;
+                    if (!string.IsNullOrWhiteSpace(declaringTypeFilter) && !MatchesDeclaringType(member, declaringTypeFilter)) continue;
+                    var summary = entry.Summary;
+                    if (string.IsNullOrWhiteSpace(query) || summary.Name.Contains(query, StringComparison.OrdinalIgnoreCase) || summary.FullName.Contains(query, StringComparison.OrdinalIgnoreCase)
+                        || summary.Signature.Contains(query, StringComparison.OrdinalIgnoreCase) || (summary.DeclaringType + ":" + summary.Name).Contains(query, StringComparison.OrdinalIgnoreCase))
+                        items.Add(summary);
                 }
             }
 

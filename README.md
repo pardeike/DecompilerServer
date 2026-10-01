@@ -276,12 +276,12 @@ load_assembly({
 **Inspect loaded and registered aliases:**
 
 ```text
-list_contexts({})
 status({})
+list_contexts({ "includeRegistered": true, "limit": 50 })
 get_server_stats({ "contextAlias": "rw16" })
 ```
 
-Registered aliases are restored lazily when the server starts. `list_contexts` returns both the currently loaded context items and `registeredAliases`; selecting or explicitly addressing a registered alias loads it on demand. This keeps a large workspace history from consuming memory and file descriptors in every MCP client process.
+Registered aliases are restored lazily when the server starts. `list_contexts` returns resident contexts and a registered-alias count; request `includeRegistered: true` with `limit`, `cursor`, and optional `filter` to page `registeredAliases`; selecting or explicitly addressing a registered alias loads it on demand. This keeps a large workspace history from consuming memory and file descriptors in every MCP client process.
 
 At most four contexts are resident by default. When another context is needed, the least recently used context that is not serving a tool call is disposed while its lightweight registration remains available for transparent reload. Set `DECOMPILER_MAX_LOADED_CONTEXTS` to a positive integer in the MCP server environment to choose a different hard limit. A request returns `context_capacity_busy` rather than exceeding the limit when every resident context is actively in use.
 
@@ -314,9 +314,9 @@ Once you have a `memberId`, follow-up tools normally route to the correct loaded
 
 For foreign-code exploration, prefer this path before falling back to shell tools:
 
-1. Load the assembly with `load_assembly`, or activate a registered alias by passing `contextAlias`, then verify the active alias with `list_contexts` or `status`.
+1. Load the assembly with `load_assembly`, or activate a registered alias by passing `contextAlias`, then verify the active alias with `status`.
 2. Start broad with `search_symbols` when you have a fragment; use `resolve_member_id` first when you have a fully-qualified or XML-doc-like guess such as `Namespace.Type.Member` or `M:Namespace.Type.Member`.
-3. Use `list_members` or `get_members_of_type` on the resolved type before guessing method IDs.
+3. Use `list_members` on the resolved type (`get_members_of_type` is its compatibility alias) before guessing method IDs.
 4. Fetch code with `get_decompiled_source`, `get_source_slice`, or `plan_chunking`.
 5. Move outward with `find_callers`, `find_usages`, `find_callees`, `get_il`, or compare tools. `find_callees` returns callee-focused `targetMemberId`, `symbol`, `opcode`, `offset`, and `resolution` fields; calls into another loaded assembly link to its exact member ID; other external calls retain referenced assembly identity.
 6. Use `get_server_stats` when you need cache/index/performance diagnostics for one alias; `status` is the cheaper current-alias overview.
@@ -325,6 +325,15 @@ Member lists and searches hide generated members, backing fields, and accessors 
 default. Use `includeCompilerGenerated: true` when inspecting that metadata.
 Signatures retain generic arguments and `ref`/`out`/`in` modifiers, and identify
 the declaring type.
+
+Symbol lookup preserves supplied method parameters. Ambiguous names return candidates;
+use a canonical ID or a signature such as `M:Namespace.Type.Method(System.String)`.
+Source and IL requests must use the defining assembly context. Dependency failures
+provide loading hints; unknown canonical MVIDs never fall back to an unrelated assembly.
+
+Type metadata outlines return child member IDs and support `limit`/`cursor` paging.
+Structural comparison includes qualified types, modifiers, property/event accessors,
+generic constraints, and parameter defaults.
 
 `find_callers` and `find_usages` default to `scope: "assembly"`. Use
 `scope: "workspace"` to trace references across currently loaded contexts.
@@ -380,6 +389,8 @@ The repo includes a portable skill at [skills/decompiler-mcp/SKILL.md](skills/de
 ### Releasing
 
 The GitHub `Release` workflow is triggered by pushing a tag that starts with `v` and matches the project version in `DecompilerServer.csproj`.
+
+To publish reviewed release text, add `.github/release-notes/<tag>.md` with the release title as a first-line Markdown heading, a blank line, and the release body. The workflow uses that title and body verbatim; tags without a notes file use GitHub-generated notes.
 
 For example, if the project version is `1.3.7`:
 

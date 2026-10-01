@@ -15,9 +15,9 @@ public class DecompilerService : IDisposable
     private readonly AssemblyContextManager _contextManager;
     private readonly MemberResolver _memberResolver;
     private readonly OriginalSourceResolver _originalSourceResolver;
-    private readonly ConcurrentDictionary<string, RawSourceContent> _contentCache = new();
-    private readonly ConcurrentDictionary<string, PreparedSourceContent> _preparedSourceCache = new();
-    private readonly ConcurrentDictionary<string, string> _memberContentKeyCache = new();
+    private readonly BoundedCache<string, RawSourceContent> _contentCache = new(512, 32 * 1024 * 1024, value => 256 + value.Code.Length * 2L);
+    private readonly BoundedCache<string, PreparedSourceContent> _preparedSourceCache = new(512, 32 * 1024 * 1024, value => 256 + value.Lines.Sum(line => 32 + line.Length * 2L));
+    private readonly BoundedCache<string, string> _memberContentKeyCache = new(4096, 2 * 1024 * 1024, value => 256 + value.Length * 2L);
     private readonly object _cacheLock = new();
     private readonly object _decompileLock = new();
     private long _cacheVersion = -1;
@@ -41,9 +41,9 @@ public class DecompilerService : IDisposable
         if (entity == null)
             throw new ArgumentException($"Cannot resolve member: {memberId}");
 
-        var contentKey = GetOrCreateContentKey(memberId, entity);
-        if (!_contentCache.TryGetValue(contentKey, out var rawContent))
-            throw new InvalidOperationException($"Source content was not cached for '{memberId}'");
+        _memberResolver.EnsureOwnedEntity(entity);
+
+        var contentKey = GetOrCreateContentKey(memberId, entity, out var rawContent);
 
         var preparedKey = $"{contentKey}:header={includeHeader}";
         var preparedContent = _preparedSourceCache.GetOrAdd(preparedKey, _ => PrepareSourceContent(rawContent, includeHeader));
@@ -118,6 +118,7 @@ public class DecompilerService : IDisposable
         string code;
         lock (_decompileLock)
         {
+            _memberResolver.EnsureOwnedEntity(entity);
             var decompiler = _contextManager.GetDecompiler();
             code = NormalizeLineEndings(decompiler.DecompileAsString(new[] { entity.MetadataToken }));
         }
@@ -148,8 +149,8 @@ public class DecompilerService : IDisposable
         EnsureCacheCurrent();
 
         var totalMemoryEstimate =
-            _contentCache.Values.Sum(content => content.Code.Length * 2L) +
-            _preparedSourceCache.Values.Sum(content => content.Lines.Sum(line => line.Length * 2L));
+            _contentCache.Bytes + _preparedSourceCache.Bytes + _memberContentKeyCache.Bytes +
+            _originalSourceResolver.GetCacheStats().TotalMemoryEstimate;
 
         return new CacheStats(
             _preparedSourceCache.Count,
@@ -180,9 +181,9 @@ public class DecompilerService : IDisposable
         }
     }
 
-    private string GetOrCreateContentKey(string memberId, IEntity entity)
+    private string GetOrCreateContentKey(string memberId, IEntity entity, out RawSourceContent content)
     {
-        if (_memberContentKeyCache.TryGetValue(memberId, out var cachedContentKey))
+        if (_memberContentKeyCache.TryGetValue(memberId, out var cachedContentKey) && _contentCache.TryGetValue(cachedContentKey, out content!))
             return cachedContentKey;
 
         if (entity is ITypeDefinition)
@@ -190,25 +191,25 @@ public class DecompilerService : IDisposable
             var originalSource = _originalSourceResolver.TryResolve(entity);
             if (originalSource != null)
             {
-                _contentCache.TryAdd(originalSource.CacheKey, new RawSourceContent(
+                content = _contentCache.GetOrAdd(originalSource.CacheKey, _ => new RawSourceContent(
                     originalSource.Language,
                     NormalizeLineEndings(originalSource.Code),
                     originalSource.SourceKind,
                     originalSource.SourcePath,
                     originalSource.SourceUri));
-                _memberContentKeyCache[memberId] = originalSource.CacheKey;
+                _memberContentKeyCache.TryAdd(memberId, originalSource.CacheKey);
                 return originalSource.CacheKey;
             }
         }
 
         var decompiledContentKey = CreateDecompiledContentKey(entity);
-        _contentCache.GetOrAdd(decompiledContentKey, _ => new RawSourceContent(
+        content = _contentCache.GetOrAdd(decompiledContentKey, _ => new RawSourceContent(
             "C#",
             NormalizeLineEndings(DecompileEntity(entity)),
             SourceKinds.Decompiled,
             null,
             null));
-        _memberContentKeyCache[memberId] = decompiledContentKey;
+        _memberContentKeyCache.TryAdd(memberId, decompiledContentKey);
         return decompiledContentKey;
     }
 

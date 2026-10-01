@@ -39,7 +39,7 @@ public class WorkspaceToolTests : IDisposable
         // Act
         var firstResult = LoadAssemblyTool.LoadAssembly(assemblyPath: firstAssembly, contextAlias: "rw14", rebuildIndex: false);
         var secondResult = LoadAssemblyTool.LoadAssembly(assemblyPath: secondAssembly, contextAlias: "rw15", rebuildIndex: false, makeCurrent: false);
-        var contextsResult = ListContextsTool.ListContexts();
+        var contextsResult = ListContextsTool.ListContexts(includeRegistered: true);
         var afterList = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
         // Assert

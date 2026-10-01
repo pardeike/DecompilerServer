@@ -329,7 +329,7 @@ public sealed class WorkspaceMemoryLimitTests : IDisposable
     }
 
     [Fact]
-    public void BatchGetDecompiledSource_HoldsEarlierContextLeaseUntilBatchCompletes()
+    public void BatchGetDecompiledSource_ReleasesEarlierContextLeaseAfterItsResultIsCopied()
     {
         using var workspace = new DecompilerWorkspace(_registryPath, maxLoadedContexts: 1);
         using var serviceProvider = CreateServiceProvider(workspace);
@@ -362,8 +362,9 @@ public sealed class WorkspaceMemoryLimitTests : IDisposable
         var items = response.GetProperty("data").GetProperty("items");
         Assert.True(items[0].TryGetProperty("code", out _));
         Assert.False(items[0].TryGetProperty("error", out _));
-        Assert.Equal("context_capacity_busy", items[1].GetProperty("error").GetProperty("code").GetString());
-        Assert.Equal(["first"], LoadedAliases(workspace));
+        Assert.True(items[1].TryGetProperty("code", out _));
+        Assert.False(items[1].TryGetProperty("error", out _));
+        Assert.Equal(["second"], LoadedAliases(workspace));
         Assert.Equal(0, workspace.GetMemoryStats().ActiveLeases);
     }
 

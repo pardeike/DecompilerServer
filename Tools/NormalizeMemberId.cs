@@ -37,6 +37,10 @@ public static class NormalizeMemberIdTool
                     };
                 }
             }
+            catch (ToolErrorException)
+            {
+                throw;
+            }
             catch
             {
                 // Continue with normalization attempts

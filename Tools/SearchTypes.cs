@@ -29,7 +29,7 @@ public static class SearchTypesTool
             }
 
             // Create a SearchServiceBase instance to use the search functionality
-            var searchService = new SearchService(contextManager, session.MemberResolver);
+            var searchService = session.SearchService;
             var normalizedLimit = MemberSummaryModes.ClampLimit(limit, 50);
             var parsedMode = MemberSummaryModes.Parse(mode, MemberSummaryMode.Discovery);
 

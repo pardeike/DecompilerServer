@@ -28,6 +28,9 @@ internal sealed class OwnedAssemblyResolver : IAssemblyResolver, IDisposable
     internal int ResolvedFileCount => _assemblies.Values.Count(value => value.IsValueCreated && value.Value != null)
         + _modules.Values.Count(value => value.IsValueCreated && value.Value != null);
 
+    internal long ResolvedImageBytes => _assemblies.Values.Concat(_modules.Values).Where(value => value.IsValueCreated)
+        .Select(value => value.Value).OfType<PEFile>().Distinct().Sum(file => (long)file.Reader.GetEntireImage().Length);
+
     internal static PEStreamOptions ResolvedAssemblyStreamOptions => StreamOptions;
 
     public void AddSearchDirectory(string directory)

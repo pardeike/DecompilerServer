@@ -68,11 +68,8 @@ public static class CompareSymbolsTool
 
     private static object CompareMember(ToolSessionView left, ToolSessionView right, string symbol, string expectedKind, string compareMode)
     {
-        var parsed = ParseMemberSymbol(symbol);
-        var leftType = FindType(left, parsed.TypeName);
-        var rightType = FindType(right, parsed.TypeName);
-        var leftMember = leftType != null ? FindMember(leftType, parsed.MemberName, expectedKind) : null;
-        var rightMember = rightType != null ? FindMember(rightType, parsed.MemberName, expectedKind) : null;
+        var leftMember = FindResolvedMember(left, symbol, expectedKind);
+        var rightMember = FindResolvedMember(right, symbol, expectedKind);
 
         return new MemberComparisonResult
         {
@@ -83,20 +80,17 @@ public static class CompareSymbolsTool
             CompareMode = compareMode,
             LeftExists = leftMember != null,
             RightExists = rightMember != null,
-            LeftSignature = leftMember != null ? left.MemberResolver.GetMemberSignature(leftMember) : null,
-            RightSignature = rightMember != null ? right.MemberResolver.GetMemberSignature(rightMember) : null,
+            LeftSignature = leftMember != null ? TypeSurfaceComparer.GetSurfaceFingerprint(leftMember) : null,
+            RightSignature = rightMember != null ? TypeSurfaceComparer.GetSurfaceFingerprint(rightMember) : null,
             SignatureChanged = leftMember != null && rightMember != null &&
-                !string.Equals(left.MemberResolver.GetMemberSignature(leftMember), right.MemberResolver.GetMemberSignature(rightMember), StringComparison.Ordinal)
+                !string.Equals(TypeSurfaceComparer.GetSurfaceFingerprint(leftMember), TypeSurfaceComparer.GetSurfaceFingerprint(rightMember), StringComparison.Ordinal)
         };
     }
 
     private static object CompareMethodBody(ToolSessionView left, ToolSessionView right, string symbol)
     {
-        var parsed = ParseMemberSymbol(symbol);
-        var leftType = FindType(left, parsed.TypeName);
-        var rightType = FindType(right, parsed.TypeName);
-        var leftMethod = leftType != null ? FindMember(leftType, parsed.MemberName, "method") as IMethod : null;
-        var rightMethod = rightType != null ? FindMember(rightType, parsed.MemberName, "method") as IMethod : null;
+        var leftMethod = FindResolvedMember(left, symbol, "method") as IMethod;
+        var rightMethod = FindResolvedMember(right, symbol, "method") as IMethod;
 
         string? leftSource = null;
         string? rightSource = null;
@@ -126,10 +120,10 @@ public static class CompareSymbolsTool
             CompareMode = "body",
             LeftExists = leftMethod != null,
             RightExists = rightMethod != null,
-            LeftSignature = leftMethod != null ? left.MemberResolver.GetMemberSignature(leftMethod) : null,
-            RightSignature = rightMethod != null ? right.MemberResolver.GetMemberSignature(rightMethod) : null,
+            LeftSignature = leftMethod != null ? TypeSurfaceComparer.GetSurfaceFingerprint(leftMethod) : null,
+            RightSignature = rightMethod != null ? TypeSurfaceComparer.GetSurfaceFingerprint(rightMethod) : null,
             SignatureChanged = leftMethod != null && rightMethod != null &&
-                !string.Equals(left.MemberResolver.GetMemberSignature(leftMethod), right.MemberResolver.GetMemberSignature(rightMethod), StringComparison.Ordinal),
+                !string.Equals(TypeSurfaceComparer.GetSurfaceFingerprint(leftMethod), TypeSurfaceComparer.GetSurfaceFingerprint(rightMethod), StringComparison.Ordinal),
             BodyChanged = bodyDiff?.BodyChanged,
             BodyDiff = bodyDiff?.BodyDiff,
             DiffStats = bodyDiff?.DiffStats
@@ -144,25 +138,14 @@ public static class CompareSymbolsTool
             ?? allTypes.FirstOrDefault(type => string.Equals(type.Name, typeName, StringComparison.Ordinal));
     }
 
-    private static IMember? FindMember(ITypeDefinition type, string memberName, string expectedKind)
+    private static IMember? FindResolvedMember(ToolSessionView session, string symbol, string expectedKind)
     {
-        var matches = TypeSurfaceComparer.GetDirectMembers(type)
-            .Where(member => string.Equals(member.Name, memberName, StringComparison.Ordinal))
-            .Where(member => string.Equals(TypeSurfaceComparer.GetNormalizedMemberKind(member), expectedKind, StringComparison.Ordinal))
-            .ToList();
-
-        if (matches.Count == 0)
+        var entity = session.MemberResolver.ResolveMember(symbol);
+        if (entity == null)
             return null;
-
-        if (matches.Count > 1)
-        {
-            matches = matches
-                .OrderBy(member => member.Name, StringComparer.Ordinal)
-                .ThenBy(member => member.ToString(), StringComparer.Ordinal)
-                .ToList();
-        }
-
-        return matches[0];
+        if (entity is not IMember member || TypeSurfaceComparer.GetNormalizedMemberKind(member) != expectedKind)
+            throw SymbolResolutionDiagnostics.CreateWrongKindError(symbol, expectedKind, entity, session.MemberResolver);
+        return member;
     }
 
     private static string NormalizeSymbolKind(string symbolKind, string symbol)
@@ -337,26 +320,9 @@ public static class CompareSymbolsTool
         };
     }
 
-    private static ParsedMemberSymbol ParseMemberSymbol(string symbol)
-    {
-        var parts = symbol.Split(':', 2, StringSplitOptions.TrimEntries);
-        if (parts.Length == 2 && !string.IsNullOrWhiteSpace(parts[0]) && !string.IsNullOrWhiteSpace(parts[1]))
-            return new ParsedMemberSymbol(parts[0], parts[1]);
 
-        var lastDotIndex = symbol.LastIndexOf('.');
-        if (lastDotIndex > 0 && lastDotIndex < symbol.Length - 1)
-        {
-            var typeName = symbol[..lastDotIndex].Trim();
-            var memberName = symbol[(lastDotIndex + 1)..].Trim();
-            if (!string.IsNullOrWhiteSpace(typeName) && !string.IsNullOrWhiteSpace(memberName))
-                return new ParsedMemberSymbol(typeName, memberName);
-        }
-
-        throw new ArgumentException($"Symbol '{symbol}' must use 'Namespace.Type:MemberName' or 'Namespace.Type.MemberName'.");
-    }
 }
 
-internal sealed record ParsedMemberSymbol(string TypeName, string MemberName);
 internal sealed record DiffLine(DiffLineKind Kind, string Text);
 
 internal enum DiffLineKind

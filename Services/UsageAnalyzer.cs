@@ -15,8 +15,13 @@ public class UsageAnalyzer
 {
     private readonly AssemblyContextManager _contextManager;
     private readonly MemberResolver _memberResolver;
-    private readonly ConcurrentDictionary<string, List<UsageReference>> _usageCache = new();
-    private readonly ConcurrentDictionary<string, List<StringLiteralReference>> _stringLiteralCache = new();
+    private readonly BoundedCache<string, List<UsageReference>> _usageCache = new(256, 16 * 1024 * 1024, list => 128 + list.Sum(item => 128L + item.InMember.Length * 2 + item.InType.Length * 2));
+    private readonly BoundedCache<string, List<StringLiteralReference>> _stringLiteralCache = new(256, 8 * 1024 * 1024, LiteralBytes);
+    private readonly BoundedCache<string, Dictionary<string, List<UsageReference>>> _referenceIndex = new(1, 64 * 1024 * 1024,
+        index => index.Sum(entry => 128L + entry.Key.Length * 2 + entry.Value.Sum(item => 128L + item.InMember.Length * 2 + item.InType.Length * 2)));
+    private readonly BoundedCache<string, List<StringLiteralReference>> _literalIndex = new(1, 16 * 1024 * 1024, LiteralBytes);
+    private int _referenceIndexBuilds;
+    private int _literalIndexBuilds;
     private readonly object _cacheLock = new();
     private long _cacheVersion = -1;
 
@@ -85,12 +90,40 @@ public class UsageAnalyzer
         foreach (var target in targets.Where(target => !target.MetadataToken.IsNil))
             targetIds.Add(_memberResolver.GenerateMemberId(target is IMember member ? member.MemberDefinition : target));
 
-        var results = new List<UsageReference>();
+        var index = _referenceIndex.GetOrAdd("references", _ => BuildReferenceIndex());
+        return targetIds.SelectMany(id => index.GetValueOrDefault(id) ?? [])
+            .OrderBy(item => item.InMember, StringComparer.Ordinal).ThenBy(item => item.Offset).ToList();
+    }
+
+    private Dictionary<string, List<UsageReference>> BuildReferenceIndex()
+    {
+        Interlocked.Increment(ref _referenceIndexBuilds);
+        var index = new Dictionary<string, List<UsageReference>>(StringComparer.Ordinal);
         var tokenIds = new Dictionary<int, string?>();
         foreach (var method in _contextManager.GetAllTypes().SelectMany(type => TypeSurfaceComparer.GetAddressableMembers(type).OfType<IMethod>()))
-            results.AddRange(FindUsagesInMethod(method, targetIds, tokenIds));
-        return results;
+        {
+            var methodId = _memberResolver.GenerateMemberId(method);
+            foreach (var instruction in IlAnalysisService.ReadMethodBody(method, _contextManager).Instructions)
+            {
+                var kind = GetCalleeKind(instruction.OpCode);
+                if (kind == null || instruction.OperandToken is not int token)
+                    continue;
+                if (!tokenIds.TryGetValue(token, out var identity))
+                {
+                    var entity = ResolveEntity(MetadataTokens.EntityHandle(token));
+                    if (entity is IMember member) entity = member.MemberDefinition;
+                    identity = entity != null && !entity.MetadataToken.IsNil ? _memberResolver.GenerateMemberId(entity) : null;
+                    tokenIds[token] = identity;
+                }
+                if (identity == null) continue;
+                if (!index.TryGetValue(identity, out var sites)) index[identity] = sites = [];
+                sites.Add(new UsageReference { InMember = methodId, InType = method.DeclaringType?.FullName ?? "", Kind = Enum.Parse<UsageKind>(kind), Offset = instruction.Offset, MemberName = method.Name });
+            }
+        }
+        return index;
     }
+
+    private static long LiteralBytes(List<StringLiteralReference> items) => 128 + items.Sum(item => 128L + (item.Value.Length + item.ContainingMember.Length + item.ContainingType.Length) * 2);
 
     /// <summary>
     /// Find direct callers of a method
@@ -151,6 +184,7 @@ public class UsageAnalyzer
     public IEnumerable<string> FindStringLiteralsInMethod(IMethod method)
     {
         EnsureCacheCurrent();
+        _memberResolver.EnsureOwnedEntity(method);
 
         if (method.MetadataToken.IsNil)
             return Enumerable.Empty<string>();
@@ -204,6 +238,13 @@ public class UsageAnalyzer
 
     private List<StringLiteralReference> CollectStringLiterals(string query, bool regex)
     {
+        return _literalIndex.GetOrAdd("literals", _ => BuildLiteralIndex())
+            .Where(item => MatchesStringQuery(item.Value, query, regex)).ToList();
+    }
+
+    private List<StringLiteralReference> BuildLiteralIndex()
+    {
+        Interlocked.Increment(ref _literalIndexBuilds);
         var results = new List<StringLiteralReference>();
         var allTypes = _contextManager.GetAllTypes();
 
@@ -214,14 +255,11 @@ public class UsageAnalyzer
                 var literals = FindStringLiteralsInMethod(method);
                 foreach (var literal in literals)
                 {
-                    if (MatchesStringQuery(literal, query, regex))
-                    {
-                        results.Add(new StringLiteralReference(
-                              literal,
-                              _memberResolver.GenerateMemberId(method),
-                              method.DeclaringType?.FullName ?? "",
-                              null)); // Would need source mapping for line numbers
-                    }
+                    results.Add(new StringLiteralReference(
+                          literal,
+                          _memberResolver.GenerateMemberId(method),
+                          method.DeclaringType?.FullName ?? "",
+                          null)); // Would need source mapping for line numbers
                 }
             }
         }
@@ -238,6 +276,9 @@ public class UsageAnalyzer
         {
             _usageCache.Clear();
             _stringLiteralCache.Clear();
+            _referenceIndex.Clear();
+            _literalIndex.Clear();
+            _referenceIndexBuilds = _literalIndexBuilds = 0;
             _cacheVersion = _contextManager.ContextVersion;
         }
     }
@@ -253,7 +294,8 @@ public class UsageAnalyzer
               _usageCache.Count,
               _stringLiteralCache.Count,
               _usageCache.Values.Sum(list => list.Count),
-              _stringLiteralCache.Values.Sum(list => list.Count));
+              _stringLiteralCache.Values.Sum(list => list.Count), _referenceIndexBuilds, _literalIndexBuilds,
+              _usageCache.Bytes + _stringLiteralCache.Bytes + _referenceIndex.Bytes + _literalIndex.Bytes);
     }
 
     private void EnsureCacheCurrent()
@@ -269,38 +311,11 @@ public class UsageAnalyzer
 
             _usageCache.Clear();
             _stringLiteralCache.Clear();
+            _referenceIndex.Clear();
+            _literalIndex.Clear();
+            _referenceIndexBuilds = _literalIndexBuilds = 0;
             _cacheVersion = version;
         }
-    }
-
-    private IEnumerable<UsageReference> FindUsagesInMethod(IMethod method, HashSet<string> targetIds, Dictionary<int, string?> tokenIds)
-    {
-        var results = new List<UsageReference>();
-        var body = IlAnalysisService.ReadMethodBody(method, _contextManager);
-        foreach (var instruction in body.Instructions)
-        {
-            var kind = GetCalleeKind(instruction.OpCode);
-            if (kind == null || instruction.OperandToken is not int token)
-                continue;
-            if (!tokenIds.TryGetValue(token, out var identity))
-            {
-                var entity = ResolveEntity(MetadataTokens.EntityHandle(token));
-                if (entity is IMember member)
-                    entity = member.MemberDefinition;
-                identity = entity != null && !entity.MetadataToken.IsNil ? _memberResolver.GenerateMemberId(entity) : null;
-                tokenIds[token] = identity;
-            }
-            if (identity != null && targetIds.Contains(identity))
-                results.Add(new UsageReference
-                {
-                    InMember = _memberResolver.GenerateMemberId(method),
-                    InType = method.DeclaringType?.FullName ?? "",
-                    Kind = Enum.Parse<UsageKind>(kind),
-                    Offset = instruction.Offset,
-                    MemberName = method.Name
-                });
-        }
-        return results;
     }
 
     private static string? GetCalleeKind(string opcode)
@@ -686,4 +701,4 @@ public record StringLiteralReference(string Value, string ContainingMember, stri
 /// Usage analyzer cache statistics
 /// </summary>
 public record UsageAnalyzerCacheStats(int CachedUsageQueries, int CachedStringLiteralQueries, int TotalUsageResults,
-      int TotalStringLiteralResults);
+      int TotalStringLiteralResults, int ReferenceIndexBuilds = 0, int LiteralIndexBuilds = 0, long EstimatedBytes = 0);

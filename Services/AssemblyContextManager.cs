@@ -46,6 +46,8 @@ public class AssemblyContextManager : IDisposable
         _namespacesIndex = new Lazy<HashSet<string>>(BuildNamespacesIndex);
     }
 
+    internal long DependencyImageBytes => _resolver?.ResolvedImageBytes ?? 0;
+
     public bool IsLoaded => _peFile != null && _compilation != null && _decompiler != null;
     public string? AssemblyPath { get; private set; }
     public string? Mvid { get; private set; }

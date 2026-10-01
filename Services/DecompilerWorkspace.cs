@@ -278,6 +278,19 @@ public sealed class DecompilerWorkspace : IDisposable
 
                 if (contextAlias != null)
                     return AcquireSession(contextAlias);
+
+                _lock.EnterReadLock();
+                try
+                {
+                    var resolver = _sessionsByAlias.Values.Select(state => state.Session.MemberResolver)
+                        .FirstOrDefault(resolver => resolver.GetDependencyPath(prefix) != null);
+                    if (resolver != null)
+                        throw resolver.CreateContextError(memberId, prefix);
+                }
+                finally { _lock.ExitReadLock(); }
+                throw new ToolErrorException("context_not_loaded", "No owning assembly context is loaded for this memberId.",
+                    new { memberId, mvid = prefix },
+                    [new ToolErrorHint("list_contexts", new { includeRegistered = true }, "Activate the owning alias and retry with its contextAlias.")]);
             }
         }
 
@@ -983,6 +996,7 @@ public sealed class DecompilerSession : IDisposable
         DecompilerService = decompilerService;
         UsageAnalyzer = usageAnalyzer;
         InheritanceAnalyzer = inheritanceAnalyzer;
+        SearchService = new SearchService(contextManager, memberResolver);
     }
 
     public string ContextAlias { get; }
@@ -991,6 +1005,7 @@ public sealed class DecompilerSession : IDisposable
     public DecompilerService DecompilerService { get; }
     public UsageAnalyzer UsageAnalyzer { get; }
     public InheritanceAnalyzer InheritanceAnalyzer { get; }
+    internal SearchService SearchService { get; }
 
     public static DecompilerSession Create(string contextAlias, WorkspaceLoadRequest request)
     {
@@ -1054,6 +1069,7 @@ public sealed class DecompilerSession : IDisposable
             DecompilerService.Dispose();
             MemberResolver.ClearCache();
             UsageAnalyzer.ClearCache();
+            SearchService.ClearSearchCache();
         }
         finally
         {

@@ -77,7 +77,7 @@ A session bundles:
 Sessions are isolated per loaded assembly so caches and member resolution stay version-specific.
 Disposing a session eagerly clears its source, member-resolution, usage, and string-literal caches, disposes original-source and PDB resources, and then disposes the assembly context.
 
-Tool calls acquire a `DecompilerSessionLease` for every routed session and hold it for the entire operation. A leased session cannot be replaced, explicitly unloaded, or selected as an LRU victim. This is required because MCP tools may execute concurrently and compare tools hold two sessions at once.
+Tool calls acquire a `DecompilerSessionLease` for each routed session. Batch source holds each lease until that item has been materialized, then releases it before processing the next item; other operations hold their leases for the entire operation. A leased session cannot be replaced, explicitly unloaded, or selected as an LRU victim. This is required because MCP tools may execute concurrently and compare tools hold two sessions at once.
 
 ### AssemblyContextManager
 
@@ -108,7 +108,7 @@ Kind codes:
 - `N` namespace
 
 These IDs are stable for a given assembly MVID and are the basis for cheap follow-up MCP calls.
-IDs use the defining module's MVID, including inherited or dependency members.
+IDs use the defining module's MVID, including inherited or dependency members. Parameter-qualified guesses preserve overload identity; unqualified ambiguous members return candidates rather than selecting the first method. Exact XML documentation signatures use ILSpy's ID parser.
 Synthetic entities with nil metadata tokens are excluded from discovery and indexes;
 zero-token IDs are rejected with `invalid_member_id` rather than resolving to another entity.
 
@@ -204,7 +204,7 @@ Compact contracts:
   be positive. Each entry reports `hasMore` and, when partial, `nextStartLine`
   for source-slice continuation. Outer `truncated` covers partial entries or
   budget exhaustion; `budgetTruncated` specifically identifies exhaustion of
-  `maxTotalChars`.
+  `maxTotalChars`. Batch method snippets use the same header-free coordinate system as source slices; type documents retain headers.
 - Compact string-literal results omit a `snippet` that merely repeats `value`;
   extended output keeps the legacy field.
 - IL retains structured `instructions`, body metadata, paging/window metadata,
@@ -240,7 +240,7 @@ Rules:
 - follow-up tools that take `memberId` use `GetForMember(memberId, contextAlias)`;
 - callers dispose the returned `ToolSessionView` with `using` so its workspace lease spans the full tool operation;
 - explicit `contextAlias` on a member-based tool wins over MVID routing;
-- without an explicit alias, member-based tools route by the `memberId` MVID and then fall back to the current alias.
+- without an explicit alias, canonical member IDs route only by their MVID; an unknown MVID returns `context_not_loaded` with an activation/loading hint. Human names use the current alias. Source/IL reject dependency entities in a consuming context with `member_context_mismatch` before interpreting any token.
 
 ### ServiceLocator
 
@@ -260,7 +260,7 @@ Operational rules:
 - `load_assembly` loads or replaces one alias;
 - omitted aliases normalize to the default alias `default`;
 - `makeCurrent` controls whether the loaded alias becomes the current one;
-- `list_contexts` reports loaded contexts, all registered aliases, and which alias is current;
+- `list_contexts` reports resident contexts, registered-alias count, and current alias. Compact output omits registry history by default; `includeRegistered` enables filtered `limit`/`cursor` paging. Extended output includes the first registry page by default;
 - `select_context` changes the default alias and activates a registered alias if necessary;
 - `unload` can unload one alias or all aliases, and removes persisted registrations by default;
 - `unload(..., preserveRegistration: true)` keeps on-demand registrations while unloading memory;
@@ -368,7 +368,7 @@ Accepted member symbol formats:
 
 Surface semantics:
 - type compare reports added, removed, and changed direct members;
-- member compare reports left and right signatures plus `signatureChanged`.
+- member compare reports qualified metadata declarations plus `signatureChanged`. Comparison declarations include accessibility/modifiers, qualified types, accessors, generic constraints, and parameter defaults, independently of short discovery signatures. Ambiguous method names require parameter types or a canonical ID.
 
 Body semantics:
 - method-only;
@@ -445,3 +445,20 @@ After documentation cleanup or API reshaping, also run a reference sweep:
 ```bash
 rg -n "HELPER_METHODS_GUIDE|TESTING\\.md|MULTI_VERSION_WORKSPACE_PLAN|CommonImplementorGuide|ARCHITECTURE\\.md" .
 ```
+
+Search services live in each session. Symbol summaries, reverse IL references, and
+literal inventories are built once per context version and reused across queries.
+Clearing all caches clears these indexes; settings/version changes invalidate them.
+`get_ast_outline` type children use canonical member summaries, hide generated noise,
+include events, and expose `limit`/`cursor` coverage. Depth zero omits children;
+positive depth shows direct members, not recursive statement-level ASTs.
+
+Expensive caches use byte-estimated LRU retention and entry caps. Raw and prepared
+source each retain at most 32 MiB; original-source and signature caches each 16 MiB;
+resolution and source-key caches each 2 MiB; search pages 8 MiB; symbol and reverse
+reference indexes each 64 MiB; usage pages 16 MiB; literal queries 8 MiB and literal
+inventory 16 MiB. An oversized result is returned completely without being retained.
+Concurrent misses for a key share one factory; clearing a cache prevents an older
+in-flight result from repopulating it. These are retention estimates, not process RSS
+limits. Dependency images remain session-owned and prefetched; diagnostics include
+resolved image bytes and retained search/analysis estimates.

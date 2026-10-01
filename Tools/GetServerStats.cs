@@ -36,14 +36,16 @@ public static class GetServerStatsTool
                     {
                         decompiler = sessionView.DecompilerService.GetCacheStats(),
                         memberResolver = sessionView.MemberResolver.GetCacheStats(),
-                        usageAnalyzer = sessionView.UsageAnalyzer.GetCacheStats()
+                        usageAnalyzer = sessionView.UsageAnalyzer.GetCacheStats(),
+                        search = sessionView.SearchService.GetSearchCacheStats()
                     },
                     performance = sessionView == null ? null : new
                     {
                         typeIndexReady = sessionView.ContextManager.TypeIndexReady,
                         namespaceIndexReady = sessionView.ContextManager.NamespaceIndexReady,
                         memberIndexReady = sessionView.ContextManager.MemberIndexReady,
-                        estimatedMemoryUsage = EstimateMemoryUsage(sessionView.DecompilerService, sessionView.MemberResolver, sessionView.UsageAnalyzer)
+                        estimatedMemoryUsage = EstimateMemoryUsage(sessionView.DecompilerService, sessionView.MemberResolver, sessionView.UsageAnalyzer) + sessionView.SearchService.GetSearchCacheStats().EstimatedBytes + sessionView.ContextManager.DependencyImageBytes,
+                        dependencyImageBytes = sessionView.ContextManager.DependencyImageBytes
                     }
                 };
 
@@ -96,8 +98,7 @@ public static class GetServerStatsTool
 
         // Rough estimate: source cache + resolution cache + usage cache
         return decompilerStats.TotalMemoryEstimate +
-               (resolverStats.CachedResolutions * 100) + // 100 bytes per resolution estimate
-               (usageStats.TotalUsageResults * 50) + // 50 bytes per usage result estimate
-               (usageStats.TotalStringLiteralResults * 200); // 200 bytes per string literal estimate
+               resolverStats.EstimatedBytes +
+               usageStats.EstimatedBytes;
     }
 }

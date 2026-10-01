@@ -9,7 +9,7 @@ namespace DecompilerServer;
 public static class GetAstOutlineTool
 {
     [McpServerTool(ReadOnly = true), Description("Metadata-based outline for quick orientation. This is not a full statement-level AST.")]
-    public static string GetAstOutline(string memberId, int maxDepth = 2, string? contextAlias = null)
+    public static string GetAstOutline(string memberId, int maxDepth = 2, string? contextAlias = null, int limit = 50, string? cursor = null)
     {
         return ResponseFormatter.TryExecute(() =>
         {
@@ -26,7 +26,11 @@ public static class GetAstOutlineTool
 
             // For now, provide a simplified outline based on member metadata
             // Full AST parsing would require more complex implementation
-            var outline = GenerateSimplifiedOutline(member, maxDepth);
+            if (maxDepth < 0 || limit <= 0)
+                throw new ArgumentException("maxDepth must be non-negative and limit must be positive.");
+            var outline = member is ITypeDefinition type
+                ? GenerateTypeOutline(type, maxDepth, memberResolver, limit, cursor)
+                : GenerateSimplifiedOutline(member, maxDepth);
 
             var result = new
             {
@@ -53,7 +57,7 @@ public static class GetAstOutlineTool
             }
             else if (member is ITypeDefinition type)
             {
-                return GenerateTypeOutline(type, maxDepth);
+                throw new InvalidOperationException("Type outlines require the member resolver.");
             }
             else if (member is IField field)
             {
@@ -158,68 +162,11 @@ public static class GetAstOutlineTool
         };
     }
 
-    private static object GenerateTypeOutline(ITypeDefinition type, int maxDepth)
+    private static object GenerateTypeOutline(ITypeDefinition type, int maxDepth, MemberResolver resolver, int limit, string? cursor)
     {
-        var children = new List<object>();
-
-        // Add members as children if we have depth for it
-        if (maxDepth > 0)
-        {
-            // Add constructors
-            foreach (var ctor in type.Methods.Where(m => m.IsConstructor).Take(5))
-            {
-                children.Add(new
-                {
-                    kind = "Constructor",
-                    name = ".ctor",
-                    accessibility = ctor.Accessibility.ToString(),
-                    parameterCount = ctor.Parameters.Count
-                });
-            }
-
-            // Add methods
-            foreach (var method in type.Methods.Where(m => !m.IsConstructor).Take(10))
-            {
-                children.Add(new
-                {
-                    kind = "Method",
-                    name = method.Name,
-                    accessibility = method.Accessibility.ToString(),
-                    isStatic = method.IsStatic,
-                    returnType = method.ReturnType.Name,
-                    parameterCount = method.Parameters.Count
-                });
-            }
-
-            // Add fields
-            foreach (var field in type.Fields.Take(10))
-            {
-                children.Add(new
-                {
-                    kind = "Field",
-                    name = field.Name,
-                    accessibility = field.Accessibility.ToString(),
-                    isStatic = field.IsStatic,
-                    type = field.ReturnType.Name
-                });
-            }
-
-            // Add properties
-            foreach (var prop in type.Properties.Take(10))
-            {
-                children.Add(new
-                {
-                    kind = "Property",
-                    name = prop.Name,
-                    accessibility = prop.Accessibility.ToString(),
-                    isStatic = prop.IsStatic,
-                    type = prop.ReturnType.Name,
-                    hasGetter = prop.Getter != null,
-                    hasSetter = prop.Setter != null
-                });
-            }
-        }
-
+        var members = TypeSurfaceComparer.GetDirectMembers(type).Where(member => !TypeSurfaceComparer.IsCompilerGenerated(member))
+            .OrderBy(member => member.Name, StringComparer.Ordinal).ThenBy(member => resolver.GetMemberSignature(member), StringComparer.Ordinal).ToArray();
+        var page = UsageAnalyzer.Page(members, limit, cursor);
         return new
         {
             kind = type.Kind.ToString(),
@@ -230,8 +177,17 @@ public static class GetAstOutlineTool
             isAbstract = type.IsAbstract,
             isSealed = type.IsSealed,
             baseTypeCount = type.DirectBaseTypes.Count(),
-            memberCount = type.Members.Count(),
-            children = children.ToArray()
+            memberCount = members.Length,
+            children = maxDepth == 0 ? Array.Empty<object>() : page.Items.Select(member => (object)new
+            {
+                memberId = resolver.GenerateMemberId(member),
+                name = member.Name,
+                kind = member is IMethod { IsConstructor: true } ? "Constructor" : TypeSurfaceComparer.ToDisplayKind(TypeSurfaceComparer.GetNormalizedMemberKind(member)),
+                signature = resolver.GetMemberSignature(member)
+            }).ToArray(),
+            hasMore = maxDepth > 0 && page.HasMore,
+            nextCursor = maxDepth > 0 ? page.NextCursor : null,
+            totalEstimate = members.Length
         };
     }
 

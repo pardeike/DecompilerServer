@@ -12,7 +12,10 @@ public abstract class SearchServiceBase
 {
     protected readonly AssemblyContextManager _contextManager;
     protected readonly MemberResolver _memberResolver;
-    private readonly ConcurrentDictionary<string, SearchResult<MemberSummary>> _searchCache = new();
+    private readonly BoundedCache<string, SearchResult<MemberSummary>> _searchCache = new(256, 8 * 1024 * 1024, result => 256 + result.Items.Sum(item => 256L + item.Signature.Length * 2));
+    private readonly BoundedCache<string, SymbolIndexEntry[]> _symbolIndex = new(1, 64 * 1024 * 1024,
+        entries => entries.Sum(entry => 256L + (entry.Summary.Signature.Length + entry.Summary.FullName.Length + entry.Summary.MemberId.Length) * 2));
+    private int _symbolIndexBuilds;
     private readonly object _cacheLock = new();
     private long _cacheVersion = -1;
 
@@ -216,6 +219,8 @@ public abstract class SearchServiceBase
         lock (_cacheLock)
         {
             _searchCache.Clear();
+            _symbolIndex.Clear();
+            _symbolIndexBuilds = 0;
             _cacheVersion = _contextManager.ContextVersion;
         }
     }
@@ -230,7 +235,22 @@ public abstract class SearchServiceBase
         return new SearchCacheStats(
             _searchCache.Count,
             _searchCache.Values.Sum(r => r.Items.Count),
-            _searchCache.Any() ? _searchCache.Values.Average(r => r.Items.Count) : 0);
+            _searchCache.Count > 0 ? _searchCache.Values.Average(r => r.Items.Count) : 0,
+            _symbolIndexBuilds, _searchCache.Bytes + _symbolIndex.Bytes);
+    }
+
+    internal SymbolIndexEntry[] GetSymbolIndex()
+    {
+        EnsureCacheCurrent();
+        return _symbolIndex.GetOrAdd("symbols", _ =>
+        {
+            Interlocked.Increment(ref _symbolIndexBuilds);
+            return _contextManager.GetAllTypes().SelectMany(type =>
+                new[] { new SymbolIndexEntry(type, SymbolResolutionDiagnostics.CreateTypeSummary(type, _memberResolver), TypeSurfaceComparer.IsCompilerGenerated(type)) }
+                    .Concat(TypeSurfaceComparer.GetAddressableMembers(type).Select(member => new SymbolIndexEntry(member,
+                        SymbolResolutionDiagnostics.CreateMemberSummary(member, _memberResolver), TypeSurfaceComparer.IsCompilerGenerated(member)))))
+                .ToArray();
+        });
     }
 
     private void EnsureCacheCurrent()
@@ -245,6 +265,8 @@ public abstract class SearchServiceBase
                 return;
 
             _searchCache.Clear();
+            _symbolIndex.Clear();
+            _symbolIndexBuilds = 0;
             _cacheVersion = version;
         }
     }
@@ -460,7 +482,9 @@ public abstract class SearchServiceBase
 /// <summary>
 /// Search cache statistics
 /// </summary>
-public record SearchCacheStats(int CachedSearches, int TotalResults, double AverageResultsPerSearch);
+public record SearchCacheStats(int CachedSearches, int TotalResults, double AverageResultsPerSearch, int SymbolIndexBuilds = 0, long EstimatedBytes = 0);
+
+internal sealed record SymbolIndexEntry(IEntity Entity, MemberSummary Summary, bool IsGenerated);
 
 /// <summary>
 /// Search result with pagination support

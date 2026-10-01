@@ -33,7 +33,6 @@ Goal:
 - Make a fresh AI session more successful when it has only approximate symbols from foreign code, old mod code, or remembered APIs.
 
 Candidate work:
-- Preserve and use method parameter lists in human-entered symbol resolution instead of stripping them; return overload-specific candidates when ambiguous.
 - Add optional surrounding source snippets to `find_usages` and `find_callers`.
 - Add a compact `why_this_result` score/debug field for search tools when diagnostics are enabled.
 
