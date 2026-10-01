@@ -244,10 +244,7 @@ public static class SymbolResolutionDiagnostics
 
     public static IEnumerable<IMember> GetDirectMembers(ITypeDefinition type)
     {
-        return type.Methods.Cast<IMember>()
-            .Concat(type.Fields)
-            .Concat(type.Properties)
-            .Concat(type.Events);
+        return TypeSurfaceComparer.GetAddressableMembers(type);
     }
 
     public static string? NormalizeKind(string? kind)

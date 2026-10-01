@@ -21,11 +21,15 @@ Use DecompilerServer as the primary source of truth for loaded .NET assemblies. 
 3. Inspect type surface:
    - Use `list_members` or `get_members_of_type` after resolving a type.
    - Prefer `mode: "signatures"` for orientation and `mode: "full"` only when extra metadata is needed.
+   - Generated members and accessors are hidden by default; use `includeCompilerGenerated: true` when those are the subject of inspection.
 4. Read code:
    - Use `get_decompiled_source` for complete focused source.
    - Use `plan_chunking` and `get_source_slice` for large types or methods.
+   - Batch source defaults to 50 lines per member (`maxLinesPerMember`). Partial entries have `hasMore` and `nextStartLine`; continue with a source slice. Outer `truncated` includes partial members; `budgetTruncated` specifically means the total character cap was reached.
 5. Analyze relationships:
    - Use `find_callers`, `find_callees`, and `find_usages` for call/use questions.
+   - Callers/usages default to `scope: "assembly"`; use `scope: "workspace"` for all currently loaded contexts. Inspect `searchedContexts`; deferred aliases are not activated by that query.
+   - Callees link exact members in other loaded contexts with `resolution: "workspace"`; external targets retain referenced assembly identity.
    - Use `find_base_types`, `find_derived_types`, `get_overrides`, and `get_implementations` for inheritance questions.
    - Use `get_il` before proposing transpiler anchors; `suggest_transpiler_targets` should be treated as a real-IL hint list, not a substitute for reading IL.
 6. Compare versions:
@@ -43,6 +47,9 @@ Use DecompilerServer as the primary source of truth for loaded .NET assemblies. 
 - Use explicit `contextAlias` when working from human-entered symbols or when multiple versions are loaded and no canonical `memberId` has been resolved yet.
 
 ## Tool Choice Bias
+
+- Output is compact by default. Complete source is in `data.code`; omitted source language means C#. Source slices retain `startLine`, `endLine`, and `totalLines`. Use structured IL `instructions`, and use `error.details`/`error.hints` for recovery. Ordinary member summaries identify symbols with `declaringType` + `name`; type summaries retain `fullName`.
+- Extended output is a user startup configuration (`DECOMPILER_RESPONSE_MODE=extended`), not a tool argument or an agent-controlled setting.
 
 - `search_symbols` beats broad shell search for unknown names.
 - `resolve_member_id` beats `search_symbols` for fully-qualified stale method guesses because its errors return typed candidates.

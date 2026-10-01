@@ -31,7 +31,7 @@ public static class SearchStringLiteralsTool
                 inType = lit.ContainingType,
                 kind = "StringLiteral",
                 line = lit.Line,
-                snippet = $"\"{lit.Value}\""
+                snippet = ResponseFormatter.IsCompact ? null : $"\"{lit.Value}\""
             }).ToList();
 
             var result = new SearchResult<object>(usageRefs.Cast<object>().ToList(), page.HasMore, page.NextCursor, page.TotalEstimate);

@@ -114,6 +114,26 @@ public sealed class DecompilerWorkspace : IDisposable
         }
     }
 
+    // Snapshot and lease only resident contexts atomically. Graph queries never
+    // activate historical registrations or race an eviction between listing and use.
+    public IReadOnlyList<DecompilerSessionLease> AcquireLoadedSessions()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+        _lock.EnterWriteLock();
+        try
+        {
+            var leases = new List<DecompilerSessionLease>();
+            foreach (var alias in _sessionsByAlias.Keys.OrderBy(alias => alias, StringComparer.Ordinal).ToArray())
+                if (TryAcquireLoadedSessionLocked(alias, out var lease))
+                    leases.Add(lease);
+            return leases;
+        }
+        finally
+        {
+            _lock.ExitWriteLock();
+        }
+    }
+
     public bool TryAcquireCurrentLoadedSession(out DecompilerSessionLease lease)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);

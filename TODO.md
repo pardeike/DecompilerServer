@@ -34,19 +34,8 @@ Goal:
 
 Candidate work:
 - Preserve and use method parameter lists in human-entered symbol resolution instead of stripping them; return overload-specific candidates when ambiguous.
-- Add call-site offsets and optional source snippets to `find_usages` and `find_callers`, matching the `find_callees` offset-oriented output.
-- For external `find_callees` targets, include the referenced assembly/type-scope when metadata exposes it.
+- Add optional surrounding source snippets to `find_usages` and `find_callers`.
 - Add a compact `why_this_result` score/debug field for search tools when diagnostics are enabled.
-
-### Response modes
-
-Goal:
-- Let callers trade detail for cost when the default response is too verbose.
-
-Candidate work:
-- Extend the existing member-summary modes (`ids`, `discovery`, `signatures`, `full`) beyond search/list endpoints where they fit.
-- Consider smaller output modes for `get_member_details` and `get_decompiled_source`.
-- Keep the default behavior stable so existing callers do not silently lose information.
 
 ### Error reporting and diagnostics
 

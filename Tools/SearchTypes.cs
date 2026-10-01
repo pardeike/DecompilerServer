@@ -16,7 +16,7 @@ public static class SearchTypesTool
         int limit = 50,
         string? cursor = null,
         string mode = "discovery",
-        string? contextAlias = null)
+        string? contextAlias = null, bool includeCompilerGenerated = false)
     {
         return ResponseFormatter.TryExecute(() =>
         {
@@ -33,7 +33,7 @@ public static class SearchTypesTool
             var normalizedLimit = MemberSummaryModes.ClampLimit(limit, 50);
             var parsedMode = MemberSummaryModes.Parse(mode, MemberSummaryMode.Discovery);
 
-            var result = searchService.SearchTypes(query, regex, namespaceFilter, includeNested, normalizedLimit, cursor);
+            var result = searchService.SearchTypes(query, regex, namespaceFilter, includeNested, normalizedLimit, cursor, includeCompilerGenerated);
 
             return MemberSummaryModes.Project(result, parsedMode);
         });

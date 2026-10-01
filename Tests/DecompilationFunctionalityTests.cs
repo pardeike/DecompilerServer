@@ -201,8 +201,9 @@ public class DecompilationFunctionalityTests : ServiceTestBase
         // Assert
         Assert.NotNull(jsonResponse);
         Assert.Contains("\"status\":\"ok\"", jsonResponse);
-        Assert.Contains($"\"memberId\":\"{memberId}\"", jsonResponse);
-        Assert.Contains("\"language\":\"C#\"", jsonResponse);
-        Assert.Contains("\"totalLines\":", jsonResponse);
+        var data = System.Text.Json.JsonSerializer.Deserialize<System.Text.Json.JsonElement>(jsonResponse).GetProperty("data");
+        Assert.Equal(string.Join('\n', document.Lines), data.GetProperty("code").GetString());
+        Assert.Equal(document.SourceKind, data.GetProperty("sourceKind").GetString());
+        Assert.False(data.TryGetProperty("hash", out _));
     }
 }

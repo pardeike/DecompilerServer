@@ -31,13 +31,14 @@ public abstract class SearchServiceBase
         string? namespaceFilter = null,
         bool includeNested = true,
         int limit = 50,
-        string? cursor = null)
+        string? cursor = null,
+        bool includeCompilerGenerated = false)
     {
         EnsureCacheCurrent();
         ValidateRegex(query, regex);
 
         // Create cache key from search parameters
-        var cacheKey = $"types:{query}:{regex}:{namespaceFilter}:{includeNested}:{limit}:{cursor}";
+        var cacheKey = $"types:{query}:{regex}:{namespaceFilter}:{includeNested}:{limit}:{cursor}:{includeCompilerGenerated}";
 
         // Check cache first
         if (_searchCache.TryGetValue(cacheKey, out var cachedResult))
@@ -47,7 +48,8 @@ public abstract class SearchServiceBase
         var allTypes = _contextManager.GetAllTypes();
 
         // Apply filters using optimized indexes when possible
-        var filteredTypes = FilterTypes(allTypes, query, regex, namespaceFilter, includeNested);
+        var filteredTypes = FilterTypes(allTypes, query, regex, namespaceFilter, includeNested)
+            .Where(type => includeCompilerGenerated || !TypeSurfaceComparer.IsCompilerGenerated(type));
 
         // Apply pagination
         var results = ApplyPagination(filteredTypes, limit, cursor, type => CreateTypeSummary(type));
@@ -102,14 +104,15 @@ public abstract class SearchServiceBase
         bool? isVirtual = null,
         int? genericArity = null,
         int limit = 50,
-        string? cursor = null)
+        string? cursor = null,
+        bool includeCompilerGenerated = false)
     {
         EnsureCacheCurrent();
         ValidateRegex(query, regex);
 
         // Create cache key from search parameters
         var paramTypesKey = paramTypeFilters != null ? string.Join(",", paramTypeFilters) : "";
-        var cacheKey = $"members:{query}:{regex}:{namespaceFilter}:{declaringTypeFilter}:{attributeFilter}:{returnTypeFilter}:{paramTypesKey}:{kind}:{accessibility}:{isStatic}:{isAbstract}:{isVirtual}:{genericArity}:{limit}:{cursor}";
+        var cacheKey = $"members:{query}:{regex}:{namespaceFilter}:{declaringTypeFilter}:{attributeFilter}:{returnTypeFilter}:{paramTypesKey}:{kind}:{accessibility}:{isStatic}:{isAbstract}:{isVirtual}:{genericArity}:{limit}:{cursor}:{includeCompilerGenerated}";
 
         // Check cache first
         if (_searchCache.TryGetValue(cacheKey, out var cachedResult))
@@ -128,7 +131,8 @@ public abstract class SearchServiceBase
             types = _contextManager.GetAllTypes();
         }
 
-        var members = types.SelectMany(type => GetAllMembers(type));
+        var members = types.SelectMany(type => GetAllMembers(type))
+            .Where(member => includeCompilerGenerated || !TypeSurfaceComparer.IsCompilerGenerated(member));
 
         // Apply filters
         var filteredMembers = FilterMembers(members, query, regex, declaringTypeFilter, attributeFilter,
@@ -332,10 +336,7 @@ public abstract class SearchServiceBase
 
     protected IEnumerable<IMember> GetAllMembers(ITypeDefinition type)
     {
-        return type.Methods.Cast<IMember>()
-            .Concat(type.Fields)
-            .Concat(type.Properties)
-            .Concat(type.Events);
+        return TypeSurfaceComparer.GetAddressableMembers(type);
     }
 
     protected bool MatchesKind(IMember member, string kind)
@@ -360,7 +361,7 @@ public abstract class SearchServiceBase
 
     protected bool MatchesReturnType(IMember member, string returnTypeFilter)
     {
-        var returnType = member.ReturnType?.Name ?? "";
+        var returnType = member.ReturnType != null ? MemberResolver.FormatType(member.ReturnType) : "";
         return MatchesQuery(returnType, returnTypeFilter, false);
     }
 
@@ -369,7 +370,7 @@ public abstract class SearchServiceBase
         if (member is not IMethod method)
             return false;
 
-        var paramTypes = method.Parameters.Select(p => p.Type.Name).ToArray();
+        var paramTypes = method.Parameters.Select(p => MemberResolver.FormatType(p.Type)).ToArray();
 
         // Check if all filters match any parameter type
         return paramTypeFilters.All(filter =>

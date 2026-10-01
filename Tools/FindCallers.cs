@@ -7,27 +7,21 @@ namespace DecompilerServer;
 [McpServerToolType]
 public static class FindCallersTool
 {
-    [McpServerTool(ReadOnly = true), Description("List direct callers of a method.")]
-    public static string FindCallers(string methodId, int limit = 100, string? cursor = null, string? contextAlias = null)
+    [McpServerTool(ReadOnly = true), Description("List direct callers. scope=assembly (default) or workspace scans currently loaded contexts; results identify searched contexts.")]
+    public static string FindCallers(string methodId, int limit = 100, string? cursor = null, string? contextAlias = null, string scope = "assembly")
     {
         return ResponseFormatter.TryExecute(() =>
         {
             using var session = ToolSessionRouter.GetForMember(methodId, contextAlias);
             var contextManager = session.ContextManager;
-            var usageAnalyzer = session.UsageAnalyzer;
-            var memberResolver = session.MemberResolver;
 
             if (!contextManager.IsLoaded)
             {
                 throw new InvalidOperationException("No assembly loaded");
             }
 
-            _ = ToolValidation.ResolveMethodOrThrow(session, methodId);
-
-            var page = usageAnalyzer.FindCallersPage(methodId, limit, cursor);
-            var result = new SearchResult<UsageReference>(page.Items, page.HasMore, page.NextCursor, page.TotalEstimate);
-
-            return result;
+            var target = ToolValidation.ResolveMethodOrThrow(session, methodId);
+            return ReferenceQuery.Find(session, target, methodId, callersOnly: true, scope, limit, cursor);
         });
     }
 }

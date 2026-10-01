@@ -108,6 +108,16 @@ Kind codes:
 - `N` namespace
 
 These IDs are stable for a given assembly MVID and are the basis for cheap follow-up MCP calls.
+IDs use the defining module's MVID, including inherited or dependency members.
+Synthetic entities with nil metadata tokens are excluded from discovery and indexes;
+zero-token IDs are rejected with `invalid_member_id` rather than resolving to another entity.
+
+Signatures preserve generic arguments and method parameters, arrays, nullable types,
+and `ref`/`out`/`in` modifiers. Signature summaries retain `declaringType`.
+Search and member-list tools hide compiler-generated members and accessors by default;
+`includeCompilerGenerated: true` exposes real metadata members, including accessors.
+Generated-type filtering includes enclosing types. Structural comparison still uses
+the direct surface defined by `TypeSurfaceComparer`, without duplicate accessors.
 
 ### DecompilerService
 
@@ -131,7 +141,20 @@ These services provide graph-style analysis:
 - implementations;
 - overrides and overloads.
 
-`find_callees` is callee-shaped, not usage-shaped. Items should identify the target through `targetMemberId` when the operand resolves to a local assembly member, and through `symbol`, `declaringType`, `opcode`, `offset`, `operandTokenHex`, and `resolution` for local, external, or unresolved metadata operands. Legacy `inMember`/`inType` aliases may remain for compatibility, but new clients should prefer the target-specific fields.
+`find_callees` is callee-shaped, not usage-shaped. `targetMemberId` identifies a local
+member (`resolution: "assembly"`) or an exact member in another resident context
+(`resolution: "workspace"`). External dependencies retain `referencedAssembly`
+when available, plus symbol/type and call-site metadata. Generic references are
+resolved to their metadata definitions. Legacy aliases remain in extended output.
+
+`find_callers` and `find_usages` accept `scope: "assembly"` (default) or `"workspace"`.
+Responses identify `scope` and `searchedContexts`; workspace scope searches only
+currently resident contexts, without activating persisted aliases. An atomic leased
+snapshot prevents replacement/eviction during the query. Matching uses defining
+MVID plus metadata token, including generic method/type references, so different
+versions and overloads cannot cross-match. Usage entries include call-site `offset`
+and `memberName`; properties/events match their accessor calls. Workspace results
+are deduplicated by site and sorted by member ID and offset before pagination.
 
 ### TypeSurfaceComparer
 
@@ -150,9 +173,59 @@ It is the authority for:
 Current response conventions:
 - camelCase JSON;
 - null values omitted where appropriate;
+- JSON operators and Unicode emitted literally, with required string/control-character escaping;
 - structured errors instead of throwing across the MCP boundary.
 
-Structured error responses preserve top-level `status`, `message`, and `details` fields, and also include `error.code`, `error.message`, `error.details`, and optional `error.hints`. Symbol-resolution failures should use stable codes such as `type_not_found`, `member_not_found`, `ambiguous_member`, `wrong_symbol_kind`, `invalid_member_id`, and `no_assembly_loaded`.
+Compact output is the default. Users can set `DECOMPILER_RESPONSE_MODE=extended`
+in their MCP process environment to restore the previous response fields. The
+setting is read at startup, registered as immutable `ResponseFormatOptions`,
+and has no tool parameter or runtime setter. Invalid values fail startup.
+
+`ResponseFormatter` uses separate cached serializers for compact and extended
+output. Compact type metadata changes only the wire representation; service
+documents, source hashes, caches, and IL analysis retain their complete data.
+
+Compact contracts:
+- Successful responses retain `status: "ok"` and `data`.
+- Errors retain `status: "error"` and one `error` object with `code`, `message`,
+  `details`, and optional `hints`. Extended output also retains the legacy
+  top-level `message` and `details` aliases. Candidate lists and recovery hints
+  are preserved, with compact member summaries.
+- Complete source uses a single `code` string instead of `lines`, preserving
+  every newline and trailing blank line. It omits echoed `memberId`, derivable
+  `totalLines`, `hash`, and `includeHeader`. Omitted source `language` means C#;
+  VB remains explicit. `sourceKind`, `sourcePath`, and `sourceUri` retain provenance.
+- Source slices retain `code`, actual `startLine`/`endLine`, document `totalLines`,
+  and provenance, but omit `memberId`, `hash`, and C# language.
+- Batch entries contain one member ID, code, actual line bounds, total lines,
+  and provenance. Errors are per-entry `error` objects instead of fabricated
+  source documents. `totalCharacters` remains; echoed `requested` and derivable
+  `processed` counts are omitted. `maxLinesPerMember` defaults to 50 and must
+  be positive. Each entry reports `hasMore` and, when partial, `nextStartLine`
+  for source-slice continuation. Outer `truncated` covers partial entries or
+  budget exhaustion; `budgetTruncated` specifically identifies exhaustion of
+  `maxTotalChars`.
+- Compact string-literal results omit a `snippet` that merely repeats `value`;
+  extended output keeps the legacy field.
+- IL retains structured `instructions`, body metadata, paging/window metadata,
+  and completeness. It omits parallel text disassembly, echoed member/format,
+  and derivable counts. Instructions keep hexadecimal metadata tokens; the
+  duplicate decimal token/operand representations are omitted. Non-token
+  operands remain. Methods without a body retain a structured method summary.
+- Callees retain target IDs, symbols, declaring types, kind, opcode, offset,
+  resolution, and hexadecimal operand tokens. The legacy `inMember`/`inType`,
+  redundant `resolved`, and decimal operand-token fields are omitted.
+- Signature previews return their member summary directly instead of repeating
+  the signature outside it. Ordinary member summaries/details omit `fullName`
+  and `namespace` aliases when `declaringType` + `name` identifies the symbol.
+  Type summaries and symbols without a declaring type retain those fields.
+  Identity, signatures, modifier flags, attributes, docs, and inheritance links
+  remain available. Existing search/list detail modes remain independent of the
+  user's response format selection.
+
+Symbol-resolution failures use stable codes such as `type_not_found`,
+`member_not_found`, `ambiguous_member`, `wrong_symbol_kind`, `invalid_member_id`,
+and `no_assembly_loaded`.
 
 ## Routing Model
 

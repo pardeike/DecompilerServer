@@ -360,8 +360,9 @@ public sealed class WorkspaceMemoryLimitTests : IDisposable
 
         Assert.Equal("ok", response.GetProperty("status").GetString());
         var items = response.GetProperty("data").GetProperty("items");
-        Assert.NotEqual("error", items[0].GetProperty("doc").GetProperty("hash").GetString());
-        Assert.Equal("error", items[1].GetProperty("doc").GetProperty("hash").GetString());
+        Assert.True(items[0].TryGetProperty("code", out _));
+        Assert.False(items[0].TryGetProperty("error", out _));
+        Assert.Equal("context_capacity_busy", items[1].GetProperty("error").GetProperty("code").GetString());
         Assert.Equal(["first"], LoadedAliases(workspace));
         Assert.Equal(0, workspace.GetMemoryStats().ActiveLeases);
     }

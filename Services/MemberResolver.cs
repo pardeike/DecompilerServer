@@ -33,6 +33,9 @@ public class MemberResolver
         if (string.IsNullOrWhiteSpace(memberId))
             return null;
 
+        if (Regex.IsMatch(memberId, @"^[0-9a-fA-F]{32}:00000000:[TMPFE]$"))
+            throw new ToolErrorException("invalid_member_id", "A zero metadata token does not identify a real member.", new { input = memberId });
+
         // Check cache first
         if (_resolutionCache.TryGetValue(memberId, out var cached))
             return cached;
@@ -45,6 +48,9 @@ public class MemberResolver
                      ResolveMemberByHumanQualifiedName(memberId, compilation) ??
                      ResolveMemberByTokenId(memberId, compilation) ??
                      ResolveMemberByMetadataToken(memberId, compilation);
+
+        if (entity?.MetadataToken.IsNil == true)
+            entity = null;
 
         // Cache the result (including null results to avoid repeated failed lookups)
         _resolutionCache.TryAdd(memberId, entity);
@@ -102,15 +108,13 @@ public class MemberResolver
     /// </summary>
     public string GenerateMemberId(IEntity entity)
     {
-        var mvid = _contextManager.Mvid;
-        if (mvid == null)
-        {
-            mvid = new string('0', 32);
-        }
-        else if (mvid.Contains('-'))
-        {
-            mvid = Guid.Parse(mvid).ToString("N");
-        }
+        if (entity.MetadataToken.IsNil)
+            throw new ToolErrorException("invalid_member_id", "Synthetic members without metadata tokens cannot be addressed.");
+
+        var metadata = entity.ParentModule?.MetadataFile?.Metadata;
+        var mvid = metadata != null
+            ? metadata.GetGuid(metadata.GetModuleDefinition().Mvid).ToString("N")
+            : _contextManager.Mvid?.Replace("-", "") ?? new string('0', 32);
 
         var token = MetadataTokens.GetToken(entity.MetadataToken);
         var kind = entity switch
@@ -388,24 +392,36 @@ public class MemberResolver
 
     private string FormatMethodSignature(IMethod method)
     {
-        var parameters = string.Join(", ", method.Parameters.Select(p => $"{p.Type.Name} {p.Name}"));
-        return $"{method.ReturnType.Name} {method.Name}({parameters})";
+        var builder = CreateSignatureBuilder();
+        var parameters = string.Join(", ", method.Parameters.Select(p => builder.ConvertParameter(p).ToString()));
+        var typeParameters = method.TypeParameters.Count == 0 ? "" : "<" + string.Join(", ", method.TypeParameters.Select(p => p.Name)) + ">";
+        return $"{FormatType(method.ReturnType)} {method.Name}{typeParameters}({parameters})";
     }
 
     private string FormatPropertySignature(IProperty property)
     {
-        return $"{property.ReturnType.Name} {property.Name}";
+        return $"{FormatType(property.ReturnType)} {property.Name}";
     }
 
     private string FormatFieldSignature(IField field)
     {
-        return $"{field.ReturnType.Name} {field.Name}";
+        return $"{FormatType(field.ReturnType)} {field.Name}";
     }
 
     private string FormatEventSignature(IEvent evt)
     {
-        return $"event {evt.ReturnType.Name} {evt.Name}";
+        return $"event {FormatType(evt.ReturnType)} {evt.Name}";
     }
+
+    internal static string FormatType(IType type) => CreateSignatureBuilder().ConvertType(type).ToString();
+
+    private static ICSharpCode.Decompiler.CSharp.Syntax.TypeSystemAstBuilder CreateSignatureBuilder() => new()
+    {
+        AlwaysUseShortTypeNames = true,
+        UseKeywordsForBuiltinTypes = false,
+        ShowAttributes = false,
+        ShowConstantValues = false
+    };
 
     private string FormatTypeSignature(IType type)
     {

@@ -16,7 +16,8 @@ public static class ListMembersTool
         int limit = 100,
         string? cursor = null,
         string mode = "signatures",
-        string? contextAlias = null)
+        string? contextAlias = null,
+        bool includeCompilerGenerated = false)
     {
         return GetMembersOfTypeTool.GetMembersOfType(
             typeId,
@@ -27,6 +28,7 @@ public static class ListMembersTool
             limit,
             cursor,
             mode,
-            contextAlias);
+            contextAlias,
+            includeCompilerGenerated);
     }
 }

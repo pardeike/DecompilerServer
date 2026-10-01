@@ -4,7 +4,7 @@ namespace Tests;
 
 internal static class TemporaryAssemblyBuilder
 {
-    public static string BuildLibrary(string rootDirectory, string assemblyName, string sourceCode)
+    public static string BuildLibrary(string rootDirectory, string assemblyName, string sourceCode, string[]? references = null)
     {
         var projectDirectory = Path.Combine(rootDirectory, assemblyName);
         Directory.CreateDirectory(projectDirectory);
@@ -23,6 +23,16 @@ internal static class TemporaryAssemblyBuilder
               </PropertyGroup>
             </Project>
             """.Replace("__ASSEMBLY_NAME__", assemblyName, StringComparison.Ordinal));
+
+        if (references is { Length: > 0 })
+        {
+            var project = System.Xml.Linq.XDocument.Load(projectPath);
+            project.Root!.Add(new System.Xml.Linq.XElement("ItemGroup", references.Select(reference =>
+                new System.Xml.Linq.XElement("Reference",
+                    new System.Xml.Linq.XAttribute("Include", Path.GetFileNameWithoutExtension(reference)),
+                    new System.Xml.Linq.XElement("HintPath", reference)))));
+            project.Save(projectPath);
+        }
 
         File.WriteAllText(sourcePath, sourceCode);
 

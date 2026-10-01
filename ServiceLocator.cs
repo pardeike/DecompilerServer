@@ -10,7 +10,9 @@ namespace DecompilerServer;
 public static class ServiceLocator
 {
     private static readonly ThreadLocal<IServiceProvider?> _threadLocalProvider = new ThreadLocal<IServiceProvider?>();
+    private static readonly ThreadLocal<ResponseFormatOptions?> _threadLocalResponseFormat = new();
     private static volatile IServiceProvider? _globalProvider;
+    private static volatile ResponseFormatOptions? _globalResponseFormat;
     private static readonly object _lock = new object();
 
     /// <summary>
@@ -20,6 +22,8 @@ public static class ServiceLocator
     {
         // Always set thread-local for test compatibility.
         _threadLocalProvider.Value = serviceProvider;
+        var responseFormat = serviceProvider?.GetService<ResponseFormatOptions>();
+        _threadLocalResponseFormat.Value = responseFormat;
 
         // Refresh the global provider whenever a non-null provider is supplied.
         // Tests create and dispose independent service providers, so "first write wins"
@@ -29,6 +33,7 @@ public static class ServiceLocator
             lock (_lock)
             {
                 _globalProvider = serviceProvider;
+                _globalResponseFormat = responseFormat;
             }
         }
     }
@@ -51,6 +56,12 @@ public static class ServiceLocator
     }
 
     public static DecompilerWorkspace? Workspace => GetService<DecompilerWorkspace>();
+
+    // Snapshot immutable configuration when the provider is registered. Formatting
+    // remains available after a service failure or disposal, including error paths.
+    public static ResponseFormatOptions? ResponseFormat => _threadLocalProvider.Value != null
+        ? _threadLocalResponseFormat.Value
+        : _globalResponseFormat;
 
     public static AssemblyContextManager ContextManager => GetRequiredService<AssemblyContextManager>();
     public static MemberResolver MemberResolver => GetRequiredService<MemberResolver>();

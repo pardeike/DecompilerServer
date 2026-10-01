@@ -11,7 +11,7 @@ public static class GetMemberSignatureTool
     [McpServerTool(ReadOnly = true), Description("Quick signature preview for any member.")]
     public static string GetMemberSignature(string memberId, string? contextAlias = null)
     {
-        return ResponseFormatter.TryExecute(() =>
+        return ResponseFormatter.TryExecute<object>(() =>
         {
             using var session = ToolSessionRouter.GetForMember(memberId, contextAlias);
             var contextManager = session.ContextManager;
@@ -28,6 +28,9 @@ public static class GetMemberSignatureTool
 
             // Create a minimal member summary
             var summary = CreateMemberSummary(entity, memberResolver);
+
+            if (ResponseFormatter.IsCompact)
+                return summary;
 
             var result = new
             {

@@ -55,6 +55,15 @@ public static class MemberSummaryModes
                 name = summary.Name,
                 kind = summary.Kind
             },
+            MemberSummaryMode.Discovery when ResponseFormatter.IsCompact => new
+            {
+                memberId = summary.MemberId,
+                name = summary.Name,
+                fullName = summary.Kind == "Type" || summary.DeclaringType == null ? summary.FullName : null,
+                kind = summary.Kind,
+                declaringType = summary.DeclaringType,
+                @namespace = summary.Kind == "Type" || summary.DeclaringType == null ? summary.Namespace : null
+            },
             MemberSummaryMode.Discovery => new
             {
                 memberId = summary.MemberId,
@@ -69,6 +78,7 @@ public static class MemberSummaryModes
                 memberId = summary.MemberId,
                 name = summary.Name,
                 kind = summary.Kind,
+                declaringType = summary.DeclaringType,
                 signature = summary.Signature,
                 accessibility = summary.Accessibility,
                 isStatic = summary.IsStatic,

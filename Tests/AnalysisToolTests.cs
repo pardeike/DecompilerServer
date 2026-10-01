@@ -307,14 +307,10 @@ public class AnalysisToolTests : ServiceTestBase
             Assert.Equal("ok", response.GetProperty("status").GetString());
 
             var data = response.GetProperty("data");
-            Assert.Equal(memberId, data.GetProperty("memberId").GetString());
-            Assert.Equal("IL", data.GetProperty("format").GetString());
-            Assert.True(data.GetProperty("totalLines").GetInt32() > 0);
-            Assert.NotNull(data.GetProperty("text").GetString());
+            Assert.False(data.TryGetProperty("memberId", out _));
+            Assert.False(data.TryGetProperty("text", out _));
+            Assert.False(data.TryGetProperty("format", out _));
             Assert.True(data.GetProperty("isFullDisassembly").GetBoolean());
-            Assert.Contains("IL_", data.GetProperty("text").GetString(), StringComparison.Ordinal);
-            Assert.Contains("// Metadata Token: 0x", data.GetProperty("text").GetString(), StringComparison.Ordinal);
-            Assert.DoesNotContain("System.Reflection.Metadata.EntityHandle", data.GetProperty("text").GetString(), StringComparison.Ordinal);
             Assert.True(data.GetProperty("instructions").GetArrayLength() > 0);
         }
     }
@@ -338,7 +334,7 @@ public class AnalysisToolTests : ServiceTestBase
         Assert.False(data.GetProperty("isFullDisassembly").GetBoolean());
         Assert.True(data.GetProperty("hasMore").GetBoolean());
         Assert.Equal("2", data.GetProperty("nextCursor").GetString());
-        Assert.Equal(2, data.GetProperty("returnedInstructionCount").GetInt32());
+        Assert.False(data.TryGetProperty("returnedInstructionCount", out _));
         Assert.Equal(2, data.GetProperty("instructions").GetArrayLength());
     }
 

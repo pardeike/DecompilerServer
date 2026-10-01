@@ -50,7 +50,8 @@ public class SearchToolTests : ServiceTestBase
             Assert.Contains(firstMember.GetProperty("kind").GetString()!,
                 new[] { "Method", "Constructor", "Field", "Property", "Event" });
             Assert.True(firstMember.TryGetProperty("memberId", out _));
-            Assert.True(firstMember.TryGetProperty("fullName", out _));
+            Assert.False(firstMember.TryGetProperty("fullName", out _));
+            Assert.True(firstMember.TryGetProperty("declaringType", out _));
             Assert.False(firstMember.TryGetProperty("signature", out _));
         }
     }
@@ -156,7 +157,7 @@ public class SearchToolTests : ServiceTestBase
             Assert.Contains(firstMember.GetProperty("kind").GetString()!,
                 new[] { "Method", "Constructor", "Field", "Property", "Event" });
             Assert.False(string.IsNullOrEmpty(firstMember.GetProperty("signature").GetString()));
-            Assert.False(firstMember.TryGetProperty("declaringType", out _));
+            Assert.Equal(testType.FullName, firstMember.GetProperty("declaringType").GetString());
         }
     }
 
@@ -312,7 +313,7 @@ public class SearchToolTests : ServiceTestBase
         {
             var firstMember = items[0];
             Assert.Equal(testType.FullName, firstMember.GetProperty("declaringType").GetString());
-            Assert.True(firstMember.TryGetProperty("fullName", out _));
+            Assert.False(firstMember.TryGetProperty("fullName", out _));
             Assert.True(firstMember.TryGetProperty("signature", out _));
         }
     }
@@ -436,7 +437,7 @@ public class SearchToolTests : ServiceTestBase
     }
 
     [Fact]
-    public void GetMemberSignature_WithValidMember_ReturnsSignatureAndSummary()
+    public void GetMemberSignature_WithValidMember_ReturnsSignatureWithoutDuplicateSummary()
     {
         // Arrange - find a method from the test assembly
         var types = ContextManager.GetAllTypes();
@@ -458,9 +459,9 @@ public class SearchToolTests : ServiceTestBase
         Assert.True(data.TryGetProperty("signature", out var signature));
         Assert.False(string.IsNullOrEmpty(signature.GetString()));
 
-        Assert.True(data.TryGetProperty("summary", out var summary));
-        Assert.Equal(memberId, summary.GetProperty("memberId").GetString());
-        Assert.Equal(method.Name, summary.GetProperty("name").GetString());
+        Assert.False(data.TryGetProperty("summary", out _));
+        Assert.Equal(memberId, data.GetProperty("memberId").GetString());
+        Assert.Equal(method.Name, data.GetProperty("name").GetString());
     }
 
     [Fact]

@@ -80,7 +80,7 @@ public class ContextAwareToolRoutingTests : IDisposable
         var response = JsonSerializer.Deserialize<JsonElement>(result);
         Assert.Equal("ok", response.GetProperty("status").GetString());
 
-        var lines = response.GetProperty("data").GetProperty("lines").EnumerateArray().Select(line => line.GetString()).ToArray();
+        var lines = response.GetProperty("data").GetProperty("code").GetString()!.Split('\n');
         Assert.Contains(lines, line => line != null && line.Contains("public class SimpleClass", StringComparison.Ordinal));
     }
 

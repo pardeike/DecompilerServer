@@ -170,7 +170,7 @@ public class InheritanceAnalyzer
             return Enumerable.Empty<MemberSummary>();
 
         return declaringType.Methods
-            .Where(m => m.Name == method.Name && m != method)
+            .Where(m => m.Name == method.Name && m != method && !m.MetadataToken.IsNil)
             .Select(CreateMethodSummary);
     }
 

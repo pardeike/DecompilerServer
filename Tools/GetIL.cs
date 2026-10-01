@@ -19,7 +19,7 @@ public static class GetILTool
         int? startOffset = null,
         int? endOffset = null)
     {
-        return ResponseFormatter.TryExecute(() =>
+        return ResponseFormatter.TryExecute<object>(() =>
         {
             using var session = ToolSessionRouter.GetForMember(memberId, contextAlias);
             var contextManager = session.ContextManager;
@@ -40,6 +40,42 @@ public static class GetILTool
 
             var body = IlAnalysisService.ReadMethodBody(method, contextManager);
             var page = PageInstructions(body.Instructions, limit, cursor, startOffset, endOffset);
+
+            if (ResponseFormatter.IsCompact)
+                return new
+                {
+                    isFullDisassembly = body.HasBody && page.IsFullBody,
+                    noBodyReason = body.NoBodyReason,
+                    hasMore = page.HasMore,
+                    nextCursor = page.NextCursor,
+                    totalInstructionCount = body.Instructions.Count,
+                    instructionStartIndex = page.Items.Count > 0 ? page.StartIndex : (int?)null,
+                    offsetWindow = startOffset.HasValue || endOffset.HasValue ? new { startOffset, endOffset } : null,
+                    body = body.HasBody ? new
+                    {
+                        body.RelativeVirtualAddress,
+                        body.MaxStack,
+                        body.LocalVariablesInitialized,
+                        body.LocalSignatureToken,
+                        body.CodeSize
+                    } : null,
+                    // No-body disassemblies used to carry this information only in text.
+                    method = !body.HasBody ? new
+                    {
+                        memberId = memberResolver.GenerateMemberId(method),
+                        fullName = method.FullName,
+                        declaringType = method.DeclaringType?.FullName,
+                        returnType = method.ReturnType.FullName,
+                        parameters = method.Parameters.Select(parameter => new { type = parameter.Type.FullName, parameter.Name }),
+                        method.IsConstructor,
+                        method.IsStatic,
+                        method.IsVirtual,
+                        method.IsAbstract,
+                        accessibility = method.Accessibility.ToString()
+                    } : null,
+                    instructions = page.Items
+                };
+
             var ilText = GenerateILDisassembly(method, body, page.Items, page);
 
             var result = new

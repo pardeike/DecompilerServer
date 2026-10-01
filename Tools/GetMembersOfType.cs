@@ -8,8 +8,8 @@ namespace DecompilerServer;
 [McpServerToolType]
 public static class GetMembersOfTypeTool
 {
-    [McpServerTool(ReadOnly = true), Description("List members of a given type with filters and pagination. Modes: 'ids', 'discovery', 'signatures' (default), 'full'.")]
-    public static string GetMembersOfType(string typeId, string? kind = null, string? accessibility = null, bool? isStatic = null, bool includeInherited = false, int limit = 100, string? cursor = null, string mode = "signatures", string? contextAlias = null)
+    [McpServerTool(ReadOnly = true), Description("List members with filters and pagination; generated members/accessors are hidden unless includeCompilerGenerated=true. Modes: 'ids', 'discovery', 'signatures' (default), 'full'.")]
+    public static string GetMembersOfType(string typeId, string? kind = null, string? accessibility = null, bool? isStatic = null, bool includeInherited = false, int limit = 100, string? cursor = null, string mode = "signatures", string? contextAlias = null, bool includeCompilerGenerated = false)
     {
         return ResponseFormatter.TryExecute(() =>
         {
@@ -39,6 +39,10 @@ public static class GetMembersOfTypeTool
                 members = GetDirectMembers(type);
             }
 
+            members = members.Where(member => !member.MetadataToken.IsNil);
+            if (!includeCompilerGenerated)
+                members = members.Where(member => !TypeSurfaceComparer.IsCompilerGenerated(member));
+
             // Apply filters
             if (!string.IsNullOrEmpty(kind))
             {
@@ -56,7 +60,7 @@ public static class GetMembersOfTypeTool
             }
 
             // Sort for consistent ordering
-            var sortedMembers = members.OrderBy(m => m.Name).ThenBy(m => m.SymbolKind).ToList();
+            var sortedMembers = members.OrderBy(m => m.Accessibility == Accessibility.Public ? 0 : 1).ThenBy(m => m.Name, StringComparer.Ordinal).ThenBy(m => m.SymbolKind).ToList();
 
             // Apply pagination
             var startIndex = ParseCursor(cursor);
@@ -78,10 +82,7 @@ public static class GetMembersOfTypeTool
 
     private static IEnumerable<IMember> GetDirectMembers(ITypeDefinition type)
     {
-        return type.Methods.Cast<IMember>()
-            .Concat(type.Fields)
-            .Concat(type.Properties)
-            .Concat(type.Events);
+        return TypeSurfaceComparer.GetAddressableMembers(type);
     }
 
     private static int ParseCursor(string? cursor)

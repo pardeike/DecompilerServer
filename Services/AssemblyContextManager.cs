@@ -454,7 +454,7 @@ public class AssemblyContextManager : IDisposable
         {
             index.TryAdd($"{mvid}:{MetadataTokens.GetToken(type.MetadataToken):X8}:T", type);
 
-            foreach (var method in type.Methods)
+            foreach (var method in TypeSurfaceComparer.GetAddressableMembers(type).OfType<IMethod>())
             {
                 index.TryAdd($"{mvid}:{MetadataTokens.GetToken(method.MetadataToken):X8}:M", method);
             }

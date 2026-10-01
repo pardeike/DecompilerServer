@@ -206,6 +206,26 @@ dotnet run --project DecompilerServer.csproj -c Release
 
 ### MCP Client Launch Options
 
+Tool responses are compact by default to reduce AI context use. Complete source
+is returned in `data.code`; source slices keep their actual line ranges, IL is
+returned as structured instructions, and errors contain one diagnostic object.
+Source provenance, paging, modifier flags, and recovery hints remain available.
+
+For clients that require the previous response fields, configure the MCP server
+environment with `DECOMPILER_RESPONSE_MODE=extended` and restart the server.
+This is a user setting; tools do not accept a response-mode argument.
+
+For Codex, add the setting to the existing server entry:
+
+```toml
+[mcp_servers.decompiler.env]
+DECOMPILER_RESPONSE_MODE = "extended"
+```
+
+For JSON-based MCP clients, add `"env": { "DECOMPILER_RESPONSE_MODE": "extended" }`
+to the server configuration. Remove the setting or use `compact` for the default.
+See [ARCHITECTURE.md](ARCHITECTURE.md#responseformatter) for the field contracts.
+
 **Framework-dependent build output** (requires `dotnet` on PATH):
 
 ```text
@@ -298,8 +318,24 @@ For foreign-code exploration, prefer this path before falling back to shell tool
 2. Start broad with `search_symbols` when you have a fragment; use `resolve_member_id` first when you have a fully-qualified or XML-doc-like guess such as `Namespace.Type.Member` or `M:Namespace.Type.Member`.
 3. Use `list_members` or `get_members_of_type` on the resolved type before guessing method IDs.
 4. Fetch code with `get_decompiled_source`, `get_source_slice`, or `plan_chunking`.
-5. Move outward with `find_callers`, `find_usages`, `find_callees`, `get_il`, or compare tools. `find_callees` returns callee-focused `targetMemberId`, `symbol`, `opcode`, `offset`, and `resolution` fields; external calls are explicit instead of pretending to be canonical local IDs.
+5. Move outward with `find_callers`, `find_usages`, `find_callees`, `get_il`, or compare tools. `find_callees` returns callee-focused `targetMemberId`, `symbol`, `opcode`, `offset`, and `resolution` fields; calls into another loaded assembly link to its exact member ID; other external calls retain referenced assembly identity.
 6. Use `get_server_stats` when you need cache/index/performance diagnostics for one alias; `status` is the cheaper current-alias overview.
+
+Member lists and searches hide generated members, backing fields, and accessors by
+default. Use `includeCompilerGenerated: true` when inspecting that metadata.
+Signatures retain generic arguments and `ref`/`out`/`in` modifiers, and identify
+the declaring type.
+
+`find_callers` and `find_usages` default to `scope: "assembly"`. Use
+`scope: "workspace"` to trace references across currently loaded contexts.
+Responses state the scope and searched contexts; deferred registrations are not
+loaded automatically. Different assembly versions remain distinct.
+
+`batch_get_decompiled_source` returns at most `maxLinesPerMember` lines per member
+(default 50). Check each entry's `hasMore` and continue with `get_source_slice`
+starting at `nextStartLine`. Outer `truncated` indicates partial content or budget
+exhaustion; `budgetTruncated` identifies the latter. Raise `maxLinesPerMember`
+when full members fit the requested character budget.
 
 If a guessed member does not exist, member-based tools return structured error hints with likely candidates and concrete next tool calls. `search_symbols` also degrades gracefully for `Type.MissingMember`: if the type resolves but the member does not, it returns the type, its direct members, and a diagnostic instead of an empty success.
 

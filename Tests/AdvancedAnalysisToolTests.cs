@@ -209,7 +209,7 @@ public class AdvancedAnalysisToolTests : ServiceTestBase
             Assert.Contains(items.EnumerateArray(), item =>
                 item.GetProperty("symbol").GetString()?.Contains("ModifyPlayToil", StringComparison.Ordinal) == true
                 && item.GetProperty("kind").GetString() == "Call"
-                && item.GetProperty("resolved").GetBoolean()
+                && item.GetProperty("resolution").GetString() == "assembly"
                 && item.TryGetProperty("targetMemberId", out _)
                 && item.TryGetProperty("offset", out _)
                 && item.TryGetProperty("opcode", out _));
@@ -523,7 +523,7 @@ public class AdvancedAnalysisToolTests : ServiceTestBase
         var data = response.GetProperty("data");
         Assert.Equal(2, data.GetProperty("totalEstimate").GetInt32());
         var names = data.GetProperty("items").EnumerateArray()
-            .Select(item => item.GetProperty("fullName").GetString())
+            .Select(item => item.GetProperty("declaringType").GetString() + "." + item.GetProperty("name").GetString())
             .ToArray();
 
         Assert.Contains("TestLibrary.DerivedClass.InterfaceMethod", names);
@@ -565,25 +565,19 @@ public class AdvancedAnalysisToolTests : ServiceTestBase
         Assert.True(data.TryGetProperty("items", out var items));
         Assert.True(data.TryGetProperty("totalCharacters", out _));
         Assert.True(data.TryGetProperty("truncated", out _));
-        Assert.True(data.TryGetProperty("processed", out _));
-        Assert.True(data.TryGetProperty("requested", out _));
+        Assert.False(data.TryGetProperty("processed", out _));
+        Assert.False(data.TryGetProperty("requested", out _));
+        Assert.Equal(memberIds.Length, items.GetArrayLength());
 
-        // Verify structure of returned items
-        for (int i = 0; i < items.GetArrayLength(); i++)
+        foreach (var item in items.EnumerateArray())
         {
-            var item = items[i];
-            Assert.True(item.TryGetProperty("doc", out var doc));
-            Assert.True(item.TryGetProperty("firstSlice", out var slice));
-
-            // Verify doc structure
-            Assert.True(doc.TryGetProperty("memberId", out _));
-            Assert.True(doc.TryGetProperty("language", out _));
-            Assert.True(doc.TryGetProperty("totalLines", out _));
-
-            // Verify slice structure
-            Assert.True(slice.TryGetProperty("code", out _));
-            Assert.True(slice.TryGetProperty("startLine", out _));
-            Assert.True(slice.TryGetProperty("endLine", out _));
+            Assert.True(item.TryGetProperty("memberId", out _));
+            Assert.False(item.TryGetProperty("doc", out _));
+            Assert.False(item.TryGetProperty("firstSlice", out _));
+            Assert.True(item.TryGetProperty("totalLines", out _));
+            Assert.True(item.TryGetProperty("code", out _));
+            Assert.True(item.TryGetProperty("startLine", out _));
+            Assert.True(item.TryGetProperty("endLine", out _));
         }
     }
 

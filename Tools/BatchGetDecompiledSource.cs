@@ -7,19 +7,23 @@ namespace DecompilerServer;
 [McpServerToolType]
 public static class BatchGetDecompiledSourceTool
 {
-    [McpServerTool(ReadOnly = true), Description("Fetch multiple members' decompiled source in one call with size caps.")]
-    public static string BatchGetDecompiledSource(string[] memberIds, int maxTotalChars = 200_000, string? contextAlias = null)
+    [McpServerTool(ReadOnly = true), Description("Fetch source with character and per-member line caps (default 50). Partial entries have hasMore/nextStartLine; budgetTruncated means the character cap was exhausted.")]
+    public static string BatchGetDecompiledSource(string[] memberIds, int maxTotalChars = 200_000, string? contextAlias = null, int maxLinesPerMember = 50)
     {
-        return ResponseFormatter.TryExecute(() =>
+        return ResponseFormatter.TryExecute<object>(() =>
         {
             if (memberIds == null || memberIds.Length == 0)
             {
                 throw new ArgumentException("Member IDs array cannot be null or empty");
             }
 
+            if (maxTotalChars <= 0 || maxLinesPerMember <= 0)
+                throw new ArgumentException("maxTotalChars and maxLinesPerMember must be positive.");
+
             var results = new List<object>();
             var totalChars = 0;
             var truncated = false;
+            var budgetTruncated = false;
             var retainedSessions = new List<ToolSessionView>();
 
             try
@@ -44,17 +48,39 @@ public static class BatchGetDecompiledSourceTool
                         var document = decompilerService.DecompileMember(memberId, includeHeader: true);
 
                         // Create first slice (typically the whole document or a reasonable portion)
-                        var firstSlice = decompilerService.GetSourceSlice(memberId, 1, Math.Min(document.TotalLines, 50));
+                        var firstSlice = decompilerService.GetSourceSlice(memberId, 1, Math.Min(document.TotalLines, maxLinesPerMember));
                         var sliceLength = firstSlice.Code.Length;
 
                         // Check if adding this would exceed the limit
                         if (totalChars + sliceLength > maxTotalChars)
                         {
                             truncated = true;
+                            budgetTruncated = true;
                             break;
                         }
 
                         totalChars += sliceLength;
+                        var hasMore = firstSlice.EndLine < document.TotalLines;
+                        truncated |= hasMore;
+
+                        if (ResponseFormatter.IsCompact)
+                        {
+                            results.Add(new
+                            {
+                                memberId = document.MemberId,
+                                language = document.Language == "C#" ? null : document.Language,
+                                totalLines = document.TotalLines,
+                                startLine = firstSlice.StartLine,
+                                endLine = firstSlice.EndLine,
+                                hasMore,
+                                nextStartLine = hasMore ? firstSlice.EndLine + 1 : (int?)null,
+                                code = firstSlice.Code,
+                                sourceKind = document.SourceKind,
+                                sourcePath = document.SourcePath,
+                                sourceUri = document.SourceUri
+                            });
+                            continue;
+                        }
 
                         results.Add(new
                         {
@@ -72,6 +98,8 @@ public static class BatchGetDecompiledSourceTool
                                 language = firstSlice.Language,
                                 startLine = firstSlice.StartLine,
                                 endLine = firstSlice.EndLine,
+                                hasMore,
+                                nextStartLine = hasMore ? firstSlice.EndLine + 1 : (int?)null,
                                 totalLines = firstSlice.TotalLines,
                                 hash = firstSlice.Hash,
                                 code = firstSlice.Code
@@ -80,6 +108,21 @@ public static class BatchGetDecompiledSourceTool
                     }
                     catch (Exception ex)
                     {
+                        if (ResponseFormatter.IsCompact)
+                        {
+                            results.Add(new
+                            {
+                                memberId,
+                                error = new
+                                {
+                                    code = ex is ToolErrorException toolError ? toolError.Code : "decompilation_failed",
+                                    message = ex.Message,
+                                    details = (ex as ToolErrorException)?.DetailsPayload,
+                                    hints = (ex as ToolErrorException)?.Hints
+                                }
+                            });
+                            continue;
+                        }
                         // Add error entry for failed decompilation
                         results.Add(new
                         {
@@ -105,11 +148,15 @@ public static class BatchGetDecompiledSourceTool
                     }
                 }
 
+                if (ResponseFormatter.IsCompact)
+                    return new { items = results, totalCharacters = totalChars, truncated, budgetTruncated };
+
                 return new
                 {
                     items = results,
                     totalCharacters = totalChars,
                     truncated = truncated,
+                    budgetTruncated,
                     processed = results.Count,
                     requested = memberIds.Length
                 };

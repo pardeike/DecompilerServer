@@ -60,7 +60,17 @@ internal static class TypeSurfaceComparer
         return type.Methods.Cast<IMember>()
             .Concat(type.Fields)
             .Concat(type.Properties)
-            .Concat(type.Events);
+            .Concat(type.Events)
+            .Where(member => !member.MetadataToken.IsNil);
+    }
+
+    public static IEnumerable<IMember> GetAddressableMembers(ITypeDefinition type)
+    {
+        return GetDirectMembers(type)
+            .Concat(type.Properties.SelectMany(property => new[] { property.Getter, property.Setter }).OfType<IMember>())
+            .Concat(type.Events.SelectMany(evt => new[] { evt.AddAccessor, evt.RemoveAccessor, evt.InvokeAccessor }).OfType<IMember>())
+            .Where(member => !member.MetadataToken.IsNil)
+            .Distinct();
     }
 
     public static string GetNormalizedMemberKind(IMember member)
@@ -90,6 +100,9 @@ internal static class TypeSurfaceComparer
 
     public static bool IsCompilerGenerated(ITypeDefinition type)
     {
+        if (type.DeclaringTypeDefinition is { } parent && IsCompilerGenerated(parent))
+            return true;
+
         if (type.Name.StartsWith("<", StringComparison.Ordinal))
             return true;
 
@@ -102,6 +115,9 @@ internal static class TypeSurfaceComparer
 
     public static bool IsCompilerGenerated(IMember member)
     {
+        if (member is IMethod { IsAccessor: true })
+            return true;
+
         if (member.Name.StartsWith("<", StringComparison.Ordinal))
             return true;
 

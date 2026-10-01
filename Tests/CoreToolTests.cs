@@ -146,10 +146,11 @@ public class CoreToolTests : ServiceTestBase
         Assert.Equal("ok", response.GetProperty("status").GetString());
 
         var document = response.GetProperty("data");
-        Assert.Equal(memberId, document.GetProperty("memberId").GetString());
-        Assert.Equal("C#", document.GetProperty("language").GetString());
-        Assert.True(document.GetProperty("totalLines").GetInt32() > 0);
-        Assert.True(document.GetProperty("lines").GetArrayLength() > 0);
+        Assert.False(document.TryGetProperty("memberId", out _));
+        Assert.False(document.TryGetProperty("language", out _));
+        Assert.False(document.TryGetProperty("totalLines", out _));
+        Assert.NotEmpty(document.GetProperty("code").GetString()!);
+        Assert.True(document.TryGetProperty("sourceKind", out _));
     }
 
     [Fact]
@@ -178,7 +179,7 @@ public class CoreToolTests : ServiceTestBase
         Assert.Equal("ok", response.GetProperty("status").GetString());
 
         var document = response.GetProperty("data");
-        var lines = document.GetProperty("lines").EnumerateArray().Select(l => l.GetString()).ToArray();
+        var lines = document.GetProperty("code").GetString()!.Split('\n');
 
         // Should not contain using statements or namespace declarations at the top
         Assert.DoesNotContain(lines, l => l!.StartsWith("using"));
@@ -199,7 +200,7 @@ public class CoreToolTests : ServiceTestBase
         var response = JsonSerializer.Deserialize<JsonElement>(result);
         Assert.Equal("ok", response.GetProperty("status").GetString());
 
-        var lines = response.GetProperty("data").GetProperty("lines").EnumerateArray().Select(line => line.GetString()).ToArray();
+        var lines = response.GetProperty("data").GetProperty("code").GetString()!.Split('\n');
         var source = string.Join("\n", lines);
 
         Assert.Contains("SimpleMethod", source, StringComparison.Ordinal);
@@ -229,7 +230,7 @@ public class CoreToolTests : ServiceTestBase
         Assert.Equal("ok", response.GetProperty("status").GetString());
 
         var slice = response.GetProperty("data");
-        Assert.Equal(memberId, slice.GetProperty("memberId").GetString());
+        Assert.False(slice.TryGetProperty("memberId", out _));
         Assert.Equal(1, slice.GetProperty("startLine").GetInt32());
         Assert.Equal(5, slice.GetProperty("endLine").GetInt32());
         Assert.NotNull(slice.GetProperty("code").GetString());

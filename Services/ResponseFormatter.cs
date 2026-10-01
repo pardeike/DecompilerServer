@@ -1,5 +1,7 @@
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
+using System.Text.Encodings.Web;
 
 namespace DecompilerServer.Services;
 
@@ -11,11 +13,74 @@ public class ResponseFormatter
 {
     private static readonly JsonSerializerOptions DefaultOptions = new()
     {
+        Encoder = JavaScriptEncoder.UnsafeRelaxedJsonEscaping,
         PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
         WriteIndented = false,
         DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
         Converters = { new JsonStringEnumConverter() }
     };
+
+    private static readonly ResponseFormatOptions DefaultFormat = ResponseFormatOptions.FromEnvironment();
+    private static readonly JsonSerializerOptions CompactOptions = CreateCompactOptions();
+
+    public static bool IsCompact => !(ServiceLocator.ResponseFormat ?? DefaultFormat).Extended;
+
+    private static JsonSerializerOptions Options => IsCompact ? CompactOptions : DefaultOptions;
+
+    private static JsonSerializerOptions CreateCompactOptions()
+    {
+        var resolver = new DefaultJsonTypeInfoResolver();
+        resolver.Modifiers.Add(typeInfo =>
+        {
+            if (typeInfo.Type == typeof(SourceDocument))
+            {
+                RemoveProperties(typeInfo, "memberId", "totalLines", "hash", "includeHeader", "lines");
+                OmitCSharpLanguage(typeInfo);
+                var code = typeInfo.CreateJsonPropertyInfo(typeof(string), "code");
+                code.Get = value => string.Join('\n', ((SourceDocument)value).Lines);
+                typeInfo.Properties.Add(code);
+            }
+            else if (typeInfo.Type == typeof(SourceSlice))
+            {
+                RemoveProperties(typeInfo, "memberId", "hash");
+                OmitCSharpLanguage(typeInfo);
+            }
+            else if (typeInfo.Type == typeof(CalleeReference))
+            {
+                RemoveProperties(typeInfo, "inMember", "inType", "resolved", "operandToken");
+            }
+            else if (typeInfo.Type == typeof(IlInstructionInfo))
+            {
+                RemoveProperties(typeInfo, "operandToken");
+                typeInfo.Properties.First(property => property.Name == "operand").ShouldSerialize =
+                    (value, _) => ((IlInstructionInfo)value).OperandToken == null;
+            }
+            else if (typeInfo.Type == typeof(MemberSummary) || typeInfo.Type == typeof(MemberDetails))
+            {
+                // Preserve fully qualified type names and symbols with no declaring type.
+                // Ordinary members already carry declaringType + name.
+                foreach (var property in typeInfo.Properties.Where(property => property.Name is "fullName" or "namespace"))
+                    property.ShouldSerialize = (value, _) => value switch
+                    {
+                        MemberSummary summary => summary.Kind == "Type" || summary.DeclaringType == null,
+                        MemberDetails details => details.Kind == "Type" || details.DeclaringType == null,
+                        _ => true
+                    };
+            }
+        });
+        return new JsonSerializerOptions(DefaultOptions) { TypeInfoResolver = resolver };
+    }
+
+    private static void RemoveProperties(JsonTypeInfo typeInfo, params string[] names)
+    {
+        for (var index = typeInfo.Properties.Count - 1; index >= 0; index--)
+            if (names.Contains(typeInfo.Properties[index].Name))
+                typeInfo.Properties.RemoveAt(index);
+    }
+
+    private static void OmitCSharpLanguage(JsonTypeInfo typeInfo) =>
+        typeInfo.Properties.First(property => property.Name == "language").ShouldSerialize =
+            (_, value) => !Equals(value, "C#");
 
     /// <summary>
     /// Format a successful response with data
@@ -28,7 +93,7 @@ public class ResponseFormatter
             data = data
         };
 
-        return JsonSerializer.Serialize(response, DefaultOptions);
+        return JsonSerializer.Serialize(response, Options);
     }
 
     /// <summary>
@@ -41,7 +106,7 @@ public class ResponseFormatter
             status = "ok"
         };
 
-        return JsonSerializer.Serialize(response, DefaultOptions);
+        return JsonSerializer.Serialize(response, Options);
     }
 
     /// <summary>
@@ -49,6 +114,9 @@ public class ResponseFormatter
     /// </summary>
     public static string Error(string message, string? details = null)
     {
+        if (IsCompact)
+            return ErrorWithCode("error", message, details);
+
         var response = new
         {
             status = "error",
@@ -56,7 +124,7 @@ public class ResponseFormatter
             details = details
         };
 
-        return JsonSerializer.Serialize(response, DefaultOptions);
+        return JsonSerializer.Serialize(response, Options);
     }
 
     /// <summary>
@@ -73,6 +141,13 @@ public class ResponseFormatter
         object? details = null,
         IEnumerable<ToolErrorHint>? hints = null)
     {
+        if (IsCompact)
+            return JsonSerializer.Serialize(new
+            {
+                status = "error",
+                error = new { code, message, details, hints }
+            }, Options);
+
         var response = new
         {
             status = "error",
@@ -87,7 +162,7 @@ public class ResponseFormatter
             }
         };
 
-        return JsonSerializer.Serialize(response, DefaultOptions);
+        return JsonSerializer.Serialize(response, Options);
     }
 
     /// <summary>
@@ -104,7 +179,7 @@ public class ResponseFormatter
             totalEstimate = result.TotalEstimate
         };
 
-        return JsonSerializer.Serialize(response, DefaultOptions);
+        return JsonSerializer.Serialize(response, Options);
     }
 
     /// <summary>
@@ -112,7 +187,7 @@ public class ResponseFormatter
     /// </summary>
     public static string Status(ServerStatus status)
     {
-        return JsonSerializer.Serialize(status, DefaultOptions);
+        return JsonSerializer.Serialize(status, Options);
     }
 
     /// <summary>
@@ -131,7 +206,7 @@ public class ResponseFormatter
             warmed = info.Warmed
         };
 
-        return JsonSerializer.Serialize(response, DefaultOptions);
+        return JsonSerializer.Serialize(response, Options);
     }
 
     /// <summary>
@@ -148,7 +223,7 @@ public class ResponseFormatter
             includeHeader = document.IncludeHeader
         };
 
-        return JsonSerializer.Serialize(response, DefaultOptions);
+        return JsonSerializer.Serialize(response, Options);
     }
 
     /// <summary>
@@ -167,7 +242,7 @@ public class ResponseFormatter
             code = slice.Code
         };
 
-        return JsonSerializer.Serialize(response, DefaultOptions);
+        return JsonSerializer.Serialize(response, Options);
     }
 
     /// <summary>
@@ -175,7 +250,7 @@ public class ResponseFormatter
     /// </summary>
     public static string MemberDetails(MemberDetails details)
     {
-        return JsonSerializer.Serialize(details, DefaultOptions);
+        return JsonSerializer.Serialize(details, Options);
     }
 
     /// <summary>
@@ -190,7 +265,7 @@ public class ResponseFormatter
             count = items.Count()
         };
 
-        return JsonSerializer.Serialize(response, DefaultOptions);
+        return JsonSerializer.Serialize(response, Options);
     }
 
     /// <summary>
@@ -204,7 +279,7 @@ public class ResponseFormatter
             stats = stats
         };
 
-        return JsonSerializer.Serialize(response, DefaultOptions);
+        return JsonSerializer.Serialize(response, Options);
     }
 
     /// <summary>
@@ -219,7 +294,7 @@ public class ResponseFormatter
             count = namespaces.Count()
         };
 
-        return JsonSerializer.Serialize(response, DefaultOptions);
+        return JsonSerializer.Serialize(response, Options);
     }
 
     /// <summary>
@@ -235,7 +310,7 @@ public class ResponseFormatter
             notes = result.Notes
         };
 
-        return JsonSerializer.Serialize(response, DefaultOptions);
+        return JsonSerializer.Serialize(response, Options);
     }
 
     /// <summary>

@@ -54,8 +54,7 @@ public class UsageAnalyzer
     {
         EnsureCacheCurrent();
 
-        var allUsages = _usageCache.GetOrAdd(memberId, _ => CollectUsages(memberId));
-        return Page(allUsages, limit, cursor);
+        return Page(CollectUsages(memberId), limit, cursor);
     }
 
     private List<UsageReference> CollectUsages(string memberId)
@@ -64,18 +63,33 @@ public class UsageAnalyzer
         if (targetMember == null)
             return new List<UsageReference>();
 
-        var usages = new List<UsageReference>();
-        var allTypes = _contextManager.GetAllTypes();
+        return FindUsagesOf(targetMember);
+    }
 
-        foreach (var type in allTypes)
+    public List<UsageReference> FindUsagesOf(IEntity targetMember)
+    {
+        EnsureCacheCurrent();
+        var identity = _memberResolver.GenerateMemberId(targetMember);
+        return _usageCache.GetOrAdd(identity, _ => CollectUsagesOf(targetMember));
+    }
+
+    private List<UsageReference> CollectUsagesOf(IEntity targetMember)
+    {
+        var targetIds = new HashSet<string>(StringComparer.Ordinal);
+        IEnumerable<IEntity> targets = targetMember switch
         {
-            foreach (var method in type.Methods)
-            {
-                usages.AddRange(FindUsagesInMethod(method, targetMember));
-            }
-        }
+            IProperty property => new[] { property.Getter, property.Setter }.OfType<IEntity>(),
+            IEvent evt => new[] { evt.AddAccessor, evt.RemoveAccessor, evt.InvokeAccessor }.OfType<IEntity>(),
+            _ => new[] { targetMember }
+        };
+        foreach (var target in targets.Where(target => !target.MetadataToken.IsNil))
+            targetIds.Add(_memberResolver.GenerateMemberId(target is IMember member ? member.MemberDefinition : target));
 
-        return usages;
+        var results = new List<UsageReference>();
+        var tokenIds = new Dictionary<int, string?>();
+        foreach (var method in _contextManager.GetAllTypes().SelectMany(type => TypeSurfaceComparer.GetAddressableMembers(type).OfType<IMethod>()))
+            results.AddRange(FindUsagesInMethod(method, targetIds, tokenIds));
+        return results;
     }
 
     /// <summary>
@@ -89,8 +103,7 @@ public class UsageAnalyzer
     public AnalysisPage<UsageReference> FindCallersPage(string methodId, int limit = 100, string? cursor = null)
     {
         EnsureCacheCurrent();
-        var allCallers = _usageCache
-            .GetOrAdd(methodId, _ => CollectUsages(methodId))
+        var allCallers = CollectUsages(methodId)
             .Where(u => u.Kind == UsageKind.Call || u.Kind == UsageKind.NewObject)
             .ToList();
 
@@ -196,7 +209,7 @@ public class UsageAnalyzer
 
         foreach (var type in allTypes)
         {
-            foreach (var method in type.Methods)
+            foreach (var method in TypeSurfaceComparer.GetAddressableMembers(type).OfType<IMethod>())
             {
                 var literals = FindStringLiteralsInMethod(method);
                 foreach (var literal in literals)
@@ -260,49 +273,34 @@ public class UsageAnalyzer
         }
     }
 
-    private IEnumerable<UsageReference> FindUsagesInMethod(IMethod method, IEntity targetMember)
+    private IEnumerable<UsageReference> FindUsagesInMethod(IMethod method, HashSet<string> targetIds, Dictionary<int, string?> tokenIds)
     {
-        if (method.MetadataToken.IsNil)
-            return Enumerable.Empty<UsageReference>();
-
-        var peFile = _contextManager.GetPEFile();
-        var metadata = peFile.Metadata;
-        if (method.MetadataToken.Kind != HandleKind.MethodDefinition)
-            return Enumerable.Empty<UsageReference>();
-
-        var methodDef = metadata.GetMethodDefinition((MethodDefinitionHandle)method.MetadataToken);
-        if (methodDef.RelativeVirtualAddress == 0)
-            return Enumerable.Empty<UsageReference>();
-        var body = peFile.Reader.GetMethodBody(methodDef.RelativeVirtualAddress);
-
-        var usages = new List<UsageReference>();
-        var il = body.GetILBytes();
-        if (il == null || il.Length == 0)
-            return usages;
-
-        var targetToken = MetadataTokens.GetToken(targetMember.MetadataToken);
-
-        foreach (var (opCode, operand) in ReadInstructions(il))
+        var results = new List<UsageReference>();
+        var body = IlAnalysisService.ReadMethodBody(method, _contextManager);
+        foreach (var instruction in body.Instructions)
         {
-            if (opCode == OpCodes.Call || opCode == OpCodes.Callvirt || opCode == OpCodes.Newobj ||
-                  opCode == OpCodes.Ldfld || opCode == OpCodes.Ldsfld || opCode == OpCodes.Stfld || opCode == OpCodes.Stsfld)
+            var kind = GetCalleeKind(instruction.OpCode);
+            if (kind == null || instruction.OperandToken is not int token)
+                continue;
+            if (!tokenIds.TryGetValue(token, out var identity))
             {
-                if (operand == targetToken)
-                {
-                    var kind = opCode == OpCodes.Newobj ? UsageKind.NewObject :
-                          (opCode == OpCodes.Ldfld || opCode == OpCodes.Ldsfld ? UsageKind.FieldRead :
-                            (opCode == OpCodes.Stfld || opCode == OpCodes.Stsfld ? UsageKind.FieldWrite : UsageKind.Call));
-                    usages.Add(new UsageReference
-                    {
-                        InMember = _memberResolver.GenerateMemberId(method),
-                        InType = method.DeclaringType?.FullName ?? "",
-                        Kind = kind
-                    });
-                }
+                var entity = ResolveEntity(MetadataTokens.EntityHandle(token));
+                if (entity is IMember member)
+                    entity = member.MemberDefinition;
+                identity = entity != null && !entity.MetadataToken.IsNil ? _memberResolver.GenerateMemberId(entity) : null;
+                tokenIds[token] = identity;
             }
+            if (identity != null && targetIds.Contains(identity))
+                results.Add(new UsageReference
+                {
+                    InMember = _memberResolver.GenerateMemberId(method),
+                    InType = method.DeclaringType?.FullName ?? "",
+                    Kind = Enum.Parse<UsageKind>(kind),
+                    Offset = instruction.Offset,
+                    MemberName = method.Name
+                });
         }
-
-        return usages;
+        return results;
     }
 
     private static string? GetCalleeKind(string opcode)
@@ -332,6 +330,8 @@ public class UsageAnalyzer
         return new CalleeReference
         {
             TargetMemberId = target?.MemberId,
+            CandidateMemberId = target?.CandidateMemberId,
+            ReferencedAssembly = target?.ReferencedAssembly,
             Symbol = symbol,
             DeclaringType = target?.DeclaringType,
             Kind = kind,
@@ -352,7 +352,7 @@ public class UsageAnalyzer
             return handle.Kind switch
             {
                 HandleKind.MethodDefinition or HandleKind.FieldDefinition => ResolveLocalTarget(handle, metadata, token),
-                HandleKind.MemberReference => ResolveMemberReferenceTarget(metadata, (MemberReferenceHandle)handle),
+                HandleKind.MemberReference or HandleKind.MethodSpecification => ResolveReferenceTarget(metadata, handle),
                 _ => new CalleeTarget(null, $"0x{token:X8}", null, "unresolved")
             };
         }
@@ -403,13 +403,40 @@ public class UsageAnalyzer
         return new CalleeTarget(null, symbol, declaringType, "unresolved");
     }
 
-    private CalleeTarget ResolveMemberReferenceTarget(MetadataReader metadata, MemberReferenceHandle handle)
+    private CalleeTarget ResolveReferenceTarget(MetadataReader metadata, EntityHandle handle)
     {
-        var memberReference = metadata.GetMemberReference(handle);
-        var declaringType = GetFullTypeName(metadata, memberReference.Parent);
-        var name = metadata.GetString(memberReference.Name);
-        var symbol = declaringType == null ? name : $"{declaringType}.{name}";
-        return new CalleeTarget(null, symbol, declaringType, "external");
+        var entity = ResolveEntity(handle);
+        if (entity is IMember member)
+            entity = member.MemberDefinition;
+        if (entity != null && !entity.MetadataToken.IsNil)
+        {
+            var id = _memberResolver.GenerateMemberId(entity);
+            var local = entity.ParentModule == _contextManager.GetCompilation().MainModule;
+            return new CalleeTarget(local ? id : null, entity.FullName,
+                entity.DeclaringType?.FullName, local ? "assembly" : "external",
+                local ? null : id, local ? null : entity.ParentModule?.FullAssemblyName);
+        }
+        if (handle.Kind == HandleKind.MethodSpecification)
+            handle = metadata.GetMethodSpecification((MethodSpecificationHandle)handle).Method;
+        if (handle.Kind != HandleKind.MemberReference)
+            return new CalleeTarget(null, $"0x{MetadataTokens.GetToken(handle):X8}", null, "unresolved");
+        var reference = metadata.GetMemberReference((MemberReferenceHandle)handle);
+        var declaringType = GetFullTypeName(metadata, reference.Parent);
+        var name = metadata.GetString(reference.Name);
+        return new CalleeTarget(null, declaringType == null ? name : $"{declaringType}.{name}", declaringType, "external",
+            ReferencedAssembly: GetReferencedAssembly(metadata, reference.Parent));
+    }
+
+    private static string? GetReferencedAssembly(MetadataReader metadata, EntityHandle handle)
+    {
+        if (handle.Kind == HandleKind.TypeReference)
+            return GetReferencedAssembly(metadata, metadata.GetTypeReference((TypeReferenceHandle)handle).ResolutionScope);
+        if (handle.Kind == HandleKind.AssemblyReference)
+        {
+            var reference = metadata.GetAssemblyReference((AssemblyReferenceHandle)handle);
+            return metadata.GetString(reference.Name) + ", Version=" + reference.Version;
+        }
+        return null;
     }
 
     private IEntity? ResolveEntity(EntityHandle handle)
@@ -435,11 +462,15 @@ public class UsageAnalyzer
                 var td = metadata.GetTypeDefinition((TypeDefinitionHandle)handle);
                 var ns = metadata.GetString(td.Namespace);
                 var name = metadata.GetString(td.Name);
+                if (!td.GetDeclaringType().IsNil)
+                    return GetFullTypeName(metadata, td.GetDeclaringType()) + "." + name;
                 return string.IsNullOrEmpty(ns) ? name : $"{ns}.{name}";
             case HandleKind.TypeReference:
                 var tr = metadata.GetTypeReference((TypeReferenceHandle)handle);
                 var ns2 = metadata.GetString(tr.Namespace);
                 var name2 = metadata.GetString(tr.Name);
+                if (tr.ResolutionScope.Kind == HandleKind.TypeReference)
+                    return GetFullTypeName(metadata, tr.ResolutionScope) + "." + name2;
                 return string.IsNullOrEmpty(ns2) ? name2 : $"{ns2}.{name2}";
             case HandleKind.MethodDefinition:
                 var methodDefinition = metadata.GetMethodDefinition((MethodDefinitionHandle)handle);
@@ -552,7 +583,7 @@ public class UsageAnalyzer
         }
     }
 
-    private static AnalysisPage<T> Page<T>(IReadOnlyList<T> items, int limit, string? cursor)
+    internal static AnalysisPage<T> Page<T>(IReadOnlyList<T> items, int limit, string? cursor)
     {
         var normalizedLimit = limit <= 0 ? 100 : Math.Min(limit, 100);
         var startIndex = ParseCursor(cursor);
@@ -594,6 +625,8 @@ public record UsageReference
     public required string InMember { get; init; }
     public required string InType { get; init; }
     public required UsageKind Kind { get; init; }
+    public int? Offset { get; init; }
+    public string? MemberName { get; init; }
     public int? Line { get; init; }
     public string? Snippet { get; init; }
 }
@@ -604,6 +637,9 @@ public record UsageReference
 public record CalleeReference
 {
     public string? TargetMemberId { get; init; }
+    [System.Text.Json.Serialization.JsonIgnore]
+    public string? CandidateMemberId { get; init; }
+    public string? ReferencedAssembly { get; init; }
     public required string Symbol { get; init; }
     public string? DeclaringType { get; init; }
     public required string Kind { get; init; }
@@ -623,7 +659,9 @@ internal sealed record CalleeTarget(
     string? MemberId,
     string Symbol,
     string? DeclaringType,
-    string Resolution);
+    string Resolution,
+    string? CandidateMemberId = null,
+    string? ReferencedAssembly = null);
 
 /// <summary>
 /// Types of member usage
