@@ -41,8 +41,8 @@ public static class CompareSymbolsTool
 
     private static object CompareType(ToolSessionView left, ToolSessionView right, string typeName)
     {
-        var leftType = FindType(left, typeName);
-        var rightType = FindType(right, typeName);
+        var leftType = FindType(left, typeName, out var leftCandidates);
+        var rightType = FindType(right, typeName, out var rightCandidates);
 
         var result = new TypeComparisonResult
         {
@@ -53,6 +53,13 @@ public static class CompareSymbolsTool
             CompareMode = "surface",
             LeftExists = leftType != null,
             RightExists = rightType != null,
+            // Plain names such as "N.IFoo" match every arity; say which type actually got diffed.
+            Resolution = leftCandidates > 1 || rightCandidates > 1
+                ? $"ambiguous symbol name: matched {leftCandidates} type(s) on the left and " +
+                  $"{rightCandidates} on the right; compared " +
+                  $"{leftType?.ReflectionName ?? "<missing>"} vs {rightType?.ReflectionName ?? "<missing>"} " +
+                  "(use the reflection name, e.g. N.IFoo`1, to pin a generic type)"
+                : null,
             AddedMembers = new List<ComparedMemberSummary>(),
             RemovedMembers = new List<ComparedMemberSummary>(),
             ChangedMembers = new List<ChangedMemberSummary>()
@@ -130,13 +137,47 @@ public static class CompareSymbolsTool
         };
     }
 
-    private static ITypeDefinition? FindType(ToolSessionView session, string typeName)
+    /// <summary>
+    /// ITypeDefinition.FullName drops generic arity, so "N.IFoo" matches both `IFoo` and `IFoo&lt;T&gt;`
+    /// and the first hit wins: comparing "Topomatic.Alg.Parameters.IParameterTable" silently diffed the
+    /// non-generic twin on both sides and reported "no changes". Match ReflectionName first (it keeps the
+    /// `1 suffix) and among equally specific candidates take the lowest arity, so a plain name means the
+    /// non-generic type.
+    /// </summary>
+    private static ITypeDefinition? FindType(ToolSessionView session, string typeName, out int candidateCount)
     {
         var allTypes = session.ContextManager.GetAllTypes();
-        return allTypes.FirstOrDefault(type => string.Equals(type.FullName, typeName, StringComparison.Ordinal))
-            ?? allTypes.FirstOrDefault(type => string.Equals(type.ReflectionName, typeName, StringComparison.Ordinal))
-            ?? allTypes.FirstOrDefault(type => string.Equals(type.Name, typeName, StringComparison.Ordinal));
+
+        var reflectionNameMatches = allTypes
+            .Where(type => string.Equals(type.ReflectionName, typeName, StringComparison.Ordinal))
+            .ToList();
+        if (reflectionNameMatches.Count > 0)
+        {
+            candidateCount = reflectionNameMatches.Count;
+            return PreferLowestArity(reflectionNameMatches);
+        }
+
+        var fullNameMatches = allTypes
+            .Where(type => string.Equals(type.FullName, typeName, StringComparison.Ordinal))
+            .ToList();
+        if (fullNameMatches.Count > 0)
+        {
+            candidateCount = fullNameMatches.Count;
+            return PreferLowestArity(fullNameMatches);
+        }
+
+        var simpleNameMatches = allTypes
+            .Where(type => string.Equals(type.Name, typeName, StringComparison.Ordinal))
+            .ToList();
+        candidateCount = simpleNameMatches.Count;
+        return simpleNameMatches.Count > 0 ? PreferLowestArity(simpleNameMatches) : null;
     }
+
+    private static ITypeDefinition PreferLowestArity(List<ITypeDefinition> candidates) =>
+        candidates
+            .OrderBy(type => type.TypeParameters.Count)
+            .ThenBy(type => type.ReflectionName, StringComparer.Ordinal)
+            .First();
 
     private static IMember? FindResolvedMember(ToolSessionView session, string symbol, string expectedKind)
     {
@@ -356,6 +397,7 @@ public sealed record TypeComparisonResult
     public required string CompareMode { get; init; }
     public bool LeftExists { get; init; }
     public bool RightExists { get; init; }
+    public string? Resolution { get; init; }
     public required List<ComparedMemberSummary> AddedMembers { get; init; }
     public required List<ComparedMemberSummary> RemovedMembers { get; init; }
     public required List<ChangedMemberSummary> ChangedMembers { get; init; }
