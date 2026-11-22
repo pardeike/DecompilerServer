@@ -47,7 +47,7 @@ public class AssemblyResolverLifetimeTests
             Assert.Same(first, second);
         }
 
-        // scope закрыт -- резолвер продолжает работать и отдаёт тот же экземпляр
+        // The resolver keeps its cache after the snapshot scope ends.
         Assert.Same(resolver.Resolve(reference), resolver.Resolve(reference));
 
         resolver.Dispose();
@@ -66,7 +66,6 @@ public class AssemblyResolverLifetimeTests
         Assert.NotNull(second);
         Assert.NotSame(first, second);
 
-        // закрытие scope не выводит резолвер из строя
         first.Dispose();
 
         resolver.Dispose();

@@ -33,8 +33,18 @@ internal static class ReferenceQuery
                 page = UsageAnalyzer.Page(items, limit, cursor);
                 searchedContexts = leases.Select(lease => lease.Session.ContextAlias).ToArray();
             }
-            return new { page.Items, page.HasMore, page.NextCursor, page.TotalEstimate, scope, searchedContexts,
-                hint = BuildEmptyScopeHint(scope, page, owner) };
+            return new
+            {
+                page.Items,
+                page.HasMore,
+                page.NextCursor,
+                page.TotalEstimate,
+                scope,
+                searchedContexts,
+                hints = scope == "assembly" && cursor == null && page.Items.Count == 0
+                    ? BuildEmptyAssemblyScopeHints(owner, owner.MemberResolver.GenerateMemberId(target), callersOnly)
+                    : null
+            };
         }
         finally
         {
@@ -44,38 +54,34 @@ internal static class ReferenceQuery
         }
     }
 
-    /// <summary>
-    /// scope "assembly" only ever searches the one loaded assembly, so an empty result is ambiguous:
-    /// the member may well be referenced from a dependent assembly that is not loaded. Say so instead
-    /// of letting the caller conclude "nobody calls this".
-    /// </summary>
-    private static string? BuildEmptyScopeHint(string scope, AnalysisPage<UsageReference> page, ToolSessionView owner)
+    // An empty assembly-scope result does not rule out references from other assemblies.
+    private static ToolErrorHint[] BuildEmptyAssemblyScopeHints(ToolSessionView owner, string memberId, bool callersOnly)
     {
-        if (scope != "assembly" || page.Items.Count > 0)
-            return null;
+        var alias = owner.ContextAlias ?? owner.ContextManager.Mvid!;
+        var others = ServiceLocator.Workspace?.ListContexts()
+            .Select(context => context.ContextAlias)
+            .Where(other => !string.Equals(other, alias, StringComparison.OrdinalIgnoreCase))
+            .ToList() ?? [];
 
-        var alias = owner.ContextAlias ?? owner.ContextManager.Mvid ?? "(current)";
-        var sessions = ServiceLocator.Workspace?.AcquireLoadedSessions();
-        try
-        {
-            var others = sessions?
-                .Select(lease => lease.Session.ContextAlias)
-                .Where(other => !string.Equals(other, alias, StringComparison.Ordinal))
-                .OrderBy(other => other, StringComparer.Ordinal)
-                .ToList() ?? [];
+        if (others.Count == 0)
+            return
+            [
+                new ToolErrorHint(
+                    "load_assembly",
+                    new { makeCurrent = false },
+                    $"No references in '{alias}' and no other context is loaded. Load dependent assemblies, then retry with scope \"workspace\".")
+            ];
 
-        return others.Count > 0
-                ? $"No references inside assembly '{alias}'. {others.Count} other context(s) are loaded ({string.Join(", ", others)}); " +
-                  "retry with scope:\"workspace\" to search them."
-                : $"No references inside assembly '{alias}'. No other assembly is loaded, so cross-assembly references " +
-                  "cannot be ruled out; load a dependent assembly and retry with scope:\"workspace\".";
-        }
-        finally
-        {
-            if (sessions != null)
-                foreach (var lease in sessions)
-                    lease.Dispose();
-        }
+        object arguments = callersOnly
+            ? new { methodId = memberId, scope = "workspace" }
+            : new { memberId, scope = "workspace" };
+        return
+        [
+            new ToolErrorHint(
+                callersOnly ? "find_callers" : "find_usages",
+                arguments,
+                $"No references in '{alias}'. Workspace scope also searches the loaded contexts {string.Join(", ", others)}.")
+        ];
     }
 
     public static List<CalleeReference> LinkLoadedTargets(List<CalleeReference> items)

@@ -5,12 +5,8 @@ using Microsoft.Extensions.DependencyInjection;
 
 namespace Tests;
 
-/// <summary>
-/// <c>scope: "assembly"</c> only ever searches the assembly that owns the member, so an empty
-/// result is ambiguous: the member may well be called from a dependent assembly that happens not to
-/// be loaded. Callers used to read that as "nobody calls this"; the tool now says so explicitly.
-/// These tests pin the hint down for <c>find_callers</c> and <c>find_usages</c>.
-/// </summary>
+// An empty assembly-scope result does not rule out callers in other assemblies.
+// find_callers and find_usages then return structured hints for the next call.
 public class ReferenceScopeHintTests : IDisposable
 {
     private const string ProducerSource =
@@ -96,11 +92,33 @@ public class ReferenceScopeHintTests : IDisposable
         Assert.Equal("assembly", data.GetProperty("scope").GetString());
         Assert.Empty(data.GetProperty("items").EnumerateArray());
 
-        var hint = data.GetProperty("hint").GetString();
-        Assert.NotNull(hint);
-        Assert.Contains("No references inside assembly 'producer'", hint!, StringComparison.Ordinal);
-        Assert.Contains("scope:\"workspace\"", hint!, StringComparison.Ordinal);
-        Assert.Contains("caller", hint!, StringComparison.Ordinal);
+        var hint = Assert.Single(data.GetProperty("hints").EnumerateArray());
+        Assert.Equal("find_callers", hint.GetProperty("tool").GetString());
+        Assert.Equal(produce, hint.GetProperty("arguments").GetProperty("methodId").GetString());
+        Assert.Equal("workspace", hint.GetProperty("arguments").GetProperty("scope").GetString());
+        Assert.Contains("caller", hint.GetProperty("reason").GetString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void FindCallers_AssemblyScopeWithoutOtherContexts_HintsAtLoadingDependents()
+    {
+        var producerPath = TemporaryAssemblyBuilder.BuildLibrary(_tempDir, "ScopeProducer", ProducerSource);
+        LoadAssemblyTool.LoadAssembly(assemblyPath: producerPath, contextAlias: "producer", rebuildIndex: false);
+        string produce;
+        using (var lease = ServiceLocator.Workspace!.AcquireSession("producer"))
+        {
+            produce = lease.Session.MemberResolver.GenerateMemberId(
+                lease.Session.ContextManager.GetAllTypes()
+                    .Single(type => type.FullName == "Scope.Producer")
+                    .Methods.Single(method => method.Name == "Produce"));
+        }
+
+        var response = JsonSerializer.Deserialize<JsonElement>(FindCallersTool.FindCallers(produce, limit: 10));
+        Assert.Equal("ok", response.GetProperty("status").GetString());
+
+        var hint = Assert.Single(response.GetProperty("data").GetProperty("hints").EnumerateArray());
+        Assert.Equal("load_assembly", hint.GetProperty("tool").GetString());
+        Assert.False(hint.GetProperty("arguments").GetProperty("makeCurrent").GetBoolean());
     }
 
     [Fact]
@@ -120,8 +138,7 @@ public class ReferenceScopeHintTests : IDisposable
         Assert.Equal("Scope.Consumer", callers[0].GetProperty("inType").GetString());
         Assert.Equal("Call", callers[0].GetProperty("memberName").GetString());
 
-        // A real answer needs no hint.
-        Assert.False(data.TryGetProperty("hint", out _));
+        Assert.False(data.TryGetProperty("hints", out _));
     }
 
     [Fact]
@@ -135,16 +152,15 @@ public class ReferenceScopeHintTests : IDisposable
         var data = response.GetProperty("data");
         Assert.Empty(data.GetProperty("items").EnumerateArray());
 
-        var hint = data.GetProperty("hint").GetString();
-        Assert.NotNull(hint);
-        Assert.Contains("No references inside assembly 'producer'", hint!, StringComparison.Ordinal);
-        Assert.Contains("scope:\"workspace\"", hint!, StringComparison.Ordinal);
+        var hint = Assert.Single(data.GetProperty("hints").EnumerateArray());
+        Assert.Equal("find_usages", hint.GetProperty("tool").GetString());
+        Assert.Equal(produce, hint.GetProperty("arguments").GetProperty("memberId").GetString());
+        Assert.Equal("workspace", hint.GetProperty("arguments").GetProperty("scope").GetString());
     }
 
     [Fact]
     public void FindCallers_AssemblyScopeWithHits_OmitsHint()
     {
-        // Both the definition and its call live in the same assembly: no ambiguity, no hint.
         var library = TemporaryAssemblyBuilder.BuildLibrary(_tempDir, "ScopeSelfCall",
             """
             namespace ScopeSelf
@@ -182,7 +198,7 @@ public class ReferenceScopeHintTests : IDisposable
 
         var data = response.GetProperty("data");
         Assert.Single(data.GetProperty("items").EnumerateArray());
-        Assert.False(data.TryGetProperty("hint", out _));
+        Assert.False(data.TryGetProperty("hints", out _));
     }
 
     public void Dispose()

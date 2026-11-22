@@ -11,8 +11,6 @@ namespace Tests;
 /// ITypeDefinition.FullName renders both <c>IFoo</c> and <c>IFoo&lt;T&gt;</c> as "N.IFoo", so keying
 /// a comparison by FullName makes ToDictionary throw "An item with the same key has already been
 /// added" and makes a plain-name lookup silently resolve to whichever arity happened to come first.
-/// Real-world trigger: obfuscated .NET Framework libraries such as Topomatic.*, where dozens of the
-/// assemblies declare both shapes side by side.
 ///
 /// Companion test: CompareContextsToolTests.CompareContexts_WithGenericAndNonGenericTwin_DoesNotCollide
 /// covers the unchanged-twin case with the fixture style used by that file.
@@ -181,11 +179,43 @@ public class GenericArityCollisionToolTests : IDisposable
         Assert.Equal("ok", response.GetProperty("status").GetString());
 
         var data = response.GetProperty("data");
-        var resolution = data.GetProperty("resolution").GetString();
-        Assert.NotNull(resolution);
-        Assert.Contains("matched 2 type(s) on the left", resolution!, StringComparison.Ordinal);
-        Assert.Contains("and 2 on the right", resolution!, StringComparison.Ordinal);
-        Assert.Contains("compared Arity.IValue vs Arity.IValue", resolution!, StringComparison.Ordinal);
+        var resolution = data.GetProperty("resolution");
+        Assert.Equal("Arity.IValue", resolution.GetProperty("comparedTypeName").GetString());
+        Assert.Equal(
+            ["Arity.IValue", "Arity.IValue`1"],
+            resolution.GetProperty("candidates").EnumerateArray().Select(item => item.GetString()!).ToArray());
+    }
+
+    [Fact]
+    public void CompareSymbols_PlainFullName_UsesSameTypeOnBothSides()
+    {
+        LoadPair(
+            "namespace Arity { public interface IShape<T> { void Draw(T value); } }",
+            "namespace Arity { public interface IShape { void Draw(); } public interface IShape<T> { void Draw(T value); } }");
+
+        var response = JsonSerializer.Deserialize<JsonElement>(CompareSymbolsTool.CompareSymbols("arity-left", "arity-right", "Arity.IShape"));
+        Assert.Equal("ok", response.GetProperty("status").GetString());
+
+        var data = response.GetProperty("data");
+        Assert.False(data.GetProperty("leftExists").GetBoolean());
+        Assert.True(data.GetProperty("rightExists").GetBoolean());
+        Assert.False(data.TryGetProperty("resolution", out _));
+    }
+
+    [Fact]
+    public void CompareSymbols_ExactKey_StillReportsOtherMatches()
+    {
+        const string source = "public class Widget { } namespace Arity { public class Widget { } }";
+        LoadPair(source, source);
+
+        var response = JsonSerializer.Deserialize<JsonElement>(CompareSymbolsTool.CompareSymbols("arity-left", "arity-right", "Widget"));
+        Assert.Equal("ok", response.GetProperty("status").GetString());
+
+        var resolution = response.GetProperty("data").GetProperty("resolution");
+        Assert.Equal("Widget", resolution.GetProperty("comparedTypeName").GetString());
+        Assert.Equal(
+            ["Widget", "Arity.Widget"],
+            resolution.GetProperty("candidates").EnumerateArray().Select(item => item.GetString()!).ToArray());
     }
 
     [Fact]

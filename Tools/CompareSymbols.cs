@@ -41,8 +41,9 @@ public static class CompareSymbolsTool
 
     private static object CompareType(ToolSessionView left, ToolSessionView right, string typeName)
     {
-        var leftType = FindType(left, typeName, out var leftCandidates);
-        var rightType = FindType(right, typeName, out var rightCandidates);
+        var typeKey = ResolveTypeKey(left, right, typeName, out var candidates);
+        var leftType = typeKey == null ? null : FindTypeByKey(left, typeKey);
+        var rightType = typeKey == null ? null : FindTypeByKey(right, typeKey);
 
         var result = new TypeComparisonResult
         {
@@ -53,13 +54,7 @@ public static class CompareSymbolsTool
             CompareMode = "surface",
             LeftExists = leftType != null,
             RightExists = rightType != null,
-            // Plain names such as "N.IFoo" match every arity; say which type actually got diffed.
-            Resolution = leftCandidates > 1 || rightCandidates > 1
-                ? $"ambiguous symbol name: matched {leftCandidates} type(s) on the left and " +
-                  $"{rightCandidates} on the right; compared " +
-                  $"{leftType?.ReflectionName ?? "<missing>"} vs {rightType?.ReflectionName ?? "<missing>"} " +
-                  "(use the reflection name, e.g. N.IFoo`1, to pin a generic type)"
-                : null,
+            Resolution = candidates.Count > 1 ? new TypeNameResolution(typeKey!, candidates) : null,
             AddedMembers = new List<ComparedMemberSummary>(),
             RemovedMembers = new List<ComparedMemberSummary>(),
             ChangedMembers = new List<ChangedMemberSummary>()
@@ -137,47 +132,43 @@ public static class CompareSymbolsTool
         };
     }
 
-    /// <summary>
-    /// ITypeDefinition.FullName drops generic arity, so "N.IFoo" matches both `IFoo` and `IFoo&lt;T&gt;`
-    /// and the first hit wins: comparing "Topomatic.Alg.Parameters.IParameterTable" silently diffed the
-    /// non-generic twin on both sides and reported "no changes". Match ReflectionName first (it keeps the
-    /// `1 suffix) and among equally specific candidates take the lowest arity, so a plain name means the
-    /// non-generic type.
-    /// </summary>
-    private static ITypeDefinition? FindType(ToolSessionView session, string typeName, out int candidateCount)
+    // Resolve one type key for both sides, so an ambiguous name never diffs two different types.
+    // An exact ReflectionName wins. Otherwise FullName, then simple name, with the lowest arity first.
+    private static string? ResolveTypeKey(ToolSessionView left, ToolSessionView right, string typeName,
+        out IReadOnlyList<string> candidates)
     {
-        var allTypes = session.ContextManager.GetAllTypes();
-
-        var reflectionNameMatches = allTypes
-            .Where(type => string.Equals(type.ReflectionName, typeName, StringComparison.Ordinal))
-            .ToList();
-        if (reflectionNameMatches.Count > 0)
+        var allTypes = left.ContextManager.GetAllTypes().Concat(right.ContextManager.GetAllTypes()).ToList();
+        if (allTypes.Any(type => string.Equals(TypeKeyIndex.GetKey(type), typeName, StringComparison.Ordinal)))
         {
-            candidateCount = reflectionNameMatches.Count;
-            return PreferLowestArity(reflectionNameMatches);
+            // Arity twins (typeName`N) have their own exact keys. Report other types that share the name.
+            var shadowed = allTypes
+                .Where(type => string.Equals(type.FullName, typeName, StringComparison.Ordinal)
+                    || string.Equals(type.Name, typeName, StringComparison.Ordinal))
+                .Select(TypeKeyIndex.GetKey)
+                .Where(key => key != typeName && !key.StartsWith(typeName + "`", StringComparison.Ordinal))
+                .Distinct(StringComparer.Ordinal)
+                .Order(StringComparer.Ordinal)
+                .ToList();
+            candidates = shadowed.Count > 0 ? [typeName, .. shadowed] : [];
+            return typeName;
         }
 
-        var fullNameMatches = allTypes
-            .Where(type => string.Equals(type.FullName, typeName, StringComparison.Ordinal))
-            .ToList();
-        if (fullNameMatches.Count > 0)
-        {
-            candidateCount = fullNameMatches.Count;
-            return PreferLowestArity(fullNameMatches);
-        }
+        var matches = allTypes.Where(type => string.Equals(type.FullName, typeName, StringComparison.Ordinal)).ToList();
+        if (matches.Count == 0)
+            matches = allTypes.Where(type => string.Equals(type.Name, typeName, StringComparison.Ordinal)).ToList();
 
-        var simpleNameMatches = allTypes
-            .Where(type => string.Equals(type.Name, typeName, StringComparison.Ordinal))
+        candidates = matches
+            .GroupBy(TypeKeyIndex.GetKey, StringComparer.Ordinal)
+            .OrderBy(group => group.Min(type => type.TypeParameters.Count))
+            .ThenBy(group => group.Key, StringComparer.Ordinal)
+            .Select(group => group.Key)
             .ToList();
-        candidateCount = simpleNameMatches.Count;
-        return simpleNameMatches.Count > 0 ? PreferLowestArity(simpleNameMatches) : null;
+        return candidates.FirstOrDefault();
     }
 
-    private static ITypeDefinition PreferLowestArity(List<ITypeDefinition> candidates) =>
-        candidates
-            .OrderBy(type => type.TypeParameters.Count)
-            .ThenBy(type => type.ReflectionName, StringComparer.Ordinal)
-            .First();
+    private static ITypeDefinition? FindTypeByKey(ToolSessionView session, string typeKey) =>
+        session.ContextManager.GetAllTypes()
+            .FirstOrDefault(type => string.Equals(TypeKeyIndex.GetKey(type), typeKey, StringComparison.Ordinal));
 
     private static IMember? FindResolvedMember(ToolSessionView session, string symbol, string expectedKind)
     {
@@ -397,11 +388,13 @@ public sealed record TypeComparisonResult
     public required string CompareMode { get; init; }
     public bool LeftExists { get; init; }
     public bool RightExists { get; init; }
-    public string? Resolution { get; init; }
+    public TypeNameResolution? Resolution { get; init; }
     public required List<ComparedMemberSummary> AddedMembers { get; init; }
     public required List<ComparedMemberSummary> RemovedMembers { get; init; }
     public required List<ChangedMemberSummary> ChangedMembers { get; init; }
 }
+
+public sealed record TypeNameResolution(string ComparedTypeName, IReadOnlyList<string> Candidates);
 
 public sealed record MemberComparisonResult
 {

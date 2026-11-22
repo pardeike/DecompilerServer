@@ -353,6 +353,10 @@ Status meanings:
 
 `changed` does not mean arbitrary method bodies changed. It means the direct member surface changed according to `TypeSurfaceComparer`.
 
+Type identity:
+- types are keyed by `ReflectionName`, which keeps generic arity and uses `+` for nested types; item `typeName` is this key;
+- metadata can repeat a `ReflectionName` only when malformed or obfuscated; repeats get `#2`, `#3` suffixes in metadata order, so left and right pair by position, and `typeNameCollisions` reports them.
+
 ### compare_symbols
 
 `compare_symbols` is the drill-down tool.
@@ -365,6 +369,11 @@ Supported modes:
 Accepted member symbol formats:
 - `Namespace.Type:MemberName`
 - `Namespace.Type.MemberName`
+
+Type resolution:
+- one type key applies to both aliases, so an ambiguous name never compares two different types;
+- an exact `ReflectionName` wins; otherwise `FullName`, then simple name, with the lowest arity first;
+- `resolution` lists the candidates when more than one type key matched; arity twins of an exact key do not count.
 
 Surface semantics:
 - type compare reports added, removed, and changed direct members;

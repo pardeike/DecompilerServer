@@ -279,7 +279,7 @@ public class CompareContextsToolTests : IDisposable
         // Both twins survive as separate rows: one changed, one unchanged.
         Assert.Equal(1, summary.GetProperty("changedTypes").GetInt32());
         Assert.Equal(1, summary.GetProperty("unchangedTypes").GetInt32());
-        Assert.False(data.TryGetProperty("collisionReport", out _));
+        Assert.False(data.TryGetProperty("typeNameCollisions", out _));
 
         var items = data.GetProperty("items");
         Assert.Equal(2, items.GetArrayLength());
