@@ -219,6 +219,22 @@ public class GenericArityCollisionToolTests : IDisposable
     }
 
     [Fact]
+    public void ResolveMemberId_PlainTypeName_PrefersNonGenericTwinDeclaredLater()
+    {
+        var path = TemporaryAssemblyBuilder.BuildLibrary(_tempDir, "ArityOrder",
+            "namespace Arity { public interface IOrder<T> { void Run(T value); } public interface IOrder { void Run(); } }");
+        LoadAssemblyTool.LoadAssembly(assemblyPath: path, contextAlias: "arity-order", rebuildIndex: false);
+
+        var plain = JsonSerializer.Deserialize<JsonElement>(ResolveMemberIdTool.ResolveMemberId("Arity.IOrder:Run", "arity-order"));
+        Assert.Equal("ok", plain.GetProperty("status").GetString());
+        Assert.DoesNotContain("value", plain.GetProperty("data").GetRawText(), StringComparison.Ordinal);
+
+        var generic = JsonSerializer.Deserialize<JsonElement>(ResolveMemberIdTool.ResolveMemberId("Arity.IOrder`1:Run", "arity-order"));
+        Assert.Equal("ok", generic.GetProperty("status").GetString());
+        Assert.Contains("value", generic.GetProperty("data").GetRawText(), StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void CompareSymbols_ReflectionName_PinsGenericShape()
     {
         LoadPair(TwinSourceV1, TwinSourceV2);

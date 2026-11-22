@@ -155,6 +155,9 @@ MVID plus metadata token, including generic method/type references, so different
 versions and overloads cannot cross-match. Usage entries include call-site `offset`
 and `memberName`; properties/events match their accessor calls. Workspace results
 are deduplicated by site and sorted by member ID and offset before pagination.
+An empty first page in assembly scope returns `hints` (`ToolErrorHint`). The hint
+retries in workspace scope when other contexts are resident, or suggests
+`load_assembly` with `makeCurrent: false`. Hint arguments carry the canonical member ID.
 
 ### TypeSurfaceComparer
 

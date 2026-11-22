@@ -29,12 +29,13 @@ Use DecompilerServer as the primary source of truth for loaded .NET assemblies. 
 5. Analyze relationships:
    - Use `find_callers`, `find_callees`, and `find_usages` for call/use questions.
    - Callers/usages default to `scope: "assembly"`; use `scope: "workspace"` for all currently loaded contexts. Inspect `searchedContexts`; deferred aliases are not activated by that query.
+   - An empty assembly-scope result does not prove there are no callers. Follow its `hints`: retry with `scope: "workspace"`, or load dependent assemblies first.
    - Callees link exact members in other loaded contexts with `resolution: "workspace"`; external targets retain referenced assembly identity.
    - Use `find_base_types`, `find_derived_types`, `get_overrides`, and `get_implementations` for inheritance questions.
    - Type metadata outlines have addressable child IDs and `limit`/`cursor` paging; `maxDepth: 0` omits children, and larger values show the direct member level.
    - Use `get_il` before proposing transpiler anchors; `suggest_transpiler_targets` should be treated as a real-IL hint list, not a substitute for reading IL.
 6. Compare versions:
-   - Use `compare_contexts` for structural alias-level overview.
+   - Use `compare_contexts` for structural alias-level overview. Its `typeName` is a reflection name (``N.IFoo`1``, `N.Outer+Inner`); pass it unchanged to `compare_symbols`.
    - Use `compare_symbols` for type/member drill-down.
    - Use `compare_symbols` with `compareMode: "body"` only for method bodies.
 

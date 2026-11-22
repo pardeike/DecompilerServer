@@ -338,7 +338,8 @@ generic constraints, and parameter defaults.
 `find_callers` and `find_usages` default to `scope: "assembly"`. Use
 `scope: "workspace"` to trace references across currently loaded contexts.
 Responses state the scope and searched contexts; deferred registrations are not
-loaded automatically. Different assembly versions remain distinct.
+loaded automatically. Different assembly versions remain distinct. An empty
+assembly-scope result includes `hints` for the next call.
 
 `batch_get_decompiled_source` returns at most `maxLinesPerMember` lines per member
 (default 50). Check each entry's `hasMore` and continue with `get_source_slice`

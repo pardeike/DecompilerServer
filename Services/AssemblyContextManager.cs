@@ -422,10 +422,12 @@ public class AssemblyContextManager : IDisposable
         var index = new ConcurrentDictionary<string, ITypeDefinition>();
         if (!IsLoaded) return index;
 
-        foreach (var type in _compilation!.MainModule.TypeDefinitions)
+        // FullName and Name omit generic arity; lowest arity first makes a plain name mean the non-generic type.
+        foreach (var type in _compilation!.MainModule.TypeDefinitions.OrderBy(type => type.TypeParameters.Count))
         {
+            index.TryAdd(type.ReflectionName, type);
             index.TryAdd(type.FullName, type);
-            index.TryAdd(type.Name, type); // Also index by simple name
+            index.TryAdd(type.Name, type);
         }
         return index;
     }
