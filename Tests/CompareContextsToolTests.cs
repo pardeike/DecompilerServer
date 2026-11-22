@@ -222,6 +222,71 @@ public class CompareContextsToolTests : IDisposable
         Assert.Contains(items.EnumerateArray(), item => item.GetProperty("status").GetString() == "unchanged" && item.GetProperty("typeName").GetString() == "VersionedApi.Stable");
     }
 
+    /// <summary>
+    /// ITypeDefinition.FullName drops generic arity, so "N.IFoo" and "N.IFoo&lt;T&gt;" collide.
+    /// Keying the diff on FullName used to throw "An item with the same key has already been added",
+    /// which made compare_contexts unusable on assemblies declaring both forms.
+    /// </summary>
+    [Fact]
+    public void CompareContexts_WithGenericAndNonGenericTwin_DoesNotCollide()
+    {
+        var leftAssembly = TemporaryAssemblyBuilder.BuildLibrary(_tempDir, "GenericLeft",
+            """
+            namespace Arity
+            {
+                public interface IParameterTable
+                {
+                    int Add();
+                }
+
+                public interface IParameterTable<T>
+                {
+                    void SetValue(T value);
+                }
+            }
+            """);
+
+        var rightAssembly = TemporaryAssemblyBuilder.BuildLibrary(_tempDir, "GenericRight",
+            """
+            namespace Arity
+            {
+                public interface IParameterTable
+                {
+                    int Add();
+                    void Remove();
+                }
+
+                public interface IParameterTable<T>
+                {
+                    void SetValue(T value);
+                }
+            }
+            """);
+
+        LoadAssemblyTool.LoadAssembly(assemblyPath: leftAssembly, contextAlias: "left", rebuildIndex: false);
+        LoadAssemblyTool.LoadAssembly(assemblyPath: rightAssembly, contextAlias: "right", rebuildIndex: false, makeCurrent: false);
+
+        var result = CompareContextsTool.CompareContexts("left", "right", includeUnchanged: true);
+        var response = JsonSerializer.Deserialize<JsonElement>(result);
+
+        Assert.Equal("ok", response.GetProperty("status").GetString());
+
+        var data = response.GetProperty("data");
+        var summary = data.GetProperty("summary");
+        Assert.Equal(2, summary.GetProperty("totalLeftTypes").GetInt32());
+        Assert.Equal(2, summary.GetProperty("totalRightTypes").GetInt32());
+
+        // Both twins survive as separate rows: one changed, one unchanged.
+        Assert.Equal(1, summary.GetProperty("changedTypes").GetInt32());
+        Assert.Equal(1, summary.GetProperty("unchangedTypes").GetInt32());
+        Assert.False(data.TryGetProperty("collisionReport", out _));
+
+        var items = data.GetProperty("items");
+        Assert.Equal(2, items.GetArrayLength());
+        Assert.Contains(items.EnumerateArray(), item => item.GetProperty("typeName").GetString() == "Arity.IParameterTable" && item.GetProperty("status").GetString() == "changed");
+        Assert.Contains(items.EnumerateArray(), item => item.GetProperty("typeName").GetString() == "Arity.IParameterTable`1" && item.GetProperty("status").GetString() == "unchanged");
+    }
+
     public void Dispose()
     {
         if (_serviceProvider is IDisposable disposable)

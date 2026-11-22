@@ -27,10 +27,19 @@ public static class CompareContextsTool
             using var left = ToolSessionRouter.GetForContext(leftContextAlias);
             using var right = ToolSessionRouter.GetForContext(rightContextAlias);
 
-            var leftTypes = GetFilteredTypes(left.ContextManager, namespaceFilter, deep, includeCompilerGenerated)
-                .ToDictionary(type => type.FullName, StringComparer.Ordinal);
-            var rightTypes = GetFilteredTypes(right.ContextManager, namespaceFilter, deep, includeCompilerGenerated)
-                .ToDictionary(type => type.FullName, StringComparer.Ordinal);
+            // ITypeDefinition.FullName drops generic arity, so `IFoo` and `IFoo<T>` both report
+            // "N.IFoo" and ToDictionary throws "An item with the same key has already been added".
+            // Any assembly declaring a type next to its generic twin hits this. Key on ReflectionName
+            // instead, which keeps the `1 suffix; the disambiguator is only needed when even that
+            // collides (nested types with the same metadata name).
+            var leftCollisions = new List<string>();
+            var rightCollisions = new List<string>();
+            var leftTypes = TypeKeyIndex.Build(
+                GetFilteredTypes(left.ContextManager, namespaceFilter, deep, includeCompilerGenerated),
+                leftCollisions);
+            var rightTypes = TypeKeyIndex.Build(
+                GetFilteredTypes(right.ContextManager, namespaceFilter, deep, includeCompilerGenerated),
+                rightCollisions);
 
             var summary = new ContextComparisonSummary
             {
@@ -103,7 +112,8 @@ public static class CompareContextsTool
                 Items = pagedItems,
                 HasMore = hasMore,
                 NextCursor = hasMore ? (startIndex + limit).ToString() : null,
-                TotalEstimate = items.Count
+                TotalEstimate = items.Count,
+                CollisionReport = TypeKeyIndex.DescribeCollisions(leftCollisions, rightCollisions)
             };
         });
     }
@@ -173,6 +183,7 @@ public sealed record ContextComparisonResult
     public bool HasMore { get; init; }
     public string? NextCursor { get; init; }
     public int TotalEstimate { get; init; }
+    public string? CollisionReport { get; init; }
 }
 
 public sealed record ContextComparisonSummary
