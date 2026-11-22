@@ -33,12 +33,47 @@ internal static class ReferenceQuery
                 page = UsageAnalyzer.Page(items, limit, cursor);
                 searchedContexts = leases.Select(lease => lease.Session.ContextAlias).ToArray();
             }
-            return new { page.Items, page.HasMore, page.NextCursor, page.TotalEstimate, scope, searchedContexts };
+            return new { page.Items, page.HasMore, page.NextCursor, page.TotalEstimate, scope, searchedContexts,
+                hint = BuildEmptyScopeHint(scope, page, owner) };
         }
         finally
         {
             if (leases != null)
                 foreach (var lease in leases)
+                    lease.Dispose();
+        }
+    }
+
+    /// <summary>
+    /// scope "assembly" only ever searches the one loaded assembly, so an empty result is ambiguous:
+    /// the member may well be referenced from a dependent assembly that is not loaded. Say so instead
+    /// of letting the caller conclude "nobody calls this".
+    /// </summary>
+    private static string? BuildEmptyScopeHint(string scope, AnalysisPage<UsageReference> page, ToolSessionView owner)
+    {
+        if (scope != "assembly" || page.Items.Count > 0)
+            return null;
+
+        var alias = owner.ContextAlias ?? owner.ContextManager.Mvid ?? "(current)";
+        var sessions = ServiceLocator.Workspace?.AcquireLoadedSessions();
+        try
+        {
+            var others = sessions?
+                .Select(lease => lease.Session.ContextAlias)
+                .Where(other => !string.Equals(other, alias, StringComparison.Ordinal))
+                .OrderBy(other => other, StringComparer.Ordinal)
+                .ToList() ?? [];
+
+        return others.Count > 0
+                ? $"No references inside assembly '{alias}'. {others.Count} other context(s) are loaded ({string.Join(", ", others)}); " +
+                  "retry with scope:\"workspace\" to search them."
+                : $"No references inside assembly '{alias}'. No other assembly is loaded, so cross-assembly references " +
+                  "cannot be ruled out; load a dependent assembly and retry with scope:\"workspace\".";
+        }
+        finally
+        {
+            if (sessions != null)
+                foreach (var lease in sessions)
                     lease.Dispose();
         }
     }
