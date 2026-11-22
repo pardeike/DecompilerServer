@@ -49,6 +49,8 @@ internal sealed class OwnedAssemblyResolver : IAssemblyResolver, IDisposable
                 LazyThreadSafetyMode.ExecutionAndPublication)).Value;
     }
 
+    public IDisposable? BeginSnapshot() => _resolver.BeginSnapshot();
+
     public Task<MetadataFile?> ResolveAsync(IAssemblyReference reference)
     {
         return Task.FromResult(Resolve(reference));

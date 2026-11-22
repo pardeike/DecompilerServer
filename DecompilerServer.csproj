@@ -11,7 +11,7 @@
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" Version="10.0.8" />
     <PackageReference Include="ModelContextProtocol" Version="1.3.0" />
-    <PackageReference Include="ICSharpCode.Decompiler" Version="10.0.1.8346" />
+    <PackageReference Include="ICSharpCode.Decompiler" Version="[11.1.0.9782]" />
   </ItemGroup>
 
   <ItemGroup>
